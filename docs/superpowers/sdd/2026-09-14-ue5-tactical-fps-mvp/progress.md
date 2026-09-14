@@ -59,3 +59,39 @@ Ruling: the rename landed on branch `codex/rename-blackarms-liberty-america` and
 Ruling: `[CoreRedirects]` (class/struct/enum/package) stay in `Config/DefaultEngine.ini` even though the content is rebuilt, so any older checkout or stale reference still resolves. Cost if wrong: none; they are inert for freshly generated content.
 
 Task 9 remains complete; Task 10 is the next planned task.
+
+## Review pass (2026-09-15, before Task 10)
+
+Full report: `docs/superpowers/sdd/2026-09-14-ue5-tactical-fps-mvp/review-2026-09-15-code-review.md`.
+
+Ruling: the review landed directly on `main` (same ruling as Tasks 1-9: every verification path is an
+absolute-path editor run against this checkout). Cost if wrong: a bad fix needs a revert instead of a
+discarded branch.
+
+Fixed in this pass:
+
+1. Objective AI held no position during a timed interaction — the manager's movement cancel restarted
+   plant/defuse. Fixed in `BLAAIController` (hold while `Defusing`, `StopMovement` when a plant/defuse starts)
+   and covered by the new `ai_defender_defuse_holds_position` assertion (`defuse_hold=1`), proven red-green.
+2. Bot aim error was a constant one-sided yaw bias; now a per-shot random error of the same magnitude.
+3. Tasks 2-6 PIE drivers could not fail; validators/test actors now expose `bValidationSucceeded` /
+   `bValidationFailed` and the drivers assert them (negative probe recorded in the report).
+4. `build_task7_assets.py` destroyed every level actor and `build_task8_assets.py` destroyed every spawn and
+   tactical point, so re-running them deleted later tasks' content. Both now destroy only their own labelled
+   actors; `build_task7_assets.py` was re-run over the accumulated level and all Task 7/8/9 checks still pass.
+5. `ABLAObjectiveManager` / `ABLARoundManager` now unbind their delegates in `EndPlay`.
+6. `verify_task4_contracts.py` now asserts the full weapon payload; `verify_task9_contracts.py` guards a null
+   navigation path.
+
+Tooling: `Scripts/run_verification.ps1` is the committed runner for the 19-check matrix; it enforces the marker
+contract, fails fast on contract tracebacks and exits non-zero. `README.md` documents it.
+
+Verification evidence (final tree): `Build.bat` succeeded and `Scripts/run_verification.ps1 -Tag green` reported
+`MATRIX_DONE checks=19 failed=0 / MATRIX_OK`.
+
+Deferred to the human or to Task 10 (details and rationale in the report): apply the remaining six bot
+difficulty parameters; decide friendly fire; decide whether a dropped core should persist outside the objective
+area; repoint `GlobalDefaultGameMode` during Task 10; clean inert delegate `StructRedirects`; delete the dead
+`BLA Bootstrap Navigation Bounds` cleanup and the stale pre-rename binaries.
+
+Task 10 remains the next planned task.
