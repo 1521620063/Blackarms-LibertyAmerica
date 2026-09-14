@@ -21,4 +21,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "FPS|Editor")
     static bool ConfigureFPSBotBehaviorTree(UBehaviorTree* BehaviorTree, UBlackboardData* Blackboard, const TArray<UClass*>& TaskClasses, const TArray<UClass*>& ServiceClasses);
+
+    UFUNCTION(BlueprintCallable, Category = "FPS|Editor")
+    static bool ConfigureFPSBotTeamBehaviorTree(UBehaviorTree* BehaviorTree, UBlackboardData* Blackboard,
+        const TArray<UClass*>& BaseTaskClasses, const TArray<UClass*>& TeamTaskClasses,
+        const TArray<UClass*>& ServiceClasses);
 };

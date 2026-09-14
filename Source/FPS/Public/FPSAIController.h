@@ -6,6 +6,8 @@
 
 class AFPSTacticalManager;
 class AFPSTacticalPoint;
+class AFPSTeamManager;
+class AFPSTeamOrderManager;
 class UBehaviorTree;
 class UFPSBotDifficultyDataAsset;
 class UFPSBotPerception;
@@ -37,6 +39,16 @@ public:
     float AppliedAimErrorDegrees = 4.0f;
     UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
     float MaxEngagementDistance = 5000.0f;
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    TObjectPtr<AActor> DirectiveTarget;
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    TObjectPtr<AActor> FollowTarget;
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    EFPS_TeamOrder CurrentTeamOrder = EFPS_TeamOrder::FollowPlayer;
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    FVector DirectiveLocation = FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    bool bHasActiveTeamOrder = false;
 
     UFUNCTION(BlueprintCallable, Category = "FPS|AI")
     bool UpdateTarget(AActor* Candidate, EFPS_StimulusType StimulusType);
@@ -48,11 +60,27 @@ public:
     bool RecoverFromStuck(AFPSTacticalManager* Manager);
     UFUNCTION(BlueprintCallable, Category = "FPS|AI")
     void ApplyDifficulty(UFPSBotDifficultyDataAsset* InDifficulty);
+    UFUNCTION(BlueprintCallable, Category = "FPS|AI")
+    bool ResolveRoleDirective(AFPSTacticalManager* Manager, AFPSTeamManager* TeamManager, AActor* PlayerActor);
+    UFUNCTION(BlueprintCallable, Category = "FPS|AI")
+    bool ResolveTeamOrder(AFPSTeamOrderManager* OrderManager, EFPS_RoundPhase Phase);
+    UFUNCTION(BlueprintCallable, Category = "FPS|AI")
+    void ConfigureTeamOrders(AFPSTeamOrderManager* OrderManager);
 
 protected:
     virtual void OnPossess(APawn* InPawn) override;
 
 private:
+    void HandleTeamOrderChanged(EFPS_RoundPhase Phase);
+
+    UPROPERTY()
+    TObjectPtr<AFPSTeamOrderManager> TeamOrderManager;
+    UPROPERTY()
+    TObjectPtr<AFPSTacticalManager> RoleTacticalManager;
+    UPROPERTY()
+    TObjectPtr<AFPSTeamManager> RoleTeamManager;
+    UPROPERTY()
+    TObjectPtr<AActor> RolePlayerActor;
     FVector LastStuckCheckLocation = FVector::ZeroVector;
     float StuckElapsed = 0.0f;
 };

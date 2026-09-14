@@ -189,13 +189,13 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 **Interfaces:** Consumes the vertical slice and command input; produces configurable Solo/2v2/3v3 population, roles, orders, and observation.
 
-- [ ] Define `EFPS_TeamOrder = FollowPlayer, HoldHere, AttackTarget, Retreat`; store current order, issuer, target location, and phase expiry; clear at reset.
-- [ ] Assign Assault, Support, Defender deterministically to available bots; Solo/2v2 use the first available roles.
-- [ ] Make Assault choose AttackPoint, Support follow player or nearest Assault, Defender choose GuardPoint; after player death follow highest-priority living teammate.
-- [ ] Route four keyboard/selector commands through TeamOrderManager; commands may not directly move or damage bots.
-- [ ] After player death, cycle previous/next living friendly bots; when none live, use a fixed map camera until RoundResult.
-- [ ] Run Solo, 2v2, and 3v3, force deaths in different orders, and verify no duplicate registration, role assignment, order reset, or spectator enemy view.
-- [ ] Run full 3v3 test to five wins and commit `feat: add configurable team sizes and bot roles`.
+- [x] Define `EFPS_TeamOrder = FollowPlayer, HoldHere, AttackTarget, Retreat`; store current order, issuer, target location, and phase expiry; clear at reset.
+- [x] Assign Assault, Support, Defender deterministically to available bots; Solo/2v2 use the first available roles.
+- [x] Make Assault choose AttackPoint, Support follow player or nearest Assault, Defender choose GuardPoint; after player death follow highest-priority living teammate.
+- [x] Route four keyboard/selector commands through TeamOrderManager; commands may not directly move or damage bots.
+- [x] After player death, cycle previous/next living friendly bots; when none live, use a fixed map camera until RoundResult.
+- [x] Run Solo, 2v2, and 3v3, force deaths in different orders, and verify no duplicate registration, role assignment, order reset, or spectator enemy view.
+- [x] Run full 3v3 test to five wins and commit `feat: add configurable team sizes and bot roles`.
 
 ---
 

@@ -4,6 +4,7 @@
 #include "FPSGameState.h"
 #include "FPSHealthComponent.h"
 #include "FPSTeamManager.h"
+#include "FPSTeamOrderManager.h"
 #include "Kismet/GameplayStatics.h"
 
 AFPSRoundManager::AFPSRoundManager()
@@ -154,6 +155,10 @@ void AFPSRoundManager::ResetAllCombatants()
         Combatant->ResetCombatant();
     }
     TeamManager->ResetReservations();
+    if (TeamOrderManager)
+    {
+        TeamOrderManager->ClearOrder();
+    }
 }
 
 void AFPSRoundManager::HandleCombatantDeath(AFPSCharacterBase* DeadCombatant, AActor* InstigatorActor)
@@ -168,7 +173,8 @@ void AFPSRoundManager::HandleCombatantDeath(AFPSCharacterBase* DeadCombatant, AA
     }
 }
 
-void AFPSRoundManager::ConfigureManagers(AFPSGameState* InGameState, AFPSTeamManager* InTeamManager)
+void AFPSRoundManager::ConfigureManagers(AFPSGameState* InGameState, AFPSTeamManager* InTeamManager,
+    AFPSTeamOrderManager* InOrderManager)
 {
     if (TeamManager)
     {
@@ -176,6 +182,7 @@ void AFPSRoundManager::ConfigureManagers(AFPSGameState* InGameState, AFPSTeamMan
     }
     FPSGameState = InGameState;
     TeamManager = InTeamManager;
+    TeamOrderManager = InOrderManager;
     if (TeamManager)
     {
         TeamManager->OnCombatantDeath.AddUObject(this, &AFPSRoundManager::HandleCombatantDeath);

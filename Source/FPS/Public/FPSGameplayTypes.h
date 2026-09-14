@@ -39,6 +39,15 @@ enum class EFPS_BotRole : uint8
 };
 
 UENUM(BlueprintType)
+enum class EFPS_TeamOrder : uint8
+{
+    FollowPlayer,
+    HoldHere,
+    AttackTarget,
+    Retreat
+};
+
+UENUM(BlueprintType)
 enum class EFPS_WeaponType : uint8
 {
     EnergyPistol,

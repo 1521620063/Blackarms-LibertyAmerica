@@ -92,3 +92,55 @@ bool UFPSBlueprintAssetBuilder::ConfigureFPSBotBlackboard(UBlackboardData* Black
     Blackboard->MarkPackageDirty();
     return true;
 }
+
+bool UFPSBlueprintAssetBuilder::ConfigureFPSBotTeamBehaviorTree(UBehaviorTree* BehaviorTree, UBlackboardData* Blackboard,
+    const TArray<UClass*>& BaseTaskClasses, const TArray<UClass*>& TeamTaskClasses,
+    const TArray<UClass*>& ServiceClasses)
+{
+    if (!BehaviorTree || !Blackboard || BaseTaskClasses.Num() != 4 || TeamTaskClasses.Num() != 3)
+    {
+        return false;
+    }
+    UBTComposite_Selector* Root = NewObject<UBTComposite_Selector>(BehaviorTree, TEXT("PrioritySelector"));
+    Root->NodeName = TEXT("Dead Wait, Combat Cover, Recovery, Role and Team Orders");
+    for (int32 Index = 0; Index < 3; ++Index)
+    {
+        if (!BaseTaskClasses[Index] || !BaseTaskClasses[Index]->IsChildOf(UBTTaskNode::StaticClass()))
+        {
+            return false;
+        }
+        FBTCompositeChild Child;
+        Child.ChildTask = NewObject<UBTTaskNode>(Root, BaseTaskClasses[Index]);
+        Root->Children.Add(Child);
+    }
+
+    UBTComposite_Selector* TeamSelector = NewObject<UBTComposite_Selector>(Root, TEXT("RoleOrderSelector"));
+    TeamSelector->NodeName = TEXT("Follow Player, Guard Point, Attack Route, Fallback Tactical Move");
+    TArray<UClass*> RoleTasks = TeamTaskClasses;
+    RoleTasks.Add(BaseTaskClasses[3]);
+    for (UClass* TaskClass : RoleTasks)
+    {
+        if (!TaskClass || !TaskClass->IsChildOf(UBTTaskNode::StaticClass()))
+        {
+            return false;
+        }
+        FBTCompositeChild RoleChild;
+        RoleChild.ChildTask = NewObject<UBTTaskNode>(TeamSelector, TaskClass);
+        TeamSelector->Children.Add(RoleChild);
+    }
+    FBTCompositeChild TeamChild;
+    TeamChild.ChildComposite = TeamSelector;
+    Root->Children.Add(TeamChild);
+
+    for (UClass* ServiceClass : ServiceClasses)
+    {
+        if (ServiceClass && ServiceClass->IsChildOf(UBTService::StaticClass()))
+        {
+            Root->Services.Add(NewObject<UBTService>(Root, ServiceClass));
+        }
+    }
+    BehaviorTree->RootNode = Root;
+    BehaviorTree->BlackboardAsset = Blackboard;
+    BehaviorTree->MarkPackageDirty();
+    return true;
+}

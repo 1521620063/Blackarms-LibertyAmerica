@@ -7,6 +7,7 @@
 class AFPSCharacterBase;
 class AFPSGameState;
 class AFPSTeamManager;
+class AFPSTeamOrderManager;
 
 UCLASS(BlueprintType, Blueprintable)
 class FPS_API UFPSRoundResultData : public UObject
@@ -48,12 +49,15 @@ public:
     void ResetAllCombatants();
 
     UFUNCTION(BlueprintCallable, Category = "FPS|Round")
-    void ConfigureManagers(AFPSGameState* InGameState, AFPSTeamManager* InTeamManager);
+    void ConfigureManagers(AFPSGameState* InGameState, AFPSTeamManager* InTeamManager,
+        AFPSTeamOrderManager* InOrderManager = nullptr);
 
     UPROPERTY(BlueprintReadWrite, Category = "FPS|Round")
     TObjectPtr<AFPSGameState> FPSGameState;
     UPROPERTY(BlueprintReadWrite, Category = "FPS|Round")
     TObjectPtr<AFPSTeamManager> TeamManager;
+    UPROPERTY(BlueprintReadWrite, Category = "FPS|Round")
+    TObjectPtr<AFPSTeamOrderManager> TeamOrderManager;
     UPROPERTY(BlueprintReadOnly, Category = "FPS|Round")
     TObjectPtr<UFPSRoundResultData> LastResult;
     UPROPERTY(BlueprintReadOnly, Category = "FPS|Round")
