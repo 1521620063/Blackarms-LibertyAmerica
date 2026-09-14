@@ -34,9 +34,18 @@ def tick(_):
         if state["ticks"] >= MAX_STARTUP_TICKS:
             finish(False, "PIE did not start")
         return
+    game_world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+    if game_world is None:
+        return
+    game_mode = unreal.GameplayStatics.get_game_mode(game_world)
+    if game_mode is None:
+        return
+    if not isinstance(game_mode, unreal.BLAGameModeElimination):
+        finish(False, f"1v1 map game mode={game_mode}")
+        return
     state["pie"] += 1
     if state["pie"] >= VALIDATION_TICKS:
-        finish(True, f"ticks={state['pie']}")
+        finish(True, f"ticks={state['pie']} game_mode=elimination")
 
 
 if not level.load_level(MAP):

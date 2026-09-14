@@ -63,7 +63,15 @@ def main():
         if parent.get_path_name() != expected_parent:
             fail(f"{path} parent: expected {expected_parent}, got {parent.get_path_name()}")
 
-    unreal.log("BLA_TASK5_CONTRACTS_OK native=8 blueprints=8")
+    level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if not level_editor.load_level("/Game/BLA/Maps/Graybox/L_TestBootstrap"):
+        fail("could not load the bootstrap map")
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    default_mode = world.get_world_settings().get_editor_property("default_game_mode") if world else None
+    if default_mode is None or "BP_BLAGameMode" not in default_mode.get_path_name():
+        fail(f"bootstrap map default game mode: got {default_mode}")
+
+    unreal.log("BLA_TASK5_CONTRACTS_OK native=8 blueprints=8 default_map_game_mode=1")
 
 
 main()

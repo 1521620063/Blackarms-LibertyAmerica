@@ -58,6 +58,15 @@ def place_validator():
     elif len(actors) > 1:
         for duplicate in actors[1:]:
             actor_subsystem.destroy_actor(duplicate)
+
+    # The bootstrap map is the project's default map; it must run BLA rules instead of the
+    # FirstPerson template game mode it was copied from.
+    game_mode = unreal.load_asset("/Game/BLA/Blueprints/Core/BP_BLAGameMode")
+    if game_mode is None:
+        raise RuntimeError("Failed to load BP_BLAGameMode for the bootstrap map")
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    world.get_world_settings().set_editor_property("default_game_mode", game_mode.generated_class())
+
     if not level_editor.save_current_level():
         raise RuntimeError(f"Failed to save {BOOTSTRAP_LEVEL}")
 

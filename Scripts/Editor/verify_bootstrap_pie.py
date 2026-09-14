@@ -58,8 +58,20 @@ def tick(_delta_seconds):
     if game_world is None:
         return
 
+    game_mode = unreal.GameplayStatics.get_game_mode(game_world)
+    if game_mode is None:
+        return
+    if not isinstance(game_mode, unreal.BLAGameMode):
+        finish(False, f"default map game mode={game_mode}")
+        return
+
     pawn = unreal.GameplayStatics.get_player_pawn(game_world, 0)
     if pawn is None:
+        if state["ticks"] >= MAX_STARTUP_TICKS * 2:
+            finish(False, "player pawn did not spawn")
+        return
+    if not isinstance(pawn, unreal.BLACharacterBase):
+        finish(False, f"player pawn class={pawn.get_class().get_name()}")
         return
 
     if state["start"] is None:
