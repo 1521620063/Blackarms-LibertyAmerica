@@ -50,4 +50,5 @@ void UFPSHealthComponent::HandleDeath(AActor* InstigatorActor)
     CurrentHealth = 0.0f;
     OnDeath.Broadcast(InstigatorActor);
     OnDeathNative.Broadcast(InstigatorActor);
+    OnCombatantDeathNative.Broadcast(GetOwner(), InstigatorActor);
 }

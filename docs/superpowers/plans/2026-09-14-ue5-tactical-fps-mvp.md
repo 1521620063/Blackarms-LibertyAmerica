@@ -138,14 +138,14 @@ Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultipl
 
 `BP_FPSRoundManager` functions: `StartMatch(Rules)`, `StartPreparationPhase()`, `StartCombatPhase()`, `EndRound(Winner, Reason)`, `SwitchSidesIfRequired()`, `StartNextRound()`, `EndMatch(Winner)`, `ResetAllCombatants()`.
 
-- [ ] Store selected mode/rules/difficulty/team size in GameInstance; store live state only in GameState.
-- [ ] Implement team registration, unregistration, living count, team members, opposing team, and configured slots.
-- [ ] Implement spawn-point team/zone/reservation data and safe fallback selection.
-- [ ] Implement `Loading -> Preparation -> Combat -> RoundResult` and `MatchResult` at `RoundsToWin`; one timer belongs to RoundManager.
-- [ ] On death, end elimination rounds once when a side reaches zero; on timeout compare living count, then remaining health, then use overtime.
-- [ ] Reset health, ammo, objective, reservations, sides, and combatants idempotently; no duplicate spawns or team entries.
-- [ ] Test 1v1: kill either side, verify one result, one score increment, reset, and match result after three wins.
-- [ ] Commit `feat: add teams and round match framework`.
+- [x] Store selected mode/rules/difficulty/team size in GameInstance; store live state only in GameState.
+- [x] Implement team registration, unregistration, living count, team members, opposing team, and configured slots.
+- [x] Implement spawn-point team/zone/reservation data and safe fallback selection.
+- [x] Implement `Loading -> Preparation -> Combat -> RoundResult` and `MatchResult` at `RoundsToWin`; one timer belongs to RoundManager.
+- [x] On death, end elimination rounds once when a side reaches zero; on timeout compare living count, then remaining health, then use overtime.
+- [x] Reset health, ammo, objective, reservations, sides, and combatants idempotently; no duplicate spawns or team entries.
+- [x] Test 1v1: kill either side, verify one result, one score increment, reset, and match result after three wins.
+- [x] Commit `feat: add teams and round match framework`.
 
 ---
 

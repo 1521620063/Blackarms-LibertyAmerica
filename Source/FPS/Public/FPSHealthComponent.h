@@ -6,6 +6,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FFPSHealthChangedSignature, float, CurrentHealth, float, Delta);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFPSDeathSignature, AActor*, InstigatorActor);
 DECLARE_MULTICAST_DELEGATE_OneParam(FFPSDeathNativeSignature, AActor*);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FFPSCombatantDeathNativeSignature, AActor*, AActor*);
 
 UCLASS(Blueprintable, ClassGroup = "FPS", meta = (BlueprintSpawnableComponent))
 class FPS_API UFPSHealthComponent : public UActorComponent
@@ -34,6 +35,7 @@ public:
     FFPSDeathSignature OnDeath;
 
     FFPSDeathNativeSignature OnDeathNative;
+    FFPSCombatantDeathNativeSignature OnCombatantDeathNative;
 
     UFUNCTION(BlueprintCallable, Category = "Health")
     bool ApplyDamage(float Amount, FName DamageLocation, AActor* InstigatorActor);
