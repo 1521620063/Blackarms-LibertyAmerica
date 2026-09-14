@@ -100,13 +100,13 @@ ApplyDamage(Amount, DamageLocation, InstigatorActor) -> Boolean
 ResetHealth(); HandleDeath()
 ```
 
-- [ ] Map WASD, mouse X/Y, Space, left mouse, R, 1, 2, and Q to the input assets.
-- [ ] Implement clamped damage, `OnHealthChanged`, `OnDeath`, one-shot death protection, reset to full health, and rejection after death.
-- [ ] Put movement, camera, health, and interaction on `BP_FPSCharacterBase`; implement `BPI_FPSCombatant`. On death disable combat movement/collision; reset belongs to `RoundManager`.
-- [ ] Derive player and bot characters; player input belongs to controller/character, bot decisions to AIController.
-- [ ] Store Team, DeathState, Kills, Deaths, DamageDealt, and ObjectiveContribution in `BP_FPSPlayerState`.
-- [ ] Verify movement/look/jump, 100 health, one death event, disabled movement after death, and reset to full health.
-- [ ] Commit `feat: add shared character and health foundation`.
+- [x] Map WASD, mouse X/Y, Space, left mouse, R, 1, 2, and Q to the input assets.
+- [x] Implement clamped damage, `OnHealthChanged`, `OnDeath`, one-shot death protection, reset to full health, and rejection after death.
+- [x] Put movement, camera, health, and interaction on `BP_FPSCharacterBase`; implement `BPI_FPSCombatant`. On death disable combat movement/collision; reset belongs to `RoundManager`.
+- [x] Derive player and bot characters; player input belongs to controller/character, bot decisions to AIController.
+- [x] Store Team, DeathState, Kills, Deaths, DamageDealt, and ObjectiveContribution in `BP_FPSPlayerState`.
+- [x] Verify movement/look/jump, 100 health, one death event, disabled movement after death, and reset to full health.
+- [x] Commit `feat: add shared character and health foundation`.
 
 ---
 

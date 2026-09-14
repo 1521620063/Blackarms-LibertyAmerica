@@ -10,7 +10,8 @@ public class FPS : ModuleRules
         {
             "Core",
             "CoreUObject",
-            "Engine"
+            "Engine",
+            "EnhancedInput"
         });
     }
 }

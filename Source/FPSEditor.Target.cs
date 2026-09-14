@@ -8,6 +8,6 @@ public class FPSEditorTarget : TargetRules
         Type = TargetType.Editor;
         DefaultBuildSettings = BuildSettingsVersion.V7;
         IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
-        ExtraModuleNames.Add("FPS");
+        ExtraModuleNames.AddRange(new string[] { "FPS", "FPSEditor" });
     }
 }
