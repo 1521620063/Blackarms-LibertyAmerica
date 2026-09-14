@@ -63,11 +63,28 @@ def main():
             fail(f"tactical point missing {field}: {error}")
 
     controller = unreal.BLAAIController()
-    for field in ["applied_aim_error_degrees", "max_engagement_distance"]:
+    for field in [
+        "applied_aim_error_degrees",
+        "max_engagement_distance",
+        "applied_vision_reaction_seconds",
+        "applied_fire_delay_seconds",
+        "applied_search_seconds",
+        "applied_tactical_execution_probability",
+        "applied_team_assist_probability",
+        "target_lost",
+    ]:
         try:
             controller.get_editor_property(field)
         except Exception as error:
-            fail(f"AI controller missing difficulty field {field}: {error}")
+            fail(f"AI controller missing field {field}: {error}")
+    if not callable(getattr(controller, "is_fire_delay_elapsed", None)):
+        fail("AI controller is missing the is_fire_delay_elapsed gate")
+
+    perception = unreal.BLABotPerception()
+    try:
+        perception.get_editor_property("hearing_radius")
+    except Exception as error:
+        fail(f"bot perception missing hearing_radius: {error}")
 
     for path, expected_parent in BLUEPRINTS.items():
         blueprint = unreal.load_asset(path)
@@ -96,7 +113,7 @@ def main():
     if root is None or len(root.get_editor_property("children")) != 4 or len(root.get_editor_property("services")) != 2:
         fail("elimination tree must contain four priority tasks and two update services")
 
-    unreal.log("BLA_TASK6_CONTRACTS_OK native=5 blueprints=12 blackboard_keys=9 behavior_trees=1")
+    unreal.log("BLA_TASK6_CONTRACTS_OK native=5 blueprints=12 blackboard_keys=9 behavior_trees=1 difficulty_parameters=6")
 
 
 main()

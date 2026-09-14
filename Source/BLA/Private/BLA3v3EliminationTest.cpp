@@ -131,6 +131,20 @@ void ABLA3v3EliminationTest::BeginPlay()
     Attack->PreferredRole = EBLA_BotRole::Assault;
     Guard->PointType = EBLA_TacticalPointType::GuardPoint;
     Guard->PreferredRole = EBLA_BotRole::Defender;
+
+    // Deterministic difficulty for the role assertions; the probability gates are
+    // asserted on their own below.
+    UBLABotDifficultyDataAsset* DeterministicDifficulty = NewObject<UBLABotDifficultyDataAsset>(this);
+    DeterministicDifficulty->Difficulty.AimErrorDegrees = 4.0f;
+    DeterministicDifficulty->Difficulty.VisionReactionSeconds = 0.0f;
+    DeterministicDifficulty->Difficulty.FireDelaySeconds = 0.0f;
+    DeterministicDifficulty->Difficulty.TacticalExecutionProbability = 1.0f;
+    DeterministicDifficulty->Difficulty.TeamAssistProbability = 1.0f;
+    for (ABLAAIController* BotController : Controllers)
+    {
+        BotController->ApplyDifficulty(DeterministicDifficulty);
+    }
+
     const bool bAssaultResolved = Controllers[0]->ResolveRoleDirective(Tactics, Teams, Player);
     const bool bSupportResolved = Controllers[1]->ResolveRoleDirective(Tactics, Teams, Player);
     const bool bDefenderResolved = Controllers[2]->ResolveRoleDirective(Tactics, Teams, Player);
@@ -146,6 +160,40 @@ void ABLA3v3EliminationTest::BeginPlay()
             *GetNameSafe(Controllers[2]->DirectiveTarget), DefenderPoint ? static_cast<int32>(DefenderPoint->PointType) : -1);
         return;
     }
+
+    // Difficulty: the two probability knobs must be able to change the directive without
+    // ever leaving a bot without one.
+    UBLABotDifficultyDataAsset* IndependentDifficulty = NewObject<UBLABotDifficultyDataAsset>(this);
+    IndependentDifficulty->Difficulty.AimErrorDegrees = 4.0f;
+    IndependentDifficulty->Difficulty.VisionReactionSeconds = 0.0f;
+    IndependentDifficulty->Difficulty.FireDelaySeconds = 0.0f;
+    IndependentDifficulty->Difficulty.TacticalExecutionProbability = 0.0f;
+    IndependentDifficulty->Difficulty.TeamAssistProbability = 0.0f;
+    for (ABLAAIController* BotController : Controllers)
+    {
+        BotController->ApplyDifficulty(IndependentDifficulty);
+    }
+    const bool bAssaultFallsBack = Controllers[0]->ResolveRoleDirective(Tactics, Teams, Player)
+        && Controllers[0]->DirectiveTarget == nullptr && Controllers[0]->FollowTarget != nullptr;
+    const bool bSupportTakesOwnPoint = Controllers[1]->ResolveRoleDirective(Tactics, Teams, Player)
+        && Controllers[1]->FollowTarget == nullptr
+        && Cast<ABLATacticalPoint>(Controllers[1]->DirectiveTarget) != nullptr;
+    const bool bDefenderFallsBack = Controllers[2]->ResolveRoleDirective(Tactics, Teams, Player)
+        && Controllers[2]->DirectiveTarget == nullptr && Controllers[2]->FollowTarget != nullptr;
+    if (!bAssaultFallsBack || !bSupportTakesOwnPoint || !bDefenderFallsBack)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BLA_3V3_ELIMINATION_FAILED reason=difficulty_probabilities assault=%d support=%d defender=%d"),
+            bAssaultFallsBack, bSupportTakesOwnPoint, bDefenderFallsBack);
+        return;
+    }
+
+    // Restore the deterministic difficulty: later automatic re-resolutions (round reset,
+    // order cleared) must keep the team-follow behaviour the remaining assertions expect.
+    for (ABLAAIController* BotController : Controllers)
+    {
+        BotController->ApplyDifficulty(DeterministicDifficulty);
+    }
+
     for (ABLAAIController* FriendlyController : Controllers)
     {
         Cast<ABLACharacterBase>(FriendlyController->GetPawn())->HealthComponent->ApplyDamage(1000.0f, TEXT("Body"), Enemy);

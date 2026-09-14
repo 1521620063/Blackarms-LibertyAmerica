@@ -9,6 +9,12 @@ bool UBLABotPerception::ReportStimulus(ABLACharacterBase* Observer, AActor* Sour
     {
         return false;
     }
+    if (Type == EBLA_StimulusType::Hearing
+        && FVector::Dist(Observer->GetActorLocation(), StimulusLocation) > HearingRadius)
+    {
+        // Difficulty: hearing is limited to HearingRadius; damage and sight are not.
+        return false;
+    }
     TargetActor = Source;
     LastKnownTargetLocation = StimulusLocation;
     LastStimulusType = Type;

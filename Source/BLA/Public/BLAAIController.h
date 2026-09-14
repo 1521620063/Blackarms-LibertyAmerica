@@ -39,6 +39,18 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     float AppliedAimErrorDegrees = 4.0f;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    float AppliedVisionReactionSeconds = 0.35f;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    float AppliedFireDelaySeconds = 0.18f;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    float AppliedSearchSeconds = 7.0f;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    float AppliedTacticalExecutionProbability = 0.70f;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    float AppliedTeamAssistProbability = 0.65f;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    bool bTargetLost = false;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     float MaxEngagementDistance = 5000.0f;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     TObjectPtr<AActor> DirectiveTarget;
@@ -61,6 +73,8 @@ public:
     bool RecoverFromStuck(ABLATacticalManager* Manager);
     UFUNCTION(BlueprintCallable, Category = "BLA|AI")
     void ApplyDifficulty(UBLABotDifficultyDataAsset* InDifficulty);
+    UFUNCTION(BlueprintPure, Category = "BLA|AI")
+    bool IsFireDelayElapsed() const;
     UFUNCTION(BlueprintCallable, Category = "BLA|AI")
     bool ResolveRoleDirective(ABLATacticalManager* Manager, ABLATeamManager* TeamManager, AActor* PlayerActor);
     UFUNCTION(BlueprintCallable, Category = "BLA|AI")
@@ -85,6 +99,12 @@ protected:
 
 private:
     void HandleTeamOrderChanged(EBLA_RoundPhase Phase);
+    void UpdateTargetMemory();
+    AActor* ResolveAssistTarget(ABLATeamManager* TeamManager, AActor* PlayerActor);
+
+    double TargetAcquiredTime = -1.0;
+    double LastFireTime = -1.0;
+    double TargetLostTime = -1.0;
 
     UPROPERTY()
     TObjectPtr<ABLATeamOrderManager> TeamOrderManager;

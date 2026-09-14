@@ -55,6 +55,7 @@ void ABLAAIController::OnPossess(APawn* InPawn)
 void ABLAAIController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    UpdateTargetMemory();
     APawn* ControlledPawn = GetPawn();
     if (ControlledPawn && ObjectiveManager)
     {
@@ -84,7 +85,7 @@ void ABLAAIController::Tick(float DeltaSeconds)
 bool ABLAAIController::UpdateTarget(AActor* Candidate, EBLA_StimulusType StimulusType)
 {
     ABLACharacterBase* Observer = Cast<ABLACharacterBase>(GetPawn());
-    if (!Observer || !Candidate)
+    if (!Observer || !Candidate || !BotPerception)
     {
         return false;
     }
@@ -92,15 +93,40 @@ bool ABLAAIController::UpdateTarget(AActor* Candidate, EBLA_StimulusType Stimulu
     {
         return false;
     }
-    return BotPerception->ReportStimulus(Observer, Candidate, StimulusType, Candidate->GetActorLocation());
+    AActor* PreviousTarget = BotPerception->TargetActor;
+    if (!BotPerception->ReportStimulus(Observer, Candidate, StimulusType, Candidate->GetActorLocation()))
+    {
+        return false;
+    }
+    if (PreviousTarget != Candidate)
+    {
+        // Difficulty: a fresh target needs VisionReactionSeconds before the bot may fire.
+        TargetAcquiredTime = GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0;
+    }
+    TargetLostTime = -1.0;
+    bTargetLost = false;
+    return true;
 }
 
 bool ABLAAIController::AimAndFireAtTarget()
 {
     ABLACharacterBase* Shooter = Cast<ABLACharacterBase>(GetPawn());
-    ABLACharacterBase* Target = Cast<ABLACharacterBase>(BotPerception->TargetActor);
+    ABLACharacterBase* Target = BotPerception ? Cast<ABLACharacterBase>(BotPerception->TargetActor) : nullptr;
     if (!Shooter || !Target || !Shooter->GetIsAlive() || !Target->GetIsAlive() || Shooter->Team == Target->Team
         || !Shooter->WeaponComponent || !Shooter->WeaponComponent->CanFire() || !LineOfSightTo(Target))
+    {
+        return false;
+    }
+    const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    if (TargetAcquiredTime < 0.0)
+    {
+        TargetAcquiredTime = Now;
+    }
+    if (Now - TargetAcquiredTime < AppliedVisionReactionSeconds)
+    {
+        return false;
+    }
+    if (!IsFireDelayElapsed())
     {
         return false;
     }
@@ -114,16 +140,111 @@ bool ABLAAIController::AimAndFireAtTarget()
     // side: a fixed sign turns the difficulty's aim error into a systematic miss.
     const float AimErrorYaw = FMath::FRandRange(-AppliedAimErrorDegrees, AppliedAimErrorDegrees);
     const FVector Direction = ((TargetLocation - Start).Rotation() + FRotator(0.0f, AimErrorYaw, 0.0f)).Vector();
-    return Shooter->WeaponComponent->FireWeapon(Start, Direction);
+    const bool bFired = Shooter->WeaponComponent->FireWeapon(Start, Direction);
+    if (bFired)
+    {
+        LastFireTime = Now;
+    }
+    return bFired;
+}
+
+bool ABLAAIController::IsFireDelayElapsed() const
+{
+    if (!GetWorld() || LastFireTime < 0.0)
+    {
+        return true;
+    }
+    return GetWorld()->GetTimeSeconds() - LastFireTime >= AppliedFireDelaySeconds;
 }
 
 void ABLAAIController::ApplyDifficulty(UBLABotDifficultyDataAsset* InDifficulty)
 {
     DifficultyAsset = InDifficulty;
-    if (DifficultyAsset)
+    if (!DifficultyAsset)
     {
-        AppliedAimErrorDegrees = FMath::Max(0.1f, DifficultyAsset->Difficulty.AimErrorDegrees);
+        return;
     }
+    const FBLABotDifficulty& Difficulty = DifficultyAsset->Difficulty;
+    AppliedAimErrorDegrees = FMath::Max(0.1f, Difficulty.AimErrorDegrees);
+    AppliedVisionReactionSeconds = FMath::Max(0.0f, Difficulty.VisionReactionSeconds);
+    AppliedFireDelaySeconds = FMath::Max(0.0f, Difficulty.FireDelaySeconds);
+    AppliedSearchSeconds = FMath::Max(0.0f, Difficulty.SearchSeconds);
+    AppliedTacticalExecutionProbability = FMath::Clamp(Difficulty.TacticalExecutionProbability, 0.0f, 1.0f);
+    AppliedTeamAssistProbability = FMath::Clamp(Difficulty.TeamAssistProbability, 0.0f, 1.0f);
+    if (BotPerception)
+    {
+        BotPerception->HearingRadius = FMath::Max(0.0f, Difficulty.HearingRadius);
+    }
+}
+
+void ABLAAIController::UpdateTargetMemory()
+{
+    if (!BotPerception || !GetWorld())
+    {
+        return;
+    }
+    AActor* Target = BotPerception->TargetActor;
+    if (!Target)
+    {
+        TargetLostTime = -1.0;
+        bTargetLost = false;
+        return;
+    }
+    const ABLACharacterBase* TargetCombatant = Cast<ABLACharacterBase>(Target);
+    const bool bTargetVisible = TargetCombatant && TargetCombatant->GetIsAlive() && LineOfSightTo(Target);
+    if (bTargetVisible)
+    {
+        TargetLostTime = -1.0;
+        bTargetLost = false;
+        return;
+    }
+    // Difficulty: keep searching the last known position for SearchSeconds, then forget it.
+    if (TargetLostTime < 0.0)
+    {
+        TargetLostTime = GetWorld()->GetTimeSeconds();
+        bTargetLost = true;
+        return;
+    }
+    if (GetWorld()->GetTimeSeconds() - TargetLostTime >= AppliedSearchSeconds)
+    {
+        BotPerception->ForgetTarget();
+        TargetLostTime = -1.0;
+        TargetAcquiredTime = -1.0;
+        bTargetLost = false;
+    }
+}
+
+AActor* ABLAAIController::ResolveAssistTarget(ABLATeamManager* TeamManager, AActor* PlayerActor)
+{
+    ABLACharacterBase* Bot = Cast<ABLACharacterBase>(GetPawn());
+    if (!TeamManager || !Bot)
+    {
+        return nullptr;
+    }
+    ABLACharacterBase* PreferredPlayer = Cast<ABLACharacterBase>(PlayerActor);
+    if (PreferredPlayer && PreferredPlayer->Team == Bot->Team && PreferredPlayer->GetIsAlive())
+    {
+        return PreferredPlayer;
+    }
+    ABLACharacterBase* BestFriendly = nullptr;
+    int32 BestPriority = -1;
+    for (ABLACharacterBase* Friendly : TeamManager->GetTeamMembers(Bot->Team))
+    {
+        if (!Friendly || Friendly == Bot || !Friendly->GetIsAlive())
+        {
+            continue;
+        }
+        const ABLAAIController* FriendlyAI = Cast<ABLAAIController>(Friendly->GetController());
+        const int32 Priority = !FriendlyAI ? 4
+            : FriendlyAI->BotRole == EBLA_BotRole::Assault ? 3
+            : FriendlyAI->BotRole == EBLA_BotRole::Support ? 2 : 1;
+        if (Priority > BestPriority)
+        {
+            BestPriority = Priority;
+            BestFriendly = Friendly;
+        }
+    }
+    return BestFriendly;
 }
 
 bool ABLAAIController::MoveToTacticalPoint(ABLATacticalPoint* Point)
@@ -157,42 +278,42 @@ bool ABLAAIController::ResolveRoleDirective(ABLATacticalManager* Manager, ABLATe
 
     DirectiveTarget = nullptr;
     FollowTarget = nullptr;
-    if (BotRole == EBLA_BotRole::Assault)
+    // Difficulty knobs: TacticalExecutionProbability decides whether the bot commits to its
+    // assigned tactical point, TeamAssistProbability whether a Support bot assists a teammate
+    // instead of holding a point of its own. Failing either roll leaves the bot with a
+    // fallback directive so it never stands idle.
+    const bool bExecutesTactics = FMath::FRand() < AppliedTacticalExecutionProbability;
+    if (BotRole == EBLA_BotRole::Assault || BotRole == EBLA_BotRole::Defender)
     {
-        DirectiveTarget = Manager->FindBestPoint(Bot, EBLA_TacticalPointType::AttackPoint, Bot->Team, BotRole);
-    }
-    else if (BotRole == EBLA_BotRole::Defender)
-    {
-        DirectiveTarget = Manager->FindBestPoint(Bot, EBLA_TacticalPointType::GuardPoint, Bot->Team, BotRole);
+        const EBLA_TacticalPointType PointType = BotRole == EBLA_BotRole::Assault
+            ? EBLA_TacticalPointType::AttackPoint
+            : EBLA_TacticalPointType::GuardPoint;
+        if (bExecutesTactics)
+        {
+            DirectiveTarget = Manager->FindBestPoint(Bot, PointType, Bot->Team, BotRole);
+        }
+        if (!DirectiveTarget)
+        {
+            FollowTarget = ResolveAssistTarget(TeamManager, PlayerActor);
+        }
     }
     else
     {
-        ABLACharacterBase* PreferredPlayer = Cast<ABLACharacterBase>(PlayerActor);
-        if (PreferredPlayer && PreferredPlayer->Team == Bot->Team && PreferredPlayer->GetIsAlive())
+        if (FMath::FRand() < AppliedTeamAssistProbability)
         {
-            FollowTarget = PreferredPlayer;
+            FollowTarget = ResolveAssistTarget(TeamManager, PlayerActor);
         }
         else
         {
-            ABLACharacterBase* BestFriendly = nullptr;
-            int32 BestPriority = -1;
-            for (ABLACharacterBase* Friendly : TeamManager->GetTeamMembers(Bot->Team))
+            DirectiveTarget = Manager->FindBestPoint(Bot, EBLA_TacticalPointType::GuardPoint, Bot->Team, BotRole);
+            if (!DirectiveTarget)
             {
-                if (!Friendly || Friendly == Bot || !Friendly->GetIsAlive())
-                {
-                    continue;
-                }
-                const ABLAAIController* FriendlyAI = Cast<ABLAAIController>(Friendly->GetController());
-                const int32 Priority = !FriendlyAI ? 4
-                    : FriendlyAI->BotRole == EBLA_BotRole::Assault ? 3
-                    : FriendlyAI->BotRole == EBLA_BotRole::Support ? 2 : 1;
-                if (Priority > BestPriority)
-                {
-                    BestPriority = Priority;
-                    BestFriendly = Friendly;
-                }
+                DirectiveTarget = Manager->FindBestPoint(Bot, EBLA_TacticalPointType::RetreatPoint, Bot->Team, BotRole);
             }
-            FollowTarget = BestFriendly;
+            if (!DirectiveTarget)
+            {
+                FollowTarget = ResolveAssistTarget(TeamManager, PlayerActor);
+            }
         }
     }
     return IsValid(DirectiveTarget) || IsValid(FollowTarget);

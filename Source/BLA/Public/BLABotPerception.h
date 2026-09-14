@@ -19,6 +19,9 @@ class BLA_API UBLABotPerception : public UActorComponent
     GENERATED_BODY()
 
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|AI")
+    float HearingRadius = 1400.0f;
+
     UFUNCTION(BlueprintCallable, Category = "BLA|AI")
     bool ReportStimulus(ABLACharacterBase* Observer, AActor* Source, EBLA_StimulusType Type, FVector StimulusLocation);
 

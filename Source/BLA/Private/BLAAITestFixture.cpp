@@ -40,6 +40,8 @@ void ABLAAITestFixture::BeginPlay()
         || !Controller->BotPerception->ReportStimulus(Friendly, Enemy, EBLA_StimulusType::Sight, Enemy->GetActorLocation())
         || Controller->BotPerception->LastKnownTargetLocation != Enemy->GetActorLocation()
         || !Controller->BotPerception->ReportStimulus(Friendly, Enemy, EBLA_StimulusType::Hearing, Enemy->GetActorLocation())
+        || Controller->BotPerception->ReportStimulus(Friendly, Enemy, EBLA_StimulusType::Hearing,
+            Friendly->GetActorLocation() + FVector(5000.0f, 0.0f, 0.0f))
         || !Controller->BotPerception->ReportStimulus(Friendly, Enemy, EBLA_StimulusType::Damage, Enemy->GetActorLocation())
         || Manager->FindBestPoint(Friendly, EBLA_TacticalPointType::CoverPoint, Friendly->Team, EBLA_BotRole::Assault) != Cover
         || !Manager->ReservePoint(Cover)
@@ -62,21 +64,56 @@ void ABLAAITestFixture::BeginPlay()
     WeaponData->WeaponData.BaseDamage = 20.0f;
     WeaponData->WeaponData.MagazineCapacity = 3;
     WeaponData->WeaponData.ReserveAmmo = 0;
-    WeaponData->WeaponData.RoundsPerMinute = 600.0f;
+    WeaponData->WeaponData.RoundsPerMinute = 60000.0f;
     WeaponData->WeaponData.MaxRange = 2000.0f;
     WeaponData->WeaponData.RangeFalloff = 1.0f;
     const bool bFriendlyEquipped = Friendly->WeaponComponent->EquipWeapon(ABLAWeaponBase::StaticClass(), WeaponData, 0);
     const bool bEnemyEquipped = Enemy->WeaponComponent->EquipWeapon(ABLAWeaponBase::StaticClass(), WeaponData, 0);
+
+    // Difficulty: VisionReactionSeconds must block the first shot after a fresh acquisition.
+    UBLABotDifficultyDataAsset* ReactionDifficulty = NewObject<UBLABotDifficultyDataAsset>(this);
+    ReactionDifficulty->Difficulty.AimErrorDegrees = 0.1f;
+    ReactionDifficulty->Difficulty.VisionReactionSeconds = 1.0f;
+    ReactionDifficulty->Difficulty.FireDelaySeconds = 0.0f;
+    ReactionDifficulty->Difficulty.TacticalExecutionProbability = 1.0f;
+    ReactionDifficulty->Difficulty.TeamAssistProbability = 1.0f;
+    Controller->ApplyDifficulty(ReactionDifficulty);
+    EnemyController->ApplyDifficulty(ReactionDifficulty);
+
     const bool bFriendlyTargeted = Controller->UpdateTarget(Enemy, EBLA_StimulusType::Sight);
     const bool bEnemyTargeted = EnemyController->UpdateTarget(Friendly, EBLA_StimulusType::Sight);
+    const bool bReactionBlocked = !Controller->AimAndFireAtTarget() && !EnemyController->AimAndFireAtTarget();
+
+    UBLABotDifficultyDataAsset* FightDifficulty = NewObject<UBLABotDifficultyDataAsset>(this);
+    FightDifficulty->Difficulty.AimErrorDegrees = 0.1f;
+    FightDifficulty->Difficulty.VisionReactionSeconds = 0.0f;
+    FightDifficulty->Difficulty.FireDelaySeconds = 0.0f;
+    FightDifficulty->Difficulty.TacticalExecutionProbability = 1.0f;
+    FightDifficulty->Difficulty.TeamAssistProbability = 1.0f;
+    Controller->ApplyDifficulty(FightDifficulty);
+    EnemyController->ApplyDifficulty(FightDifficulty);
+
     const bool bFriendlyFired = Controller->AimAndFireAtTarget();
     const bool bEnemyFired = EnemyController->AimAndFireAtTarget();
+
+    // Difficulty: FireDelaySeconds must throttle the AI even when the weapon could refire.
+    UBLABotDifficultyDataAsset* DelayDifficulty = NewObject<UBLABotDifficultyDataAsset>(this);
+    DelayDifficulty->Difficulty.AimErrorDegrees = 0.1f;
+    DelayDifficulty->Difficulty.VisionReactionSeconds = 0.0f;
+    DelayDifficulty->Difficulty.FireDelaySeconds = 1.0f;
+    DelayDifficulty->Difficulty.TacticalExecutionProbability = 1.0f;
+    DelayDifficulty->Difficulty.TeamAssistProbability = 1.0f;
+    Controller->ApplyDifficulty(DelayDifficulty);
+    const bool bFireDelayApplied = !Controller->IsFireDelayElapsed();
+
     if (!bFriendlyEquipped
         || !bEnemyEquipped
         || !bFriendlyTargeted
         || !bEnemyTargeted
+        || !bReactionBlocked
         || !bFriendlyFired
         || !bEnemyFired
+        || !bFireDelayApplied
         || !FMath::IsNearlyEqual(Friendly->HealthComponent->CurrentHealth, 80.0f)
         || !FMath::IsNearlyEqual(Enemy->HealthComponent->CurrentHealth, 80.0f))
     {
@@ -85,5 +122,5 @@ void ABLAAITestFixture::BeginPlay()
         return;
     }
     bValidationSucceeded = true;
-    UE_LOG(LogTemp, Display, TEXT("BLA_AI_SYSTEM_OK perception=sight_hearing_damage teams=filtered tactics=cover_reserved stuck=detected recovery=request_guarded target=remembered combat=shared_weapon"));
+    UE_LOG(LogTemp, Display, TEXT("BLA_AI_SYSTEM_OK perception=sight_hearing_damage hearing_radius=limited teams=filtered tactics=cover_reserved stuck=detected recovery=request_guarded target=remembered combat=shared_weapon difficulty=reaction_fire_delay"));
 }
