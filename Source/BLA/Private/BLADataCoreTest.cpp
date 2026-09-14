@@ -496,6 +496,17 @@ void ABLADataCoreTest::BeginPlay()
     {
         return;
     }
+    // A directive resolved while the defuse runs must hold position: issuing a move
+    // order there would cancel the interaction through the movement cancel rule.
+    const FVector HoldSentinel(12345.0f, 6789.0f, 0.0f);
+    DefenderAI->DirectiveLocation = HoldSentinel;
+    if (!Require(DefenderAI->ResolveObjectiveDirective(Manager, Tactics, nullptr)
+        && DefenderAI->DirectiveLocation.Equals(HoldSentinel)
+        && Manager->ObjectiveState == EBLA_ObjectiveState::Defusing,
+        TEXT("ai_defender_defuse_holds_position")))
+    {
+        return;
+    }
     const int32 DefendersScoreBeforeAI = State->DefendersScore;
     Manager->Tick(DefuseSeconds + 0.2f);
     if (!Require(Manager->ObjectiveState == EBLA_ObjectiveState::Defused
@@ -546,5 +557,5 @@ void ABLADataCoreTest::BeginPlay()
     }
 
     bTestSucceeded = true;
-    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area authority=manager"));
+    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 defuse_hold=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area authority=manager"));
 }

@@ -26,6 +26,15 @@ void ABLARoundManager::BeginPlay()
     ConfigureManagers(BLAGameState, TeamManager);
 }
 
+void ABLARoundManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (TeamManager)
+    {
+        TeamManager->OnCombatantDeath.RemoveAll(this);
+    }
+    Super::EndPlay(EndPlayReason);
+}
+
 void ABLARoundManager::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);

@@ -55,6 +55,16 @@ void ABLAObjectiveManager::BeginPlay()
     SetObjectiveState(DataCore ? DataCore->State : EBLA_ObjectiveState::None);
 }
 
+void ABLAObjectiveManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (TeamManager)
+    {
+        TeamManager->OnCombatantDeath.RemoveAll(this);
+    }
+    ClearActiveInteractor();
+    Super::EndPlay(EndPlayReason);
+}
+
 void ABLAObjectiveManager::Configure(ABLAGameState* InGameState, ABLARoundManager* InRoundManager,
     ABLADataCore* InDataCore, ABLAObjectiveZone* InZone, ABLATeamManager* InTeamManager)
 {

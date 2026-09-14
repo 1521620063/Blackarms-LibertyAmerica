@@ -110,7 +110,10 @@ bool ABLAAIController::AimAndFireAtTarget()
     {
         return false;
     }
-    const FVector Direction = ((TargetLocation - Start).Rotation() + FRotator(0.0f, AppliedAimErrorDegrees, 0.0f)).Vector();
+    // Spread the shot around the aim direction instead of biasing every bot to the same
+    // side: a fixed sign turns the difficulty's aim error into a systematic miss.
+    const float AimErrorYaw = FMath::FRandRange(-AppliedAimErrorDegrees, AppliedAimErrorDegrees);
+    const FVector Direction = ((TargetLocation - Start).Rotation() + FRotator(0.0f, AimErrorYaw, 0.0f)).Vector();
     return Shooter->WeaponComponent->FireWeapon(Start, Direction);
 }
 
@@ -286,7 +289,13 @@ bool ABLAAIController::ResolveObjectiveDirective(ABLAObjectiveManager* InManager
             if (Zone && Zone->ContainsActor(Bot))
             {
                 CurrentObjectiveTask = TEXT("Plant");
-                return InManager->BeginPlant(Bot);
+                if (InManager->BeginPlant(Bot))
+                {
+                    // The objective manager cancels a timed interaction when the
+                    // interactor moves; stop walking so the plant is not restarted.
+                    StopMovement();
+                    return true;
+                }
             }
             DirectiveTarget = ResolvePoint(EBLA_TacticalPointType::PlantPoint);
             MoveToDirective(DirectiveTarget ? DirectiveTarget->GetActorLocation()
@@ -314,10 +323,17 @@ bool ABLAAIController::ResolveObjectiveDirective(ABLAObjectiveManager* InManager
     if (bPlanted && Core)
     {
         CurrentObjectiveTask = TEXT("Defuse");
-        if (Zone && Zone->ContainsActor(Bot) && ObjectiveState != EBLA_ObjectiveState::Defusing
+        if (ObjectiveState == EBLA_ObjectiveState::Defusing)
+        {
+            // Hold position while the defuse timer runs; any move request would cancel
+            // the interaction (movement cancel) and restart the timer.
+            return true;
+        }
+        if (Zone && Zone->ContainsActor(Bot)
             && ObjectiveState != EBLA_ObjectiveState::Defused && ObjectiveState != EBLA_ObjectiveState::Completed
             && InManager->BeginDefuse(Bot))
         {
+            StopMovement();
             return true;
         }
         MoveToDirective(Core->GetActorLocation());
