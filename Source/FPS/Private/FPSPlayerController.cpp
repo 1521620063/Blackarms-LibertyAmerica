@@ -1,8 +1,10 @@
 #include "FPSPlayerController.h"
 
+#include "Camera/CameraComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "FPSCharacterBase.h"
+#include "FPSWeaponComponent.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 
@@ -117,5 +119,37 @@ void AFPSPlayerController::HandleJumpCompleted()
     if (AFPSCharacterBase* FPSCharacter = Cast<AFPSCharacterBase>(GetPawn()))
     {
         FPSCharacter->StopJumping();
+    }
+}
+
+void AFPSPlayerController::OnFireRequested_Implementation()
+{
+    if (AFPSCharacterBase* FPSCharacter = Cast<AFPSCharacterBase>(GetPawn()); FPSCharacter && FPSCharacter->FirstPersonCamera && FPSCharacter->WeaponComponent)
+    {
+        FPSCharacter->WeaponComponent->FireWeapon(FPSCharacter->FirstPersonCamera->GetComponentLocation(), FPSCharacter->FirstPersonCamera->GetForwardVector());
+    }
+}
+
+void AFPSPlayerController::OnReloadRequested_Implementation()
+{
+    if (AFPSCharacterBase* FPSCharacter = Cast<AFPSCharacterBase>(GetPawn()); FPSCharacter && FPSCharacter->WeaponComponent)
+    {
+        FPSCharacter->WeaponComponent->ReloadWeapon();
+    }
+}
+
+void AFPSPlayerController::OnSwitchPrimaryRequested_Implementation()
+{
+    if (AFPSCharacterBase* FPSCharacter = Cast<AFPSCharacterBase>(GetPawn()); FPSCharacter && FPSCharacter->WeaponComponent)
+    {
+        FPSCharacter->WeaponComponent->SwitchWeapon(0);
+    }
+}
+
+void AFPSPlayerController::OnSwitchSecondaryRequested_Implementation()
+{
+    if (AFPSCharacterBase* FPSCharacter = Cast<AFPSCharacterBase>(GetPawn()); FPSCharacter && FPSCharacter->WeaponComponent)
+    {
+        FPSCharacter->WeaponComponent->SwitchWeapon(1);
     }
 }

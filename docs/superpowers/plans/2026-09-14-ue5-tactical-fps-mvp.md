@@ -118,13 +118,13 @@ ResetHealth(); HandleDeath()
 
 Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultiplier=1.0`, `LimbMultiplier=0.75`, `RoundsPerMinute`, `MagazineCapacity`, `ReserveAmmo`, `ReloadSeconds`, `MaxRange`, `RangeFalloff`, `AimSpreadDegrees`, `AIPreferredRange`.
 
-- [ ] Create three assets with magazines 12, 24, and 6 for pistol, rifle, and scatter gun.
-- [ ] Implement ammo, reserve ammo, cooldown, reload, switching, and fire guards for dead/reloading/cooldown/empty.
-- [ ] Trace from player camera or bot aim origin; resolve actor/zone/falloff/armor in `BP_FPSDamageResolver`; route damage through health only.
-- [ ] Use one trace for pistol/rifle and fixed deterministic multi-trace spread for scatter gun; never spawn projectile actors.
-- [ ] Add placeholder muzzle, debug line, hit marker, hit sound, and hit/kill feedback without match-rule logic.
-- [ ] Test all weapons, ammo/reload/cooldown, body/weak-point/limb multipliers, armor, and no damage after death.
-- [ ] Commit `feat: add data-driven hitscan weapons`.
+- [x] Create three assets with magazines 12, 24, and 6 for pistol, rifle, and scatter gun.
+- [x] Implement ammo, reserve ammo, cooldown, reload, switching, and fire guards for dead/reloading/cooldown/empty.
+- [x] Trace from player camera or bot aim origin; resolve actor/zone/falloff/armor in `BP_FPSDamageResolver`; route damage through health only.
+- [x] Use one trace for pistol/rifle and fixed deterministic multi-trace spread for scatter gun; never spawn projectile actors.
+- [x] Add placeholder muzzle, debug line, hit marker, hit sound, and hit/kill feedback without match-rule logic.
+- [x] Test all weapons, ammo/reload/cooldown, body/weak-point/limb multipliers, armor, and no damage after death.
+- [x] Commit `feat: add data-driven hitscan weapons`.
 
 ---
 

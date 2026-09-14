@@ -13,17 +13,21 @@ protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "FPS|Input")
+    UFUNCTION(BlueprintNativeEvent, Category = "FPS|Input")
     void OnFireRequested();
+    virtual void OnFireRequested_Implementation();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "FPS|Input")
+    UFUNCTION(BlueprintNativeEvent, Category = "FPS|Input")
     void OnReloadRequested();
+    virtual void OnReloadRequested_Implementation();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "FPS|Input")
+    UFUNCTION(BlueprintNativeEvent, Category = "FPS|Input")
     void OnSwitchPrimaryRequested();
+    virtual void OnSwitchPrimaryRequested_Implementation();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "FPS|Input")
+    UFUNCTION(BlueprintNativeEvent, Category = "FPS|Input")
     void OnSwitchSecondaryRequested();
+    virtual void OnSwitchSecondaryRequested_Implementation();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "FPS|Input")
     void OnCommandRequested();

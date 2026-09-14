@@ -6,7 +6,9 @@
 
 class UCameraComponent;
 class UFPSHealthComponent;
+class UFPSHitFeedbackComponent;
 class UFPSInteractionComponent;
+class UFPSWeaponComponent;
 
 UCLASS(Blueprintable)
 class FPS_API AFPSCharacterBase : public ACharacter
@@ -24,6 +26,12 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FPS")
     TObjectPtr<UFPSInteractionComponent> InteractionComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FPS")
+    TObjectPtr<UFPSWeaponComponent> WeaponComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FPS")
+    TObjectPtr<UFPSHitFeedbackComponent> HitFeedbackComponent;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
     EFPS_Team Team = EFPS_Team::Neutral;

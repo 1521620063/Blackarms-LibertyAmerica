@@ -3,7 +3,9 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "FPSHealthComponent.h"
+#include "FPSHitFeedbackComponent.h"
 #include "FPSInteractionComponent.h"
+#include "FPSWeaponComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 AFPSCharacterBase::AFPSCharacterBase()
@@ -18,7 +20,10 @@ AFPSCharacterBase::AFPSCharacterBase()
 
     HealthComponent = CreateDefaultSubobject<UFPSHealthComponent>(TEXT("HealthComponent"));
     InteractionComponent = CreateDefaultSubobject<UFPSInteractionComponent>(TEXT("InteractionComponent"));
+    WeaponComponent = CreateDefaultSubobject<UFPSWeaponComponent>(TEXT("WeaponComponent"));
+    HitFeedbackComponent = CreateDefaultSubobject<UFPSHitFeedbackComponent>(TEXT("HitFeedbackComponent"));
 
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     GetCharacterMovement()->bOrientRotationToMovement = false;
 }
 
@@ -51,6 +56,7 @@ FVector AFPSCharacterBase::GetCombatantWorldLocation_Implementation() const
 void AFPSCharacterBase::ResetCombatant()
 {
     HealthComponent->ResetHealth();
+    WeaponComponent->ResetWeapons();
     GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
