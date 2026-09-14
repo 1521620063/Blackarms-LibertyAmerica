@@ -26,6 +26,7 @@ void ABLAAITestFixture::BeginPlay()
     ABLATacticalPoint* Cover = GetWorld()->SpawnActor<ABLATacticalPoint>(Origin + FVector(100.0f, 300.0f, 0.0f), FRotator::ZeroRotator);
     if (!Friendly || !Enemy || !Controller || !EnemyController || !Manager || !Cover)
     {
+        bValidationFailed = true;
         UE_LOG(LogTemp, Error, TEXT("BLA_AI_SYSTEM_FAILED reason=spawn"));
         return;
     }
@@ -44,6 +45,7 @@ void ABLAAITestFixture::BeginPlay()
         || !Manager->ReservePoint(Cover)
         || Manager->ReservePoint(Cover))
     {
+        bValidationFailed = true;
         UE_LOG(LogTemp, Error, TEXT("BLA_AI_SYSTEM_FAILED reason=perception_or_tactics"));
         return;
     }
@@ -51,6 +53,7 @@ void ABLAAITestFixture::BeginPlay()
     Controller->bIsStuck = true;
     if (Controller->BotPerception->TargetActor != Enemy || Controller->BotPerception->LastStimulusType != EBLA_StimulusType::Damage)
     {
+        bValidationFailed = true;
         UE_LOG(LogTemp, Error, TEXT("BLA_AI_SYSTEM_FAILED reason=target_memory"));
         return;
     }
@@ -77,8 +80,10 @@ void ABLAAITestFixture::BeginPlay()
         || !FMath::IsNearlyEqual(Friendly->HealthComponent->CurrentHealth, 80.0f)
         || !FMath::IsNearlyEqual(Enemy->HealthComponent->CurrentHealth, 80.0f))
     {
+        bValidationFailed = true;
         UE_LOG(LogTemp, Error, TEXT("BLA_AI_SYSTEM_FAILED reason=shared_weapon_combat"));
         return;
     }
+    bValidationSucceeded = true;
     UE_LOG(LogTemp, Display, TEXT("BLA_AI_SYSTEM_OK perception=sight_hearing_damage teams=filtered tactics=cover_reserved stuck=detected recovery=request_guarded target=remembered combat=shared_weapon"));
 }

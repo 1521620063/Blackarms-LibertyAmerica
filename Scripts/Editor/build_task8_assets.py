@@ -2,6 +2,24 @@ import unreal
 
 
 MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
+
+# Actors this generator owns. Task 9 adds the data core, its zone and its two objective
+# tactical points (plus a functional test) to the same level; this rebuild must not
+# delete them when it runs after task 9.
+TASK8_LABELS = {
+    "Attacker Protected Spawn",
+    "Defender Protected Spawn",
+    "Attacker Spawn 2",
+    "Attacker Spawn 3",
+    "Defender Spawn 2",
+    "Defender Spawn 3",
+    "Attack Route Point",
+    "Guard Point",
+    "Retreat Point",
+    "Fixed Spectator Camera",
+    "BLA 3v3 Elimination Functional Test",
+}
+
 assets = unreal.get_editor_subsystem(unreal.EditorAssetSubsystem)
 levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -75,9 +93,7 @@ def main():
     if not levels.load_level(MAP):
         raise RuntimeError(f"Failed to load {MAP}")
     for actor in actors.get_all_level_actors():
-        if isinstance(actor, unreal.BLASpawnPoint) or isinstance(actor, unreal.BLATacticalPoint):
-            actors.destroy_actor(actor)
-        elif actor.get_actor_label() == "BLA 3v3 Elimination Functional Test":
+        if actor.get_actor_label() in TASK8_LABELS:
             actors.destroy_actor(actor)
         elif isinstance(actor, unreal.CameraActor) and actor.actor_has_tag("FixedSpectatorCamera"):
             actors.destroy_actor(actor)

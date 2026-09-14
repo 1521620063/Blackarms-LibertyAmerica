@@ -185,6 +185,7 @@ void ABLAWeaponTestActor::Tick(float DeltaSeconds)
         }
 
         UE_LOG(LogTemp, Display, TEXT("BLA_WEAPON_SYSTEM_OK weapons=3 ammo=guarded reload=complete switch=ok damage=zones_falloff_armor death=guarded feedback=hit"));
+        bValidationSucceeded = true;
         bFinished = true;
         SetActorTickEnabled(false);
     }
@@ -198,6 +199,7 @@ void ABLAWeaponTestActor::HandleHitFeedback(float AppliedDamage, bool bKilled)
 void ABLAWeaponTestActor::Fail(const TCHAR* Reason)
 {
     UE_LOG(LogTemp, Error, TEXT("BLA_WEAPON_SYSTEM_FAILED reason=%s"), Reason);
+    bValidationFailed = true;
     bFinished = true;
     SetActorTickEnabled(false);
 }

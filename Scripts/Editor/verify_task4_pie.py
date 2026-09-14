@@ -1,47 +1,71 @@
 import unreal
 
 
-BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+MAP = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+VALIDATOR_CLASS = unreal.BLAWeaponTestActor
+VALIDATOR_LABEL = "BLA Weapon Test Actor"
 MAX_STARTUP_TICKS = 600
-VALIDATION_TICKS = 120
+MAX_VALIDATION_TICKS = 300
 
-level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-state = {"ticks": 0, "pie_ticks": 0, "ending": False}
-callback_handle = None
+level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+state = {"ticks": 0, "pie": 0, "ending": False}
+handle = None
 
 
 def finish(success, message):
-    if success:
-        unreal.log(f"BLA_TASK4_PIE_DRIVER_OK {message}")
-    else:
-        unreal.log_error(f"BLA_TASK4_PIE_DRIVER_FAILED {message}")
+    log = unreal.log if success else unreal.log_error
+    log(f"BLA_TASK4_PIE_DRIVER_{'OK' if success else 'FAILED'} {message}")
     state["ending"] = True
-    if level_editor.is_in_play_in_editor():
-        level_editor.editor_request_end_play()
+    if level.is_in_play_in_editor():
+        level.editor_request_end_play()
     else:
-        unreal.unregister_slate_post_tick_callback(callback_handle)
+        unreal.unregister_slate_post_tick_callback(handle)
         unreal.SystemLibrary.quit_editor()
+
+
+def read_flags(validator):
+    return (
+        validator.get_editor_property("validation_succeeded"),
+        validator.get_editor_property("validation_failed"),
+    )
 
 
 def tick(_delta_seconds):
     state["ticks"] += 1
     if state["ending"]:
-        if not level_editor.is_in_play_in_editor():
-            unreal.unregister_slate_post_tick_callback(callback_handle)
+        if not level.is_in_play_in_editor():
+            unreal.unregister_slate_post_tick_callback(handle)
             unreal.SystemLibrary.quit_editor()
         return
-    if not level_editor.is_in_play_in_editor():
+    if not level.is_in_play_in_editor():
         if state["ticks"] >= MAX_STARTUP_TICKS:
             finish(False, "PIE did not start")
         return
-    state["pie_ticks"] += 1
-    if state["pie_ticks"] >= VALIDATION_TICKS:
-        finish(True, f"ticks={state['pie_ticks']}")
+    state["pie"] += 1
+    game_world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+    validators = (
+        unreal.GameplayStatics.get_all_actors_of_class(game_world, VALIDATOR_CLASS)
+        if game_world
+        else []
+    )
+    succeeded = False
+    failed = False
+    for validator in validators:
+        validator_succeeded, validator_failed = read_flags(validator)
+        succeeded = succeeded or validator_succeeded
+        failed = failed or validator_failed
+    if failed:
+        finish(False, f"validator_failed label={VALIDATOR_LABEL} count={len(validators)}")
+        return
+    if succeeded:
+        finish(True, f"ticks={state['pie']} validator=ok label={VALIDATOR_LABEL}")
+        return
+    if state["pie"] >= MAX_VALIDATION_TICKS:
+        finish(False, f"validator_incomplete label={VALIDATOR_LABEL} count={len(validators)}")
 
 
-if not level_editor.load_level(BOOTSTRAP_LEVEL):
-    raise RuntimeError(f"Failed to load {BOOTSTRAP_LEVEL}")
-
-callback_handle = unreal.register_slate_post_tick_callback(tick)
-level_editor.editor_request_begin_play()
+if not level.load_level(MAP):
+    raise RuntimeError(f"Failed to load {MAP}")
+handle = unreal.register_slate_post_tick_callback(tick)
+level.editor_request_begin_play()
 unreal.log("BLA_TASK4_PIE_DRIVER_STARTED")

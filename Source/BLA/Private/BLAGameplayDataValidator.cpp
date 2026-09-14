@@ -36,10 +36,12 @@ void ABLAGameplayDataValidator::BeginPlay()
 
     if (bAllValid)
     {
+        bValidationSucceeded = true;
         UE_LOG(LogTemp, Display, TEXT("BLA_DATA_VALIDATION_OK assets=6"));
     }
     else
     {
+        bValidationFailed = true;
         UE_LOG(LogTemp, Error, TEXT("BLA_DATA_VALIDATION_FAILED"));
     }
 }

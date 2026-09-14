@@ -117,6 +117,7 @@ void ABLACharacterFoundationValidator::Tick(float DeltaSeconds)
         Display,
         TEXT("BLA_CHARACTER_FOUNDATION_OK health=100 death_events=1 movement=disabled reset=full input=move_look_jump")
     );
+    bValidationSucceeded = true;
     bFinished = true;
     SetActorTickEnabled(false);
 }
@@ -124,6 +125,7 @@ void ABLACharacterFoundationValidator::Tick(float DeltaSeconds)
 void ABLACharacterFoundationValidator::Fail(const TCHAR* Reason)
 {
     UE_LOG(LogTemp, Error, TEXT("BLA_CHARACTER_FOUNDATION_FAILED reason=%s"), Reason);
+    bValidationFailed = true;
     bFinished = true;
     SetActorTickEnabled(false);
 }

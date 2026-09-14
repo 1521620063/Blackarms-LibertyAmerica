@@ -9,6 +9,13 @@ class BLA_API ABLAGameplayDataValidator : public AActor
 {
     GENERATED_BODY()
 
+public:
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
+    bool bValidationSucceeded = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
+    bool bValidationFailed = false;
+
 protected:
     virtual void BeginPlay() override;
 

@@ -138,8 +138,9 @@ def main():
         fail("objective zone is missing the BLAObjectiveZone tag")
 
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    if not unreal.NavigationSystemV1.find_path_to_location_synchronously(
-            world, unreal.Vector(-1000.0, -600.0, 20.0), unreal.Vector(400.0, 0.0, 20.0)).is_valid():
+    path = unreal.NavigationSystemV1.find_path_to_location_synchronously(
+        world, unreal.Vector(-1000.0, -600.0, 20.0), unreal.Vector(400.0, 0.0, 20.0))
+    if path is None or not path.is_valid():
         fail("objective zone is not reachable from the attacker side")
 
     unreal.log("BLA_TASK9_CONTRACTS_OK native=4 blueprints=4 states=10 manager_functions=8 core_completion_api=0 "

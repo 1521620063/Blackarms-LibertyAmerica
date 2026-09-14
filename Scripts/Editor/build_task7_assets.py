@@ -5,6 +5,28 @@ MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
 MODE = "/Game/BLA/Blueprints/Core/BP_BLAGameMode_Elimination"
 TEST = "/Game/BLA/Tests/FT_BLA_1v1_Elimination"
 
+# Actors this generator owns. Tasks 8 and 9 add their own spawns, tactical points,
+# spectator camera, objective actors and functional tests to this same level, so the
+# rebuild must only destroy what this script created.
+TASK7_LABELS = {
+    "Arena Floor",
+    "North Wall",
+    "South Wall",
+    "West Wall",
+    "East Wall",
+    "Attacker Spawn Shield",
+    "Defender Spawn Shield",
+    "Cover Left",
+    "Cover Center",
+    "Cover Right",
+    "Attacker Protected Spawn",
+    "Defender Protected Spawn",
+    "1v1 Arena Navigation Bounds",
+    "BLA 1v1 Elimination Functional Test",
+    "Arena Light West",
+    "Arena Light East",
+}
+
 assets = unreal.get_editor_subsystem(unreal.EditorAssetSubsystem)
 levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -54,7 +76,8 @@ def build_map(mode_blueprint, test_blueprint):
         raise RuntimeError(f"Failed to load {MAP}")
 
     for actor in actors.get_all_level_actors():
-        actors.destroy_actor(actor)
+        if actor.get_actor_label() in TASK7_LABELS:
+            actors.destroy_actor(actor)
 
     spawn_cube("Arena Floor", unreal.Vector(0, 0, -20), unreal.Vector(24, 16, 0.4))
     spawn_cube("North Wall", unreal.Vector(0, 800, 200), unreal.Vector(24, 0.4, 4))

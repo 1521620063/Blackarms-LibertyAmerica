@@ -1,3 +1,5 @@
+import math
+
 import unreal
 
 
@@ -19,6 +21,40 @@ WEAPON_DATA = {
     "DA_BLAWeapon_EnergyPistol": (unreal.BLA_WeaponType.ENERGY_PISTOL, 12),
     "DA_BLAWeapon_PulseRifle": (unreal.BLA_WeaponType.PULSE_RIFLE, 24),
     "DA_BLAWeapon_ScatterGun": (unreal.BLA_WeaponType.SCATTER_GUN, 6),
+}
+
+# Full payload per plan "Weapon data" so a numeric edit cannot drift silently.
+WEAPON_NUMBERS = {
+    "DA_BLAWeapon_EnergyPistol": {
+        "base_damage": 25.0,
+        "rounds_per_minute": 300.0,
+        "reserve_ammo": 48,
+        "reload_seconds": 1.2,
+        "max_range": 8000.0,
+        "range_falloff": 0.65,
+        "aim_spread_degrees": 0.35,
+        "ai_preferred_range": 1800.0,
+    },
+    "DA_BLAWeapon_PulseRifle": {
+        "base_damage": 18.0,
+        "rounds_per_minute": 600.0,
+        "reserve_ammo": 96,
+        "reload_seconds": 1.8,
+        "max_range": 12000.0,
+        "range_falloff": 0.75,
+        "aim_spread_degrees": 0.5,
+        "ai_preferred_range": 3500.0,
+    },
+    "DA_BLAWeapon_ScatterGun": {
+        "base_damage": 80.0,
+        "rounds_per_minute": 75.0,
+        "reserve_ammo": 24,
+        "reload_seconds": 2.2,
+        "max_range": 5000.0,
+        "range_falloff": 0.2,
+        "aim_spread_degrees": 6.0,
+        "ai_preferred_range": 1000.0,
+    },
 }
 
 
@@ -102,6 +138,10 @@ def verify_data_assets():
             fail(f"{path} body multiplier must be 1.0")
         if data.get_editor_property("limb_multiplier") != 0.75:
             fail(f"{path} limb multiplier must be 0.75")
+        for field, expected in WEAPON_NUMBERS[name].items():
+            actual = data.get_editor_property(field)
+            if not math.isclose(actual, expected, rel_tol=1e-6, abs_tol=1e-6):
+                fail(f"{path} {field}: expected {expected}, got {actual}")
 
 
 def main():

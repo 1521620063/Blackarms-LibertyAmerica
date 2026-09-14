@@ -118,6 +118,7 @@ void ABLARoundTestActor::Tick(float DeltaSeconds)
                 return;
             }
             UE_LOG(LogTemp, Display, TEXT("BLA_ROUND_FRAMEWORK_OK teams=deduplicated elimination=single score=1_to_3 reset=idempotent match=result"));
+            bValidationSucceeded = true;
             bFinished = true;
             SetActorTickEnabled(false);
             return;
@@ -148,6 +149,7 @@ bool ABLARoundTestActor::StartCombatRound()
 void ABLARoundTestActor::Fail(const TCHAR* Reason)
 {
     UE_LOG(LogTemp, Error, TEXT("BLA_ROUND_FRAMEWORK_FAILED reason=%s"), Reason);
+    bValidationFailed = true;
     bFinished = true;
     SetActorTickEnabled(false);
 }

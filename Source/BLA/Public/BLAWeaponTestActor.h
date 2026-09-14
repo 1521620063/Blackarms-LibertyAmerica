@@ -15,6 +15,12 @@ public:
     ABLAWeaponTestActor();
     virtual void Tick(float DeltaSeconds) override;
 
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
+    bool bValidationSucceeded = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
+    bool bValidationFailed = false;
+
 protected:
     virtual void BeginPlay() override;
 
