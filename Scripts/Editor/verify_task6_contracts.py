@@ -1,23 +1,23 @@
 import unreal
 
 
-AI_BP = "/Game/FPS/Blueprints/AI"
-AI_ROOT = "/Game/FPS/AI"
-TEST_PATH = "/Game/FPS/Tests"
+AI_BP = "/Game/BLA/Blueprints/AI"
+AI_ROOT = "/Game/BLA/AI"
+TEST_PATH = "/Game/BLA/Tests"
 
 BLUEPRINTS = {
-    f"{AI_BP}/BP_FPSAIController": "/Script/FPS.FPSAIController",
-    f"{AI_BP}/BP_FPSBotPerception": "/Script/FPS.FPSBotPerception",
-    f"{AI_BP}/BP_FPSTacticalManager": "/Script/FPS.FPSTacticalManager",
-    f"{AI_BP}/BP_FPSTacticalPoint": "/Script/FPS.FPSTacticalPoint",
-    f"{AI_ROOT}/Tasks/BTT_FPSMoveToTacticalPoint": "/Script/AIModule.BTTask_BlueprintBase",
-    f"{AI_ROOT}/Tasks/BTT_FPSAimAndFire": "/Script/AIModule.BTTask_BlueprintBase",
-    f"{AI_ROOT}/Tasks/BTT_FPSFindCover": "/Script/AIModule.BTTask_BlueprintBase",
-    f"{AI_ROOT}/Tasks/BTT_FPSSearchLastKnownPosition": "/Script/AIModule.BTTask_BlueprintBase",
-    f"{AI_ROOT}/Services/BTS_FPSUpdateTarget": "/Script/AIModule.BTService_BlueprintBase",
-    f"{AI_ROOT}/Services/BTS_FPSCheckStuck": "/Script/AIModule.BTService_BlueprintBase",
-    f"{AI_ROOT}/Decorators/BPD_FPSHasLiveTarget": "/Script/AIModule.BTDecorator_BlueprintBase",
-    f"{TEST_PATH}/BP_FPSAITestFixture": "/Script/FPS.FPSAITestFixture",
+    f"{AI_BP}/BP_BLAAIController": "/Script/BLA.BLAAIController",
+    f"{AI_BP}/BP_BLABotPerception": "/Script/BLA.BLABotPerception",
+    f"{AI_BP}/BP_BLATacticalManager": "/Script/BLA.BLATacticalManager",
+    f"{AI_BP}/BP_BLATacticalPoint": "/Script/BLA.BLATacticalPoint",
+    f"{AI_ROOT}/Tasks/BTT_BLAMoveToTacticalPoint": "/Script/AIModule.BTTask_BlueprintBase",
+    f"{AI_ROOT}/Tasks/BTT_BLAAimAndFire": "/Script/AIModule.BTTask_BlueprintBase",
+    f"{AI_ROOT}/Tasks/BTT_BLAFindCover": "/Script/AIModule.BTTask_BlueprintBase",
+    f"{AI_ROOT}/Tasks/BTT_BLASearchLastKnownPosition": "/Script/AIModule.BTTask_BlueprintBase",
+    f"{AI_ROOT}/Services/BTS_BLAUpdateTarget": "/Script/AIModule.BTService_BlueprintBase",
+    f"{AI_ROOT}/Services/BTS_BLACheckStuck": "/Script/AIModule.BTService_BlueprintBase",
+    f"{AI_ROOT}/Decorators/BPD_BLAHasLiveTarget": "/Script/AIModule.BTDecorator_BlueprintBase",
+    f"{TEST_PATH}/BP_BLAAITestFixture": "/Script/BLA.BLAAITestFixture",
 }
 
 EXPECTED_KEYS = {
@@ -39,16 +39,16 @@ def fail(message):
 
 def main():
     for name in [
-        "FPSAIController",
-        "FPSBotPerception",
-        "FPSTacticalManager",
-        "FPSTacticalPoint",
-        "FPSAITestFixture",
+        "BLAAIController",
+        "BLABotPerception",
+        "BLATacticalManager",
+        "BLATacticalPoint",
+        "BLAAITestFixture",
     ]:
         if getattr(unreal, name, None) is None:
             fail(f"missing native type unreal.{name}")
 
-    point = unreal.FPSTacticalPoint()
+    point = unreal.BLATacticalPoint()
     for field in [
         "point_type",
         "team",
@@ -62,7 +62,7 @@ def main():
         except Exception as error:
             fail(f"tactical point missing {field}: {error}")
 
-    controller = unreal.FPSAIController()
+    controller = unreal.BLAAIController()
     for field in ["applied_aim_error_degrees", "max_engagement_distance"]:
         try:
             controller.get_editor_property(field)
@@ -77,7 +77,7 @@ def main():
         if parent.get_path_name() != expected_parent:
             fail(f"{path} parent: expected {expected_parent}, got {parent.get_path_name()}")
 
-    blackboard_path = f"{AI_ROOT}/Blackboards/BB_FPSBot"
+    blackboard_path = f"{AI_ROOT}/Blackboards/BB_BLABot"
     blackboard = unreal.load_asset(blackboard_path)
     if blackboard is None:
         fail(f"missing Blackboard {blackboard_path}")
@@ -86,17 +86,17 @@ def main():
     if missing_keys:
         fail(f"blackboard missing required keys: {missing_keys}")
 
-    tree_path = f"{AI_ROOT}/BehaviorTrees/BT_FPSBotElimination"
+    tree_path = f"{AI_ROOT}/BehaviorTrees/BT_BLABotElimination"
     tree = unreal.load_asset(tree_path)
     if tree is None:
         fail(f"missing Behavior Tree {tree_path}")
     if tree.get_editor_property("blackboard_asset") != blackboard:
-        fail("elimination tree is not bound to BB_FPSBot")
+        fail("elimination tree is not bound to BB_BLABot")
     root = tree.get_editor_property("root_node")
     if root is None or len(root.get_editor_property("children")) != 4 or len(root.get_editor_property("services")) != 2:
         fail("elimination tree must contain four priority tasks and two update services")
 
-    unreal.log("FPS_TASK6_CONTRACTS_OK native=5 blueprints=12 blackboard_keys=9 behavior_trees=1")
+    unreal.log("BLA_TASK6_CONTRACTS_OK native=5 blueprints=12 blackboard_keys=9 behavior_trees=1")
 
 
 main()

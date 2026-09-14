@@ -1,23 +1,23 @@
 import unreal
 
 
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
-CORE_PATH = "/Game/FPS/Blueprints/Core"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+CORE_PATH = "/Game/BLA/Blueprints/Core"
 
 RULES = {
-    "DA_FPSMatchRules_Solo": (1, 60.0, 3, 2),
-    "DA_FPSMatchRules_2v2": (2, 75.0, 4, 2),
-    "DA_FPSMatchRules_3v3": (3, 90.0, 5, 4),
+    "DA_BLAMatchRules_Solo": (1, 60.0, 3, 2),
+    "DA_BLAMatchRules_2v2": (2, 75.0, 4, 2),
+    "DA_BLAMatchRules_3v3": (3, 90.0, 5, 4),
 }
 
 DIFFICULTIES = {
-    "DA_FPSBotDifficulty_Easy": (0.65, 8.0, 0.35, 900.0, 4.0, 0.45, 0.35),
-    "DA_FPSBotDifficulty_Normal": (0.35, 4.0, 0.18, 1400.0, 7.0, 0.70, 0.65),
-    "DA_FPSBotDifficulty_Hard": (0.18, 1.5, 0.08, 1800.0, 10.0, 0.90, 0.85),
+    "DA_BLABotDifficulty_Easy": (0.65, 8.0, 0.35, 900.0, 4.0, 0.45, 0.35),
+    "DA_BLABotDifficulty_Normal": (0.35, 4.0, 0.18, 1400.0, 7.0, 0.70, 0.65),
+    "DA_BLABotDifficulty_Hard": (0.18, 1.5, 0.08, 1800.0, 10.0, 0.90, 0.85),
 }
 
 INTERFACES = {
-    "BPI_FPSCombatant": {
+    "BPI_BLACombatant": {
         "GetTeam": ([], [("ReturnValue", "team")], True),
         "GetIsAlive": ([], [("ReturnValue", "bool")], True),
         "ApplyCombatDamage": (
@@ -31,7 +31,7 @@ INTERFACES = {
         ),
         "GetCombatantWorldLocation": ([], [("ReturnValue", "vector")], True),
     },
-    "BPI_FPSInteractable": {
+    "BPI_BLAInteractable": {
         "CanInteract": (
             [("Interactor", "actor")],
             [("ReturnValue", "bool")],
@@ -49,7 +49,7 @@ INTERFACES = {
             False,
         ),
     },
-    "BPI_FPSObjectiveCarrier": {
+    "BPI_BLAObjectiveCarrier": {
         "HasObjectiveCore": ([], [("ReturnValue", "bool")], True),
         "GiveObjectiveCore": (
             [("CoreActor", "actor")],
@@ -108,9 +108,9 @@ def float_type():
 def pin_types():
     team = unreal.EdGraphPinType()
     if not team.import_text(
-        '(PinCategory="byte",PinSubCategoryObject="/Script/FPS.EFPS_Team")'
+        '(PinCategory="byte",PinSubCategoryObject="/Script/BLA.EBLA_Team")'
     ):
-        raise RuntimeError("Failed to construct EFPS_Team pin type")
+        raise RuntimeError("Failed to construct EBLA_Team pin type")
     return {
         "team": team,
         "bool": unreal.BlueprintEditorLibrary.get_basic_type_by_name("bool"),
@@ -163,9 +163,9 @@ def create_data_asset(name, package_path, asset_class):
 def build_rule_assets():
     for name, (team_size, combat, rounds, side_switch) in RULES.items():
         asset = create_data_asset(
-            name, "/Game/FPS/Data/Rules", unreal.FPSMatchRulesDataAsset
+            name, "/Game/BLA/Data/Rules", unreal.BLAMatchRulesDataAsset
         )
-        rules = unreal.FPSMatchRules()
+        rules = unreal.BLAMatchRules()
         rules.set_editor_properties(
             {
                 "team_size": team_size,
@@ -195,9 +195,9 @@ def build_difficulty_assets():
     ]
     for name, values in DIFFICULTIES.items():
         asset = create_data_asset(
-            name, "/Game/FPS/Data/AI", unreal.FPSBotDifficultyDataAsset
+            name, "/Game/BLA/Data/AI", unreal.BLABotDifficultyDataAsset
         )
-        difficulty = unreal.FPSBotDifficulty()
+        difficulty = unreal.BLABotDifficulty()
         difficulty.set_editor_properties(dict(zip(fields, values)))
         asset.set_editor_property("difficulty", difficulty)
         save(asset)
@@ -205,14 +205,14 @@ def build_difficulty_assets():
 
 def build_marker_and_validator():
     marker = get_or_create_blueprint(
-        f"{CORE_PATH}/BP_FPSGameplayTypes", unreal.Actor
+        f"{CORE_PATH}/BP_BLAGameplayTypes", unreal.Actor
     )
     unreal.BlueprintEditorLibrary.compile_blueprint(marker)
     save(marker)
 
     validator = get_or_create_blueprint(
-        f"{CORE_PATH}/BP_FPSGameplayDataValidator",
-        unreal.FPSGameplayDataValidator,
+        f"{CORE_PATH}/BP_BLAGameplayDataValidator",
+        unreal.BLAGameplayDataValidator,
     )
     unreal.BlueprintEditorLibrary.compile_blueprint(validator)
     save(validator)
@@ -233,7 +233,7 @@ def build_marker_and_validator():
         )
         if actor is None:
             raise RuntimeError("Failed to spawn gameplay data validator")
-        actor.set_actor_label("FPS Gameplay Data Validator")
+        actor.set_actor_label("BLA Gameplay Data Validator")
     elif len(actors) > 1:
         for duplicate in actors[1:]:
             actor_subsystem.destroy_actor(duplicate)
@@ -246,7 +246,7 @@ def main():
     build_rule_assets()
     build_difficulty_assets()
     build_marker_and_validator()
-    unreal.log("FPS_TASK2_ASSETS_BUILT assets=11 validator_actors=1")
+    unreal.log("BLA_TASK2_ASSETS_BUILT assets=11 validator_actors=1")
 
 
 main()

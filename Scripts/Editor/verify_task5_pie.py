@@ -1,7 +1,7 @@
 import unreal
 
 
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
 MAX_STARTUP_TICKS = 600
 VALIDATION_TICKS = 150
 
@@ -12,9 +12,9 @@ callback_handle = None
 
 def finish(success, message):
     if success:
-        unreal.log(f"FPS_TASK5_PIE_DRIVER_OK {message}")
+        unreal.log(f"BLA_TASK5_PIE_DRIVER_OK {message}")
     else:
-        unreal.log_error(f"FPS_TASK5_PIE_DRIVER_FAILED {message}")
+        unreal.log_error(f"BLA_TASK5_PIE_DRIVER_FAILED {message}")
     state["ending"] = True
     if level_editor.is_in_play_in_editor():
         level_editor.editor_request_end_play()
@@ -44,4 +44,4 @@ if not level_editor.load_level(BOOTSTRAP_LEVEL):
 
 callback_handle = unreal.register_slate_post_tick_callback(tick)
 level_editor.editor_request_begin_play()
-unreal.log("FPS_TASK5_PIE_DRIVER_STARTED")
+unreal.log("BLA_TASK5_PIE_DRIVER_STARTED")

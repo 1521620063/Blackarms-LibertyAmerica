@@ -8,7 +8,7 @@
 
 **Tech Stack:** Unreal Engine 5, Blueprint, UMG, Enhanced Input, AI Controller, Behavior Tree, Blackboard, AI Perception, NavMesh, Data Assets/Data Tables, Functional Tests, Windows Packaging.
 
-**Spec:** `D:\dev\fps-game\docs\superpowers\specs\2026-09-14-ue5-tactical-fps-design.md`
+**Spec:** `D:\dev\Blackarms-LibertyAmerica\docs\superpowers\specs\2026-09-14-ue5-tactical-fps-design.md`
 
 ## Global Constraints
 
@@ -25,17 +25,17 @@
 
 ## Asset Ownership Map
 
-Create assets only in their owning folders: `Content/FPS/Blueprints/Core`, `Characters`, `Weapons`, `AI`, `Objectives`, `Teams`, `Rounds`, `Maps`, `UI`; `Content/FPS/AI/{BehaviorTrees,Blackboards,Tasks,Services,Decorators}`; `Content/FPS/Data/{Weapons,AI,Rules,Maps,UI}`; `Content/FPS/Maps/{Graybox,Final}`; `Content/FPS/Tests`. Use prefixes `BP_`, `WBP_`, `BT_`, `BB_`, `BTT_`, `BTS_`, `BPD_`, `DA_`, `DT_`, `IA_`, `IMC_`, `M_`, `MI_`, `SFX_`, `VFX_`.
+Create assets only in their owning folders: `Content/BLA/Blueprints/Core`, `Characters`, `Weapons`, `AI`, `Objectives`, `Teams`, `Rounds`, `Maps`, `UI`; `Content/BLA/AI/{BehaviorTrees,Blackboards,Tasks,Services,Decorators}`; `Content/BLA/Data/{Weapons,AI,Rules,Maps,UI}`; `Content/BLA/Maps/{Graybox,Final}`; `Content/BLA/Tests`. Use prefixes `BP_`, `WBP_`, `BT_`, `BB_`, `BTT_`, `BTS_`, `BPD_`, `DA_`, `DT_`, `IA_`, `IMC_`, `M_`, `MI_`, `SFX_`, `VFX_`.
 
 ---
 
 ### Task 1: Bootstrap the UE5 project and repository
 
-**Files:** Create `D:\dev\fps-game\FPS.uproject`, `README.md`, `.gitignore`, the `Content/FPS/` folder tree, and `Content/FPS/Maps/Graybox/L_TestBootstrap`.
+**Files:** Create `D:\dev\Blackarms-LibertyAmerica\BlackarmsLibertyAmerica.uproject`, `README.md`, `.gitignore`, the `Content/BLA/` folder tree, and `Content/BLA/Maps/Graybox/L_TestBootstrap`.
 
 **Interfaces:** Produces a runnable Blueprint UE5 project, default test map, exact asset ownership tree, and documented UE5 version.
 
-- [x] Create a Games > First Person Blueprint project at `D:\dev\fps-game`, Desktop/Windows target, Enhanced Input enabled, default map `L_TestBootstrap`.
+- [x] Create a Games > First Person Blueprint project at `D:\dev\Blackarms-LibertyAmerica`, Desktop/Windows target, Enhanced Input enabled, default map `L_TestBootstrap`.
 - [x] Create the exact folders in the Asset Ownership Map; do not create gameplay `Misc` folders.
 - [x] Configure Windows target and record the exact engine version in `README.md`.
 - [x] Create `.gitignore` excluding `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, `.vs/`, and generated IDE files. Document opening and the Level Blueprint rule.
@@ -46,36 +46,36 @@ Create assets only in their owning folders: `Content/FPS/Blueprints/Core`, `Char
 
 ### Task 2: Define gameplay contracts and configuration data
 
-**Files:** Create `BP_FPSGameplayTypes`, `BPI_FPSCombatant`, `BPI_FPSInteractable`, `BPI_FPSObjectiveCarrier`; rule assets `DA_FPSMatchRules_Solo`, `_2v2`, `_3v3`; difficulty assets `DA_FPSBotDifficulty_Easy`, `_Normal`, `_Hard`; test actor `BP_FPSGameplayDataValidator`.
+**Files:** Create `BP_BLAGameplayTypes`, `BPI_BLACombatant`, `BPI_BLAInteractable`, `BPI_BLAObjectiveCarrier`; rule assets `DA_BLAMatchRules_Solo`, `_2v2`, `_3v3`; difficulty assets `DA_BLABotDifficulty_Easy`, `_Normal`, `_Hard`; test actor `BP_BLAGameplayDataValidator`.
 
 **Interfaces:** Produces the exact enums, structs, interfaces, and data assets consumed by all later tasks.
 
 Enums:
 
 ```text
-EFPS_Team = Attackers, Defenders, Neutral
-EFPS_MatchMode = TeamElimination, DataCoreAttackDefense
-EFPS_RoundPhase = Loading, Preparation, Combat, ObjectiveUpload, RoundResult, MatchResult
-EFPS_BotRole = Assault, Support, Defender
-EFPS_WeaponType = EnergyPistol, PulseRifle, ScatterGun
-EFPS_ObjectiveState = None, Available, Carried, Dropped, Planting, Planted, Uploading, Defusing, Defused, Completed
-EFPS_DeathState = Alive, Dead, Spectating
+EBLA_Team = Attackers, Defenders, Neutral
+EBLA_MatchMode = TeamElimination, DataCoreAttackDefense
+EBLA_RoundPhase = Loading, Preparation, Combat, ObjectiveUpload, RoundResult, MatchResult
+EBLA_BotRole = Assault, Support, Defender
+EBLA_WeaponType = EnergyPistol, PulseRifle, ScatterGun
+EBLA_ObjectiveState = None, Available, Carried, Dropped, Planting, Planted, Uploading, Defusing, Defused, Completed
+EBLA_DeathState = Alive, Dead, Spectating
 ```
 
-`FFPSMatchRules`: `TeamSize`, `PreparationSeconds`, `CombatSeconds`, `PlantSeconds`, `DefuseSeconds`, `UploadSeconds`, `RoundsToWin`, `SwitchSidesAfterRound`, `ObjectiveCount`. Use Solo 1/60/3, 2v2 2/75/4, 3v3 3/90/5; preparation 15, plant/defuse 5, upload 30, objective count 1.
+`FBLAMatchRules`: `TeamSize`, `PreparationSeconds`, `CombatSeconds`, `PlantSeconds`, `DefuseSeconds`, `UploadSeconds`, `RoundsToWin`, `SwitchSidesAfterRound`, `ObjectiveCount`. Use Solo 1/60/3, 2v2 2/75/4, 3v3 3/90/5; preparation 15, plant/defuse 5, upload 30, objective count 1.
 
-`FFPSBotDifficulty`: `VisionReactionSeconds`, `AimErrorDegrees`, `FireDelaySeconds`, `HearingRadius`, `SearchSeconds`, `TacticalExecutionProbability`, `TeamAssistProbability`. Hard must retain non-zero error and no hidden information.
+`FBLABotDifficulty`: `VisionReactionSeconds`, `AimErrorDegrees`, `FireDelaySeconds`, `HearingRadius`, `SearchSeconds`, `TacticalExecutionProbability`, `TeamAssistProbability`. Hard must retain non-zero error and no hidden information.
 
 Interfaces:
 
 ```text
-BPI_FPSCombatant: GetTeam() -> EFPS_Team; GetIsAlive() -> Boolean;
+BPI_BLACombatant: GetTeam() -> EBLA_Team; GetIsAlive() -> Boolean;
 ApplyCombatDamage(DamageAmount: Float, DamageLocation: Name, InstigatorActor: Actor) -> Boolean;
 GetCombatantWorldLocation() -> Vector
-BPI_FPSInteractable: CanInteract(Interactor: Actor) -> Boolean;
+BPI_BLAInteractable: CanInteract(Interactor: Actor) -> Boolean;
 BeginInteraction(Interactor: Actor) -> Boolean; CancelInteraction(Interactor: Actor);
 CompleteInteraction(Interactor: Actor) -> Boolean
-BPI_FPSObjectiveCarrier: HasObjectiveCore() -> Boolean;
+BPI_BLAObjectiveCarrier: HasObjectiveCore() -> Boolean;
 GiveObjectiveCore(CoreActor: Actor) -> Boolean; RemoveObjectiveCore() -> Actor
 ```
 
@@ -88,11 +88,11 @@ GiveObjectiveCore(CoreActor: Actor) -> Boolean; RemoveObjectiveCore() -> Actor
 
 ### Task 3: Build the shared character, input, health, and death foundation
 
-**Files:** Create `BP_FPSCharacterBase`, `BP_FPSPlayerCharacter`, `BP_FPSBotCharacter`, `BP_FPSHealthComponent`, `BP_FPSInteractionComponent`, `BP_FPSPlayerController`, `BP_FPSPlayerState`; input assets `IA_Move`, `IA_Look`, `IA_Jump`, `IA_Fire`, `IA_Reload`, `IA_SwitchPrimary`, `IA_SwitchSecondary`, `IA_Command`, `IMC_FPSPlayer`.
+**Files:** Create `BP_BLACharacterBase`, `BP_BLAPlayerCharacter`, `BP_BLABotCharacter`, `BP_BLAHealthComponent`, `BP_BLAInteractionComponent`, `BP_BLAPlayerController`, `BP_BLAPlayerState`; input assets `IA_Move`, `IA_Look`, `IA_Jump`, `IA_Fire`, `IA_Reload`, `IA_SwitchPrimary`, `IA_SwitchSecondary`, `IA_Command`, `IMC_BLAPlayer`.
 
 **Interfaces:** Consumes Task 2 contracts; produces a shared combatant with team/alive/damage/reset/movement/interaction behavior.
 
-`BP_FPSHealthComponent` contract:
+`BP_BLAHealthComponent` contract:
 
 ```text
 MaxHealth=100; CurrentHealth; ArmorValue; IsDead
@@ -102,9 +102,9 @@ ResetHealth(); HandleDeath()
 
 - [x] Map WASD, mouse X/Y, Space, left mouse, R, 1, 2, and Q to the input assets.
 - [x] Implement clamped damage, `OnHealthChanged`, `OnDeath`, one-shot death protection, reset to full health, and rejection after death.
-- [x] Put movement, camera, health, and interaction on `BP_FPSCharacterBase`; implement `BPI_FPSCombatant`. On death disable combat movement/collision; reset belongs to `RoundManager`.
+- [x] Put movement, camera, health, and interaction on `BP_BLACharacterBase`; implement `BPI_BLACombatant`. On death disable combat movement/collision; reset belongs to `RoundManager`.
 - [x] Derive player and bot characters; player input belongs to controller/character, bot decisions to AIController.
-- [x] Store Team, DeathState, Kills, Deaths, DamageDealt, and ObjectiveContribution in `BP_FPSPlayerState`.
+- [x] Store Team, DeathState, Kills, Deaths, DamageDealt, and ObjectiveContribution in `BP_BLAPlayerState`.
 - [x] Verify movement/look/jump, 100 health, one death event, disabled movement after death, and reset to full health.
 - [x] Commit `feat: add shared character and health foundation`.
 
@@ -112,7 +112,7 @@ ResetHealth(); HandleDeath()
 
 ### Task 4: Implement data-driven hitscan weapons
 
-**Files:** Create `DA_FPSWeapon_EnergyPistol`, `DA_FPSWeapon_PulseRifle`, `DA_FPSWeapon_ScatterGun`, `BP_FPSWeaponBase`, `BP_FPSWeaponComponent`, `BP_FPSWeapon_EnergyPistol`, `BP_FPSWeapon_PulseRifle`, `BP_FPSWeapon_ScatterGun`, `BP_FPSDamageResolver`, `BP_FPSHitFeedbackComponent`, `BP_FPSWeaponTestActor`.
+**Files:** Create `DA_BLAWeapon_EnergyPistol`, `DA_BLAWeapon_PulseRifle`, `DA_BLAWeapon_ScatterGun`, `BP_BLAWeaponBase`, `BP_BLAWeaponComponent`, `BP_BLAWeapon_EnergyPistol`, `BP_BLAWeapon_PulseRifle`, `BP_BLAWeapon_ScatterGun`, `BP_BLADamageResolver`, `BP_BLAHitFeedbackComponent`, `BP_BLAWeaponTestActor`.
 
 **Interfaces:** Consumes Task 3 input/health; produces `EquipWeapon`, `FireWeapon`, `ReloadWeapon`, `SwitchWeapon`, `GetCurrentAmmo`, `CanFire`.
 
@@ -120,7 +120,7 @@ Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultipl
 
 - [x] Create three assets with magazines 12, 24, and 6 for pistol, rifle, and scatter gun.
 - [x] Implement ammo, reserve ammo, cooldown, reload, switching, and fire guards for dead/reloading/cooldown/empty.
-- [x] Trace from player camera or bot aim origin; resolve actor/zone/falloff/armor in `BP_FPSDamageResolver`; route damage through health only.
+- [x] Trace from player camera or bot aim origin; resolve actor/zone/falloff/armor in `BP_BLADamageResolver`; route damage through health only.
 - [x] Use one trace for pistol/rifle and fixed deterministic multi-trace spread for scatter gun; never spawn projectile actors.
 - [x] Add placeholder muzzle, debug line, hit marker, hit sound, and hit/kill feedback without match-rule logic.
 - [x] Test all weapons, ammo/reload/cooldown, body/weak-point/limb multipliers, armor, and no damage after death.
@@ -130,13 +130,13 @@ Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultipl
 
 ### Task 5: Implement teams, GameMode/GameState, rounds, and reset
 
-**Files:** Create `BP_FPSGameInstance`, `BP_FPSGameMode`, `BP_FPSGameState`, `BP_FPSTeamManager`, `BP_FPSRoundManager`, `BP_FPSRoundResultData`, `BP_FPSSpawnPoint`, `BP_FPSRoundTestActor`.
+**Files:** Create `BP_BLAGameInstance`, `BP_BLAGameMode`, `BP_BLAGameState`, `BP_BLATeamManager`, `BP_BLARoundManager`, `BP_BLARoundResultData`, `BP_BLASpawnPoint`, `BP_BLARoundTestActor`.
 
 **Interfaces:** Consumes Tasks 2–4; produces match state and round events for AI, objectives, and UI.
 
-`BP_FPSGameState` fields: `MatchMode`, `RoundPhase`, `CurrentRound`, `AttackersScore`, `DefendersScore`, `AttackersTeamSize`, `DefendersTeamSize`, `RoundTimeRemaining`, `CurrentObjectiveState`.
+`BP_BLAGameState` fields: `MatchMode`, `RoundPhase`, `CurrentRound`, `AttackersScore`, `DefendersScore`, `AttackersTeamSize`, `DefendersTeamSize`, `RoundTimeRemaining`, `CurrentObjectiveState`.
 
-`BP_FPSRoundManager` functions: `StartMatch(Rules)`, `StartPreparationPhase()`, `StartCombatPhase()`, `EndRound(Winner, Reason)`, `SwitchSidesIfRequired()`, `StartNextRound()`, `EndMatch(Winner)`, `ResetAllCombatants()`.
+`BP_BLARoundManager` functions: `StartMatch(Rules)`, `StartPreparationPhase()`, `StartCombatPhase()`, `EndRound(Winner, Reason)`, `SwitchSidesIfRequired()`, `StartNextRound()`, `EndMatch(Winner)`, `ResetAllCombatants()`.
 
 - [x] Store selected mode/rules/difficulty/team size in GameInstance; store live state only in GameState.
 - [x] Implement team registration, unregistration, living count, team members, opposing team, and configured slots.
@@ -151,7 +151,7 @@ Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultipl
 
 ### Task 6: Build AI perception, navigation, tactical points, and elimination behavior
 
-**Files:** Create `BP_FPSAIController`, `BP_FPSBotPerception`, `BP_FPSTacticalManager`, `BP_FPSTacticalPoint`, `BTT_FPSMoveToTacticalPoint`, `BTT_FPSAimAndFire`, `BTT_FPSFindCover`, `BTT_FPSSearchLastKnownPosition`, `BTS_FPSUpdateTarget`, `BTS_FPSCheckStuck`, `BPD_FPSHasLiveTarget`, `BB_FPSBot`, `BT_FPSBotElimination`, `BP_FPSAITestFixture`.
+**Files:** Create `BP_BLAAIController`, `BP_BLABotPerception`, `BP_BLATacticalManager`, `BP_BLATacticalPoint`, `BTT_BLAMoveToTacticalPoint`, `BTT_BLAAimAndFire`, `BTT_BLAFindCover`, `BTT_BLASearchLastKnownPosition`, `BTS_BLAUpdateTarget`, `BTS_BLACheckStuck`, `BPD_BLAHasLiveTarget`, `BB_BLABot`, `BT_BLABotElimination`, `BP_BLAAITestFixture`.
 
 **Interfaces:** Consumes bot, team, weapon, difficulty, and map systems; produces stable bots that navigate, perceive, fight, seek cover, and recover.
 
@@ -170,7 +170,7 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 7: Complete the 1v1 Team Elimination vertical slice
 
-**Files:** Create `L_FPS_1v1_Elimination`, `BP_FPSGameMode_Elimination`, `FT_FPS_1v1_Elimination`; modify GameState, RoundManager, and elimination behavior tree.
+**Files:** Create `L_BLA_1v1_Elimination`, `BP_BLAGameMode_Elimination`, `FT_BLA_1v1_Elimination`; modify GameState, RoundManager, and elimination behavior tree.
 
 **Interfaces:** Consumes Tasks 1–6; produces the first complete playable match loop and permanent regression fixture.
 
@@ -185,11 +185,11 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 8: Expand to 3v3, roles, team orders, and spectator mode
 
-**Files:** Create `BP_FPSTeamOrderManager`, `BP_FPSRoleAssignment`, `BTT_FPSFollowPlayer`, `BTT_FPSGuardPoint`, `BTT_FPSAttackRoute`, `WBP_FPSSpectator`, `FT_FPS_3v3_Elimination`; modify controller and elimination tree.
+**Files:** Create `BP_BLATeamOrderManager`, `BP_BLARoleAssignment`, `BTT_BLAFollowPlayer`, `BTT_BLAGuardPoint`, `BTT_BLAAttackRoute`, `WBP_BLASpectator`, `FT_BLA_3v3_Elimination`; modify controller and elimination tree.
 
 **Interfaces:** Consumes the vertical slice and command input; produces configurable Solo/2v2/3v3 population, roles, orders, and observation.
 
-- [x] Define `EFPS_TeamOrder = FollowPlayer, HoldHere, AttackTarget, Retreat`; store current order, issuer, target location, and phase expiry; clear at reset.
+- [x] Define `EBLA_TeamOrder = FollowPlayer, HoldHere, AttackTarget, Retreat`; store current order, issuer, target location, and phase expiry; clear at reset.
 - [x] Assign Assault, Support, Defender deterministically to available bots; Solo/2v2 use the first available roles.
 - [x] Make Assault choose AttackPoint, Support follow player or nearest Assault, Defender choose GuardPoint; after player death follow highest-priority living teammate.
 - [x] Route four keyboard/selector commands through TeamOrderManager; commands may not directly move or damage bots.
@@ -201,7 +201,7 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 9: Implement Data Core Attack/Defense
 
-**Files:** Create `BP_FPSDataCore`, `BP_FPSObjectiveZone`, `BP_FPSObjectiveManager`, `BTT_FPSSeekDataCore`, `BTT_FPSCarryDataCore`, `BTT_FPSPlantDataCore`, `BTT_FPSDefendObjective`, `BTT_FPSDefuseDataCore`, `BT_FPSBotObjective`, `FT_FPS_DataCore`.
+**Files:** Create `BP_BLADataCore`, `BP_BLAObjectiveZone`, `BP_BLAObjectiveManager`, `BTT_BLASeekDataCore`, `BTT_BLACarryDataCore`, `BTT_BLAPlantDataCore`, `BTT_BLADefendObjective`, `BTT_BLADefuseDataCore`, `BT_BLABotObjective`, `FT_BLA_DataCore`.
 
 **Interfaces:** Consumes round, team, interaction, perception, and tactical systems; produces objective mode without duplicating round rules.
 
@@ -217,7 +217,7 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 10: Build menus, HUD, settings, results, and player flow
 
-**Files:** Create `WBP_FPSMainMenu`, `WBP_FPSModeSelect`, `WBP_FPSSettings`, `WBP_FPSMatchHUD`, `WBP_FPSTeamStatus`, `WBP_FPSWeaponStatus`, `WBP_FPSObjectiveStatus`, `WBP_FPSRoundResult`, `WBP_FPSMatchResult`, `WBP_FPSInteractionPrompt`, `WBP_FPSCommandSelector`, `BP_FPSUIManager`, `FT_FPS_UIFlow`.
+**Files:** Create `WBP_BLAMainMenu`, `WBP_BLAModeSelect`, `WBP_BLASettings`, `WBP_BLAMatchHUD`, `WBP_BLATeamStatus`, `WBP_BLAWeaponStatus`, `WBP_BLAObjectiveStatus`, `WBP_BLARoundResult`, `WBP_BLAMatchResult`, `WBP_BLAInteractionPrompt`, `WBP_BLACommandSelector`, `BP_BLAUIManager`, `FT_BLA_UIFlow`.
 
 **Interfaces:** Reads GameInstance selections, GameState, PlayerState, weapon/health/objective components, and controller events; never decides gameplay results.
 
@@ -233,14 +233,14 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 11: Build and validate the Zero Facility graybox map
 
-**Files:** Create `L_FPS_ZeroFacility`, `BP_FPSMapZone`, `BP_FPSMapConfig`, `DA_FPSMapConfig_ZeroFacility`, `FT_FPS_MapNavigation`.
+**Files:** Create `L_BLA_ZeroFacility`, `BP_BLAMapZone`, `BP_BLAMapConfig`, `DA_BLAMapConfig_ZeroFacility`, `FT_BLA_MapNavigation`.
 
 **Interfaces:** Consumes spawn/tactical/objective/AI systems; produces one map playable in both modes and all MVP scales.
 
 - [ ] Build AttackSpawn, LeftRoute, CenterRoute, RightRoute, MidCombatZone, ObjectiveZone, FlankZone, DefenseSpawn with cubes/BSP only.
 - [ ] Add narrow left, direct central, wider right, two target entries, one flank, low/high/directional cover, 3–5 spawn points per team, and all tactical point types.
 - [ ] Build NavMesh over all routes, covers, target areas, and tactical points; remove unrecoverable corners and door traps.
-- [ ] Store supported modes/scales and actor references in `DA_FPSMapConfig_ZeroFacility`; GameMode loads this asset rather than arbitrary name searches.
+- [ ] Store supported modes/scales and actor references in `DA_BLAMapConfig_ZeroFacility`; GameMode loads this asset rather than arbitrary name searches.
 - [ ] Navigation test checks route reachability, role-point reachability, no spawn-to-spawn direct sight, valid objective interactions, and no spawn overlap.
 - [ ] Play five matches per mode at Solo/2v2/3v3; record first contact time, route usage, objective success, and choke/spawn issues in `README.md`.
 - [ ] Commit `feat: add zero facility modular graybox map`.
@@ -249,7 +249,7 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 12: Add regression, diagnostics, recovery, and Windows packaging
 
-**Files:** Create `FT_FPS_AllMVPFlows`, `BP_FPSTestHarness`, `BP_FPSDebugSubsystem`, `docs/testing/mvp-test-matrix.md`, `docs/builds/windows-mvp-smoke-test.md`; modify managers only to emit recovery diagnostics.
+**Files:** Create `FT_BLA_AllMVPFlows`, `BP_BLATestHarness`, `BP_BLADebugSubsystem`, `docs/testing/mvp-test-matrix.md`, `docs/builds/windows-mvp-smoke-test.md`; modify managers only to emit recovery diagnostics.
 
 **Interfaces:** Consumes all MVP systems; produces repeatable regression coverage and safe recovery.
 

@@ -2,13 +2,13 @@ import math
 import unreal
 
 
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
-VALIDATOR_PATH = "/Game/FPS/Blueprints/Core/BP_FPSGameplayDataValidator"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+VALIDATOR_PATH = "/Game/BLA/Blueprints/Core/BP_BLAGameplayDataValidator"
 
 ENUMS = {
-    "FPS_Team": ["ATTACKERS", "DEFENDERS", "NEUTRAL"],
-    "FPS_MatchMode": ["TEAM_ELIMINATION", "DATA_CORE_ATTACK_DEFENSE"],
-    "FPS_RoundPhase": [
+    "BLA_Team": ["ATTACKERS", "DEFENDERS", "NEUTRAL"],
+    "BLA_MatchMode": ["TEAM_ELIMINATION", "DATA_CORE_ATTACK_DEFENSE"],
+    "BLA_RoundPhase": [
         "LOADING",
         "PREPARATION",
         "COMBAT",
@@ -16,9 +16,9 @@ ENUMS = {
         "ROUND_RESULT",
         "MATCH_RESULT",
     ],
-    "FPS_BotRole": ["ASSAULT", "SUPPORT", "DEFENDER"],
-    "FPS_WeaponType": ["ENERGY_PISTOL", "PULSE_RIFLE", "SCATTER_GUN"],
-    "FPS_ObjectiveState": [
+    "BLA_BotRole": ["ASSAULT", "SUPPORT", "DEFENDER"],
+    "BLA_WeaponType": ["ENERGY_PISTOL", "PULSE_RIFLE", "SCATTER_GUN"],
+    "BLA_ObjectiveState": [
         "NONE",
         "AVAILABLE",
         "CARRIED",
@@ -30,11 +30,11 @@ ENUMS = {
         "DEFUSED",
         "COMPLETED",
     ],
-    "FPS_DeathState": ["ALIVE", "DEAD", "SPECTATING"],
+    "BLA_DeathState": ["ALIVE", "DEAD", "SPECTATING"],
 }
 
 STRUCT_FIELDS = {
-    "FPSMatchRules": {
+    "BLAMatchRules": {
         "team_size",
         "preparation_seconds",
         "combat_seconds",
@@ -45,7 +45,7 @@ STRUCT_FIELDS = {
         "switch_sides_after_round",
         "objective_count",
     },
-    "FPSBotDifficulty": {
+    "BLABotDifficulty": {
         "vision_reaction_seconds",
         "aim_error_degrees",
         "fire_delay_seconds",
@@ -57,13 +57,13 @@ STRUCT_FIELDS = {
 }
 
 RULES = {
-    "/Game/FPS/Data/Rules/DA_FPSMatchRules_Solo": (1, 60.0, 3, 2),
-    "/Game/FPS/Data/Rules/DA_FPSMatchRules_2v2": (2, 75.0, 4, 2),
-    "/Game/FPS/Data/Rules/DA_FPSMatchRules_3v3": (3, 90.0, 5, 4),
+    "/Game/BLA/Data/Rules/DA_BLAMatchRules_Solo": (1, 60.0, 3, 2),
+    "/Game/BLA/Data/Rules/DA_BLAMatchRules_2v2": (2, 75.0, 4, 2),
+    "/Game/BLA/Data/Rules/DA_BLAMatchRules_3v3": (3, 90.0, 5, 4),
 }
 
 DIFFICULTIES = {
-    "/Game/FPS/Data/AI/DA_FPSBotDifficulty_Easy": (
+    "/Game/BLA/Data/AI/DA_BLABotDifficulty_Easy": (
         0.65,
         8.0,
         0.35,
@@ -72,7 +72,7 @@ DIFFICULTIES = {
         0.45,
         0.35,
     ),
-    "/Game/FPS/Data/AI/DA_FPSBotDifficulty_Normal": (
+    "/Game/BLA/Data/AI/DA_BLABotDifficulty_Normal": (
         0.35,
         4.0,
         0.18,
@@ -81,7 +81,7 @@ DIFFICULTIES = {
         0.70,
         0.65,
     ),
-    "/Game/FPS/Data/AI/DA_FPSBotDifficulty_Hard": (
+    "/Game/BLA/Data/AI/DA_BLABotDifficulty_Hard": (
         0.18,
         1.5,
         0.08,
@@ -93,8 +93,8 @@ DIFFICULTIES = {
 }
 
 INTERFACES = {
-    "/Game/FPS/Blueprints/Core/BPI_FPSCombatant": {
-        "GetTeam": ({}, {"ReturnValue": ("byte", "EFPS_Team")}),
+    "/Game/BLA/Blueprints/Core/BPI_BLACombatant": {
+        "GetTeam": ({}, {"ReturnValue": ("byte", "EBLA_Team")}),
         "GetIsAlive": ({}, {"ReturnValue": ("bool", None)}),
         "ApplyCombatDamage": (
             {
@@ -106,7 +106,7 @@ INTERFACES = {
         ),
         "GetCombatantWorldLocation": ({}, {"ReturnValue": ("struct", "Vector")}),
     },
-    "/Game/FPS/Blueprints/Core/BPI_FPSInteractable": {
+    "/Game/BLA/Blueprints/Core/BPI_BLAInteractable": {
         "CanInteract": (
             {"Interactor": ("object", "Actor")},
             {"ReturnValue": ("bool", None)},
@@ -121,7 +121,7 @@ INTERFACES = {
             {"ReturnValue": ("bool", None)},
         ),
     },
-    "/Game/FPS/Blueprints/Core/BPI_FPSObjectiveCarrier": {
+    "/Game/BLA/Blueprints/Core/BPI_BLAObjectiveCarrier": {
         "HasObjectiveCore": ({}, {"ReturnValue": ("bool", None)}),
         "GiveObjectiveCore": (
             {"CoreActor": ("object", "Actor")},
@@ -259,16 +259,16 @@ def verify_interfaces():
 
 
 def verify_validator():
-    marker = unreal.load_asset("/Game/FPS/Blueprints/Core/BP_FPSGameplayTypes")
+    marker = unreal.load_asset("/Game/BLA/Blueprints/Core/BP_BLAGameplayTypes")
     if marker is None:
-        fail("missing BP_FPSGameplayTypes")
+        fail("missing BP_BLAGameplayTypes")
 
     validator = unreal.load_asset(VALIDATOR_PATH)
     if validator is None:
-        fail("missing BP_FPSGameplayDataValidator")
+        fail("missing BP_BLAGameplayDataValidator")
     parent = unreal.BlueprintEditorLibrary.get_blueprint_parent_class(validator)
-    if parent.get_path_name() != "/Script/FPS.FPSGameplayDataValidator":
-        fail(f"validator parent is {parent}, expected FPSGameplayDataValidator")
+    if parent.get_path_name() != "/Script/BLA.BLAGameplayDataValidator":
+        fail(f"validator parent is {parent}, expected BLAGameplayDataValidator")
 
     level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     if not level_editor.load_level(BOOTSTRAP_LEVEL):
@@ -290,7 +290,7 @@ def main():
     verify_difficulty_assets()
     verify_interfaces()
     verify_validator()
-    unreal.log("FPS_TASK2_CONTRACTS_OK types=9 assets=11 validator_actors=1")
+    unreal.log("BLA_TASK2_CONTRACTS_OK types=9 assets=11 validator_actors=1")
 
 
 main()

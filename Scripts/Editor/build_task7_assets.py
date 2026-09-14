@@ -1,9 +1,9 @@
 import unreal
 
 
-MAP = "/Game/FPS/Maps/Graybox/L_FPS_1v1_Elimination"
-MODE = "/Game/FPS/Blueprints/Core/BP_FPSGameMode_Elimination"
-TEST = "/Game/FPS/Tests/FT_FPS_1v1_Elimination"
+MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
+MODE = "/Game/BLA/Blueprints/Core/BP_BLAGameMode_Elimination"
+TEST = "/Game/BLA/Tests/FT_BLA_1v1_Elimination"
 
 assets = unreal.get_editor_subsystem(unreal.EditorAssetSubsystem)
 levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -68,14 +68,14 @@ def build_map(mode_blueprint, test_blueprint):
     spawn_cube("Cover Center", unreal.Vector(0, 0, 90), unreal.Vector(1.4, 3.0, 1.8))
     spawn_cube("Cover Right", unreal.Vector(250, 330, 90), unreal.Vector(2.4, 1.0, 1.8))
 
-    attacker = actors.spawn_actor_from_class(unreal.FPSSpawnPoint, unreal.Vector(-1020, -350, 120), unreal.Rotator(0, 0, 0))
-    defender = actors.spawn_actor_from_class(unreal.FPSSpawnPoint, unreal.Vector(1020, 350, 120), unreal.Rotator(0, 180, 0))
+    attacker = actors.spawn_actor_from_class(unreal.BLASpawnPoint, unreal.Vector(-1020, -350, 120), unreal.Rotator(0, 0, 0))
+    defender = actors.spawn_actor_from_class(unreal.BLASpawnPoint, unreal.Vector(1020, 350, 120), unreal.Rotator(0, 180, 0))
     if attacker is None or defender is None:
         raise RuntimeError("Failed to create team spawn points")
     attacker.set_actor_label("Attacker Protected Spawn")
-    attacker.set_editor_properties({"team": unreal.FPS_Team.ATTACKERS, "zone": "AttackSpawn"})
+    attacker.set_editor_properties({"team": unreal.BLA_Team.ATTACKERS, "zone": "AttackSpawn"})
     defender.set_actor_label("Defender Protected Spawn")
-    defender.set_editor_properties({"team": unreal.FPS_Team.DEFENDERS, "zone": "DefenseSpawn"})
+    defender.set_editor_properties({"team": unreal.BLA_Team.DEFENDERS, "zone": "DefenseSpawn"})
 
     nav = actors.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(0, 0, 180), unreal.Rotator())
     if nav is None:
@@ -86,7 +86,7 @@ def build_map(mode_blueprint, test_blueprint):
     test_actor = actors.spawn_actor_from_class(test_blueprint.generated_class(), unreal.Vector(0, 0, 600), unreal.Rotator())
     if test_actor is None:
         raise RuntimeError("Failed to place elimination functional test")
-    test_actor.set_actor_label("FPS 1v1 Elimination Functional Test")
+    test_actor.set_actor_label("BLA 1v1 Elimination Functional Test")
 
     spawn_light("Arena Light West", unreal.Vector(-500, 0, 450), 8000.0, 1500.0)
     spawn_light("Arena Light East", unreal.Vector(500, 0, 450), 8000.0, 1500.0)
@@ -105,9 +105,9 @@ def tick(_):
         path_points = path.get_editor_property("path_points") if path else []
         state["built"] = bool(path and path.is_valid() and len(path_points) >= 2)
         state["next_build_tick"] += 60
-        unreal.log(f"FPS_TASK7_NAVIGATION_BUILD_ATTEMPT reachable={int(state['built'])}")
+        unreal.log(f"BLA_TASK7_NAVIGATION_BUILD_ATTEMPT reachable={int(state['built'])}")
     if not state["built"] and state["ticks"] >= 600:
-        unreal.log_error("FPS_TASK7_ASSET_BUILD_FAILED reason=navigation")
+        unreal.log_error("BLA_TASK7_ASSET_BUILD_FAILED reason=navigation")
         state["finished"] = True
         unreal.unregister_slate_post_tick_callback(callback_handle)
         unreal.SystemLibrary.quit_editor()
@@ -116,24 +116,24 @@ def tick(_):
         if not levels.save_current_level():
             state["save_attempts"] += 1
             if state["save_attempts"] >= 120:
-                unreal.log_error(f"FPS_TASK7_ASSET_BUILD_FAILED reason=save map={MAP}")
+                unreal.log_error(f"BLA_TASK7_ASSET_BUILD_FAILED reason=save map={MAP}")
                 state["finished"] = True
                 unreal.unregister_slate_post_tick_callback(callback_handle)
                 unreal.SystemLibrary.quit_editor()
             return
         state["finished"] = True
-        unreal.log("FPS_TASK7_ASSETS_BUILT map=1 room=1 protected_spawns=2 cover=3 navmesh=1 game_modes=1 functional_tests=1")
+        unreal.log("BLA_TASK7_ASSETS_BUILT map=1 room=1 protected_spawns=2 cover=3 navmesh=1 game_modes=1 functional_tests=1")
         unreal.unregister_slate_post_tick_callback(callback_handle)
         unreal.SystemLibrary.quit_editor()
 
 
 def main():
     global callback_handle
-    mode = blueprint(MODE, unreal.FPSGameModeElimination)
-    test = blueprint(TEST, unreal.FPS1v1EliminationTest)
+    mode = blueprint(MODE, unreal.BLAGameModeElimination)
+    test = blueprint(TEST, unreal.BLA1v1EliminationTest)
     build_map(mode, test)
     callback_handle = unreal.register_slate_post_tick_callback(tick)
-    unreal.log("FPS_TASK7_ASSET_BUILD_WAITING_FOR_NAVIGATION")
+    unreal.log("BLA_TASK7_ASSET_BUILD_WAITING_FOR_NAVIGATION")
 
 
 main()

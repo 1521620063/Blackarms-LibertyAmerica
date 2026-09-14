@@ -1,7 +1,7 @@
 import unreal
 
 
-MAP = "/Game/FPS/Maps/Graybox/L_FPS_1v1_Elimination"
+MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
 MAX_STARTUP_TICKS = 600
 VALIDATION_TICKS = 240
 
@@ -12,9 +12,9 @@ handle = None
 
 def finish(success, message):
     if success:
-        unreal.log(f"FPS_TASK7_PIE_DRIVER_OK {message}")
+        unreal.log(f"BLA_TASK7_PIE_DRIVER_OK {message}")
     else:
-        unreal.log_error(f"FPS_TASK7_PIE_DRIVER_FAILED {message}")
+        unreal.log_error(f"BLA_TASK7_PIE_DRIVER_FAILED {message}")
     state["ending"] = True
     if level.is_in_play_in_editor():
         level.editor_request_end_play()
@@ -43,4 +43,4 @@ if not level.load_level(MAP):
     raise RuntimeError(f"Failed to load {MAP}")
 handle = unreal.register_slate_post_tick_callback(tick)
 level.editor_request_begin_play()
-unreal.log("FPS_TASK7_PIE_DRIVER_STARTED")
+unreal.log("BLA_TASK7_PIE_DRIVER_STARTED")

@@ -2,7 +2,7 @@
 
 - 日期：2026-09-14
 - 状态：已确认设计，待执行开发计划
-- 项目目录：`D:\dev\fps-game`
+- 项目目录：`D:\dev\Blackarms-LibertyAmerica`
 - 目标平台：Windows PC
 - 引擎：Unreal Engine 5
 
@@ -419,13 +419,13 @@ FlankZone
 ### 10.1 核心对象
 
 ```text
-FPSGameInstance
-FPSGameMode
-FPSGameState
-FPSPlayerState
-FPSPlayerController
-FPSCharacter
-FPSAIController
+BLAGameInstance
+BLAGameMode
+BLAGameState
+BLAPlayerState
+BLAPlayerController
+BLACharacter
+BLAAIController
 RoundManager
 TeamManager
 BotTacticalManager
@@ -494,7 +494,7 @@ UIManager
 ## 11. 推荐目录结构
 
 ```text
-Content/FPS/
+Content/BLA/
 ├── Blueprints/
 │   ├── Core/
 │   ├── Characters/

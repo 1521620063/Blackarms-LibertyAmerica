@@ -1,19 +1,19 @@
 import unreal
 
 
-MAP = "/Game/FPS/Maps/Graybox/L_FPS_1v1_Elimination"
-CORE_BLUEPRINT = "/Game/FPS/Blueprints/Objectives/BP_FPSDataCore"
-ZONE_BLUEPRINT = "/Game/FPS/Blueprints/Objectives/BP_FPSObjectiveZone"
-MANAGER_BLUEPRINT = "/Game/FPS/Blueprints/Objectives/BP_FPSObjectiveManager"
-TEST_BLUEPRINT = "/Game/FPS/Tests/FT_FPS_DataCore"
-OBJECTIVE_TREE = "/Game/FPS/AI/BehaviorTrees/BT_FPSBotObjective"
-BLACKBOARD = "/Game/FPS/AI/Blackboards/BB_FPSBot"
+MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
+CORE_BLUEPRINT = "/Game/BLA/Blueprints/Objectives/BP_BLADataCore"
+ZONE_BLUEPRINT = "/Game/BLA/Blueprints/Objectives/BP_BLAObjectiveZone"
+MANAGER_BLUEPRINT = "/Game/BLA/Blueprints/Objectives/BP_BLAObjectiveManager"
+TEST_BLUEPRINT = "/Game/BLA/Tests/FT_BLA_DataCore"
+OBJECTIVE_TREE = "/Game/BLA/AI/BehaviorTrees/BT_BLABotObjective"
+BLACKBOARD = "/Game/BLA/AI/Blackboards/BB_BLABot"
 OBJECTIVE_TASK_PATHS = [
-    "/Game/FPS/AI/Tasks/BTT_FPSSeekDataCore",
-    "/Game/FPS/AI/Tasks/BTT_FPSCarryDataCore",
-    "/Game/FPS/AI/Tasks/BTT_FPSPlantDataCore",
-    "/Game/FPS/AI/Tasks/BTT_FPSDefendObjective",
-    "/Game/FPS/AI/Tasks/BTT_FPSDefuseDataCore",
+    "/Game/BLA/AI/Tasks/BTT_BLASeekDataCore",
+    "/Game/BLA/AI/Tasks/BTT_BLACarryDataCore",
+    "/Game/BLA/AI/Tasks/BTT_BLAPlantDataCore",
+    "/Game/BLA/AI/Tasks/BTT_BLADefendObjective",
+    "/Game/BLA/AI/Tasks/BTT_BLADefuseDataCore",
 ]
 
 REQUIRED_STATES = {
@@ -33,13 +33,13 @@ FORBIDDEN_CORE_FUNCTIONS = {
 PRESERVED_LABELS = {
     "Arena Floor", "Attacker Protected Spawn", "Defender Protected Spawn",
     "Cover Left", "Cover Center", "Cover Right",
-    "1v1 Arena Navigation Bounds", "FPS 1v1 Elimination Functional Test",
-    "FPS 3v3 Elimination Functional Test", "Fixed Spectator Camera",
+    "1v1 Arena Navigation Bounds", "BLA 1v1 Elimination Functional Test",
+    "BLA 3v3 Elimination Functional Test", "Fixed Spectator Camera",
 }
 TASK9_LABELS = {
     "Data Core", "Data Core Objective Zone",
     "Data Core Plant Point", "Data Core Defuse Point",
-    "FPS Data Core Functional Test",
+    "BLA Data Core Functional Test",
 }
 
 
@@ -65,12 +65,12 @@ def require_blueprint(path, parent_path):
 
 
 def main():
-    core_type = require_native_type("FPSDataCore")
-    require_native_type("FPSObjectiveZone")
-    manager_type = require_native_type("FPSObjectiveManager")
-    test_type = require_native_type("FPSDataCoreTest")
+    core_type = require_native_type("BLADataCore")
+    require_native_type("BLAObjectiveZone")
+    manager_type = require_native_type("BLAObjectiveManager")
+    test_type = require_native_type("BLADataCoreTest")
 
-    states = {value.name for value in unreal.FPS_ObjectiveState}
+    states = {value.name for value in unreal.BLA_ObjectiveState}
     missing_states = REQUIRED_STATES - states
     if missing_states:
         fail(f"objective states missing {sorted(missing_states)}")
@@ -84,14 +84,14 @@ def main():
     if leaked:
         fail(f"data core exposes completion API {sorted(leaked)}")
 
-    require_blueprint(CORE_BLUEPRINT, "/Script/FPS.FPSDataCore")
-    require_blueprint(ZONE_BLUEPRINT, "/Script/FPS.FPSObjectiveZone")
-    require_blueprint(MANAGER_BLUEPRINT, "/Script/FPS.FPSObjectiveManager")
-    require_blueprint(TEST_BLUEPRINT, "/Script/FPS.FPSDataCoreTest")
+    require_blueprint(CORE_BLUEPRINT, "/Script/BLA.BLADataCore")
+    require_blueprint(ZONE_BLUEPRINT, "/Script/BLA.BLAObjectiveZone")
+    require_blueprint(MANAGER_BLUEPRINT, "/Script/BLA.BLAObjectiveManager")
+    require_blueprint(TEST_BLUEPRINT, "/Script/BLA.BLADataCoreTest")
     for task_path in OBJECTIVE_TASK_PATHS:
         require_blueprint(task_path, "/Script/AIModule.BTTask_BlueprintBase")
 
-    ai_functions = {name.lower() for name in dir(require_native_type("FPSAIController"))}
+    ai_functions = {name.lower() for name in dir(require_native_type("BLAAIController"))}
     missing_ai_functions = REQUIRED_AI_FUNCTIONS - ai_functions
     if missing_ai_functions:
         fail(f"ai controller missing objective functions {sorted(missing_ai_functions)}")
@@ -100,7 +100,7 @@ def main():
     if objective_tree is None:
         fail(f"missing asset {OBJECTIVE_TREE}")
     if objective_tree.get_editor_property("blackboard_asset") != unreal.load_asset(BLACKBOARD):
-        fail("objective tree must use BB_FPSBot")
+        fail("objective tree must use BB_BLABot")
     root = objective_tree.get_editor_property("root_node")
     root_children = root.get_editor_property("children") if root else []
     if len(root_children) != 2:
@@ -119,30 +119,30 @@ def main():
         fail(f"map missing required actors {sorted(missing_labels)}")
 
     cores = [actor for actor in level_actors if isinstance(actor, core_type)]
-    zones = [actor for actor in level_actors if isinstance(actor, unreal.FPSObjectiveZone)]
+    zones = [actor for actor in level_actors if isinstance(actor, unreal.BLAObjectiveZone)]
     tests = [actor for actor in level_actors if isinstance(actor, test_type)]
     if len(cores) != 1 or len(zones) != 1 or len(tests) != 1:
         fail(f"objective actor counts core={len(cores)} zone={len(zones)} tests={len(tests)}")
 
-    tactical = [actor for actor in level_actors if isinstance(actor, unreal.FPSTacticalPoint)]
-    plant_points = [actor for actor in tactical if actor.get_editor_property("point_type") == unreal.FPS_TacticalPointType.PLANT_POINT]
-    defuse_points = [actor for actor in tactical if actor.get_editor_property("point_type") == unreal.FPS_TacticalPointType.DEFUSE_POINT]
+    tactical = [actor for actor in level_actors if isinstance(actor, unreal.BLATacticalPoint)]
+    plant_points = [actor for actor in tactical if actor.get_editor_property("point_type") == unreal.BLA_TacticalPointType.PLANT_POINT]
+    defuse_points = [actor for actor in tactical if actor.get_editor_property("point_type") == unreal.BLA_TacticalPointType.DEFUSE_POINT]
     if len(plant_points) != 1 or len(defuse_points) != 1:
         fail(f"objective tactical points plant={len(plant_points)} defuse={len(defuse_points)}")
     if not all(actor.get_editor_property("is_objective_point") for actor in plant_points + defuse_points):
         fail("plant/defuse points must be flagged as objective points")
 
-    if not any(actor.actor_has_tag("FPSObjectiveCore") for actor in cores):
-        fail("data core is missing the FPSObjectiveCore tag")
-    if not any(actor.actor_has_tag("FPSObjectiveZone") for actor in zones):
-        fail("objective zone is missing the FPSObjectiveZone tag")
+    if not any(actor.actor_has_tag("BLAObjectiveCore") for actor in cores):
+        fail("data core is missing the BLAObjectiveCore tag")
+    if not any(actor.actor_has_tag("BLAObjectiveZone") for actor in zones):
+        fail("objective zone is missing the BLAObjectiveZone tag")
 
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     if not unreal.NavigationSystemV1.find_path_to_location_synchronously(
             world, unreal.Vector(-1000.0, -600.0, 20.0), unreal.Vector(400.0, 0.0, 20.0)).is_valid():
         fail("objective zone is not reachable from the attacker side")
 
-    unreal.log("FPS_TASK9_CONTRACTS_OK native=4 blueprints=4 states=10 manager_functions=8 core_completion_api=0 "
+    unreal.log("BLA_TASK9_CONTRACTS_OK native=4 blueprints=4 states=10 manager_functions=8 core_completion_api=0 "
                "core=1 zone=1 tactical=2 functional_tests=1 map_preserved=1 objective_tasks=5 behavior_trees=1")
 
 

@@ -1,17 +1,17 @@
 import unreal
 
 
-CHARACTER_PATH = "/Game/FPS/Blueprints/Characters"
+CHARACTER_PATH = "/Game/BLA/Blueprints/Characters"
 INPUT_PATH = f"{CHARACTER_PATH}/Input"
 
 BLUEPRINTS = {
-    "BP_FPSCharacterBase": "/Script/FPS.FPSCharacterBase",
-    "BP_FPSPlayerCharacter": "/Script/FPS.FPSPlayerCharacter",
-    "BP_FPSBotCharacter": "/Script/FPS.FPSBotCharacter",
-    "BP_FPSHealthComponent": "/Script/FPS.FPSHealthComponent",
-    "BP_FPSInteractionComponent": "/Script/FPS.FPSInteractionComponent",
-    "BP_FPSPlayerController": "/Script/FPS.FPSPlayerController",
-    "BP_FPSPlayerState": "/Script/FPS.FPSPlayerState",
+    "BP_BLACharacterBase": "/Script/BLA.BLACharacterBase",
+    "BP_BLAPlayerCharacter": "/Script/BLA.BLAPlayerCharacter",
+    "BP_BLABotCharacter": "/Script/BLA.BLABotCharacter",
+    "BP_BLAHealthComponent": "/Script/BLA.BLAHealthComponent",
+    "BP_BLAInteractionComponent": "/Script/BLA.BLAInteractionComponent",
+    "BP_BLAPlayerController": "/Script/BLA.BLAPlayerController",
+    "BP_BLAPlayerState": "/Script/BLA.BLAPlayerState",
 }
 
 INPUT_ACTIONS = {
@@ -50,19 +50,19 @@ def fail(message):
 
 def verify_native_contracts():
     required = [
-        "FPSHealthComponent",
-        "FPSInteractionComponent",
-        "FPSCharacterBase",
-        "FPSPlayerCharacter",
-        "FPSBotCharacter",
-        "FPSPlayerController",
-        "FPSPlayerState",
+        "BLAHealthComponent",
+        "BLAInteractionComponent",
+        "BLACharacterBase",
+        "BLAPlayerCharacter",
+        "BLABotCharacter",
+        "BLAPlayerController",
+        "BLAPlayerState",
     ]
     for name in required:
         if getattr(unreal, name, None) is None:
             fail(f"missing native type unreal.{name}")
 
-    health = unreal.FPSHealthComponent()
+    health = unreal.BLAHealthComponent()
     expected_health = {
         "max_health": 100.0,
         "current_health": 100.0,
@@ -74,7 +74,7 @@ def verify_native_contracts():
         if actual != expected:
             fail(f"health default {field}: expected {expected}, got {actual}")
 
-    player_state = unreal.FPSPlayerState()
+    player_state = unreal.BLAPlayerState()
     for field in [
         "team",
         "death_state",
@@ -102,13 +102,13 @@ def verify_blueprints():
         loaded[name] = blueprint
 
     interface = unreal.load_asset(
-        "/Game/FPS/Blueprints/Core/BPI_FPSCombatant"
+        "/Game/BLA/Blueprints/Core/BPI_BLACombatant"
     ).generated_class()
     character_cdo = unreal.get_default_object(
-        loaded["BP_FPSCharacterBase"].generated_class()
+        loaded["BP_BLACharacterBase"].generated_class()
     )
     if not unreal.SystemLibrary.does_implement_interface(character_cdo, interface):
-        fail("BP_FPSCharacterBase does not implement BPI_FPSCombatant")
+        fail("BP_BLACharacterBase does not implement BPI_BLACombatant")
 
 
 def verify_input_assets():
@@ -123,7 +123,7 @@ def verify_input_assets():
             fail(f"{path} value type: expected {expected_value_type}, got {actual}")
         actions[name] = action
 
-    context_path = f"{INPUT_PATH}/IMC_FPSPlayer"
+    context_path = f"{INPUT_PATH}/IMC_BLAPlayer"
     context = unreal.load_asset(context_path)
     if context is None:
         fail(f"missing input mapping context {context_path}")
@@ -162,7 +162,7 @@ def main():
     verify_native_contracts()
     verify_blueprints()
     verify_input_assets()
-    unreal.log("FPS_TASK3_CONTRACTS_OK native=7 blueprints=7 actions=8 mappings=11")
+    unreal.log("BLA_TASK3_CONTRACTS_OK native=7 blueprints=7 actions=8 mappings=11")
 
 
 main()

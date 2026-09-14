@@ -1,24 +1,24 @@
 import unreal
 
 
-WEAPON_PATH = "/Game/FPS/Blueprints/Weapons"
-DATA_PATH = "/Game/FPS/Data/Weapons"
-TEST_PATH = "/Game/FPS/Tests"
+WEAPON_PATH = "/Game/BLA/Blueprints/Weapons"
+DATA_PATH = "/Game/BLA/Data/Weapons"
+TEST_PATH = "/Game/BLA/Tests"
 
 BLUEPRINTS = {
-    "BP_FPSWeaponBase": "/Script/FPS.FPSWeaponBase",
-    "BP_FPSWeaponComponent": "/Script/FPS.FPSWeaponComponent",
-    "BP_FPSWeapon_EnergyPistol": "/Script/FPS.FPSWeaponBase",
-    "BP_FPSWeapon_PulseRifle": "/Script/FPS.FPSWeaponBase",
-    "BP_FPSWeapon_ScatterGun": "/Script/FPS.FPSWeaponBase",
-    "BP_FPSDamageResolver": "/Script/FPS.FPSDamageResolver",
-    "BP_FPSHitFeedbackComponent": "/Script/FPS.FPSHitFeedbackComponent",
+    "BP_BLAWeaponBase": "/Script/BLA.BLAWeaponBase",
+    "BP_BLAWeaponComponent": "/Script/BLA.BLAWeaponComponent",
+    "BP_BLAWeapon_EnergyPistol": "/Script/BLA.BLAWeaponBase",
+    "BP_BLAWeapon_PulseRifle": "/Script/BLA.BLAWeaponBase",
+    "BP_BLAWeapon_ScatterGun": "/Script/BLA.BLAWeaponBase",
+    "BP_BLADamageResolver": "/Script/BLA.BLADamageResolver",
+    "BP_BLAHitFeedbackComponent": "/Script/BLA.BLAHitFeedbackComponent",
 }
 
 WEAPON_DATA = {
-    "DA_FPSWeapon_EnergyPistol": (unreal.FPS_WeaponType.ENERGY_PISTOL, 12),
-    "DA_FPSWeapon_PulseRifle": (unreal.FPS_WeaponType.PULSE_RIFLE, 24),
-    "DA_FPSWeapon_ScatterGun": (unreal.FPS_WeaponType.SCATTER_GUN, 6),
+    "DA_BLAWeapon_EnergyPistol": (unreal.BLA_WeaponType.ENERGY_PISTOL, 12),
+    "DA_BLAWeapon_PulseRifle": (unreal.BLA_WeaponType.PULSE_RIFLE, 24),
+    "DA_BLAWeapon_ScatterGun": (unreal.BLA_WeaponType.SCATTER_GUN, 6),
 }
 
 
@@ -28,18 +28,18 @@ def fail(message):
 
 def verify_native_contracts():
     required = [
-        "FPSWeaponDataAsset",
-        "FPSWeaponBase",
-        "FPSWeaponComponent",
-        "FPSDamageResolver",
-        "FPSHitFeedbackComponent",
-        "FPSWeaponTestActor",
+        "BLAWeaponDataAsset",
+        "BLAWeaponBase",
+        "BLAWeaponComponent",
+        "BLADamageResolver",
+        "BLAHitFeedbackComponent",
+        "BLAWeaponTestActor",
     ]
     for name in required:
         if getattr(unreal, name, None) is None:
             fail(f"missing native type unreal.{name}")
 
-    data = unreal.FPSWeaponDataAsset()
+    data = unreal.BLAWeaponDataAsset()
     weapon = data.get_editor_property("weapon_data")
     for field in [
         "weapon_type",
@@ -72,12 +72,12 @@ def verify_blueprints():
         if parent.get_path_name() != expected_parent:
             fail(f"{path} parent: expected {expected_parent}, got {parent.get_path_name()}")
 
-    test_path = f"{TEST_PATH}/BP_FPSWeaponTestActor"
+    test_path = f"{TEST_PATH}/BP_BLAWeaponTestActor"
     blueprint = unreal.load_asset(test_path)
     if blueprint is None:
         fail(f"missing Blueprint {test_path}")
     parent = unreal.BlueprintEditorLibrary.get_blueprint_parent_class(blueprint)
-    if parent.get_path_name() != "/Script/FPS.FPSWeaponTestActor":
+    if parent.get_path_name() != "/Script/BLA.BLAWeaponTestActor":
         fail(f"{test_path} has unexpected parent {parent.get_path_name()}")
 
 
@@ -108,7 +108,7 @@ def main():
     verify_native_contracts()
     verify_blueprints()
     verify_data_assets()
-    unreal.log("FPS_TASK4_CONTRACTS_OK native=6 blueprints=8 data_assets=3")
+    unreal.log("BLA_TASK4_CONTRACTS_OK native=6 blueprints=8 data_assets=3")
 
 
 main()

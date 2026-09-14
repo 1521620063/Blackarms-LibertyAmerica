@@ -1,14 +1,14 @@
 import unreal
 
 
-WEAPON_PATH = "/Game/FPS/Blueprints/Weapons"
-DATA_PATH = "/Game/FPS/Data/Weapons"
-TEST_PATH = "/Game/FPS/Tests"
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
+WEAPON_PATH = "/Game/BLA/Blueprints/Weapons"
+DATA_PATH = "/Game/BLA/Data/Weapons"
+TEST_PATH = "/Game/BLA/Tests"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
 
 WEAPONS = {
     "EnergyPistol": {
-        "weapon_type": unreal.FPS_WeaponType.ENERGY_PISTOL,
+        "weapon_type": unreal.BLA_WeaponType.ENERGY_PISTOL,
         "base_damage": 25.0,
         "rounds_per_minute": 300.0,
         "magazine_capacity": 12,
@@ -20,7 +20,7 @@ WEAPONS = {
         "ai_preferred_range": 1800.0,
     },
     "PulseRifle": {
-        "weapon_type": unreal.FPS_WeaponType.PULSE_RIFLE,
+        "weapon_type": unreal.BLA_WeaponType.PULSE_RIFLE,
         "base_damage": 18.0,
         "rounds_per_minute": 600.0,
         "magazine_capacity": 24,
@@ -32,7 +32,7 @@ WEAPONS = {
         "ai_preferred_range": 3500.0,
     },
     "ScatterGun": {
-        "weapon_type": unreal.FPS_WeaponType.SCATTER_GUN,
+        "weapon_type": unreal.BLA_WeaponType.SCATTER_GUN,
         "base_damage": 80.0,
         "rounds_per_minute": 75.0,
         "magazine_capacity": 6,
@@ -46,10 +46,10 @@ WEAPONS = {
 }
 
 BLUEPRINTS = {
-    "BP_FPSWeaponBase": unreal.FPSWeaponBase,
-    "BP_FPSWeaponComponent": unreal.FPSWeaponComponent,
-    "BP_FPSDamageResolver": unreal.FPSDamageResolver,
-    "BP_FPSHitFeedbackComponent": unreal.FPSHitFeedbackComponent,
+    "BP_BLAWeaponBase": unreal.BLAWeaponBase,
+    "BP_BLAWeaponComponent": unreal.BLAWeaponComponent,
+    "BP_BLADamageResolver": unreal.BLADamageResolver,
+    "BP_BLAHitFeedbackComponent": unreal.BLAHitFeedbackComponent,
 }
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -74,18 +74,18 @@ def blueprint(path, parent):
 
 
 def data_asset(name, values):
-    path = f"{DATA_PATH}/DA_FPSWeapon_{name}"
+    path = f"{DATA_PATH}/DA_BLAWeapon_{name}"
     if asset_subsystem.does_asset_exist(path):
         asset = unreal.load_asset(path)
     else:
         factory = unreal.DataAssetFactory()
-        factory.set_editor_property("data_asset_class", unreal.FPSWeaponDataAsset)
+        factory.set_editor_property("data_asset_class", unreal.BLAWeaponDataAsset)
         asset = asset_tools.create_asset(
-            f"DA_FPSWeapon_{name}", DATA_PATH, unreal.FPSWeaponDataAsset, factory
+            f"DA_BLAWeapon_{name}", DATA_PATH, unreal.BLAWeaponDataAsset, factory
         )
     if asset is None:
         raise RuntimeError(f"Failed to create {path}")
-    data = unreal.FPSWeaponData()
+    data = unreal.BLAWeaponData()
     values = dict(values)
     values.update(
         {
@@ -109,7 +109,7 @@ def build_assets():
     for weapon_name, values in WEAPONS.items():
         asset = data_asset(weapon_name, values)
         result = blueprint(
-            f"{WEAPON_PATH}/BP_FPSWeapon_{weapon_name}", unreal.FPSWeaponBase
+            f"{WEAPON_PATH}/BP_BLAWeapon_{weapon_name}", unreal.BLAWeaponBase
         )
         cdo = unreal.get_default_object(result.generated_class())
         cdo.set_editor_property("weapon_data_asset", asset)
@@ -118,7 +118,7 @@ def build_assets():
 
 
 def place_validator():
-    result = blueprint(f"{TEST_PATH}/BP_FPSWeaponTestActor", unreal.FPSWeaponTestActor)
+    result = blueprint(f"{TEST_PATH}/BP_BLAWeaponTestActor", unreal.BLAWeaponTestActor)
     unreal.BlueprintEditorLibrary.compile_blueprint(result)
     save(result)
 
@@ -137,7 +137,7 @@ def place_validator():
         )
         if actor is None:
             raise RuntimeError("Failed to place weapon validator")
-        actor.set_actor_label("FPS Weapon Test Actor")
+        actor.set_actor_label("BLA Weapon Test Actor")
     elif len(matches) > 1:
         for duplicate in matches[1:]:
             actors.destroy_actor(duplicate)
@@ -148,7 +148,7 @@ def place_validator():
 def main():
     build_assets()
     place_validator()
-    unreal.log("FPS_TASK4_ASSETS_BUILT blueprints=8 data_assets=3 validators=1")
+    unreal.log("BLA_TASK4_ASSETS_BUILT blueprints=8 data_assets=3 validators=1")
 
 
 main()

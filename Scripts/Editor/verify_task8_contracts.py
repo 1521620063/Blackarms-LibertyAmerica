@@ -1,14 +1,14 @@
 import unreal
 
 
-MAP = "/Game/FPS/Maps/Graybox/L_FPS_1v1_Elimination"
-ORDER_MANAGER = "/Game/FPS/Blueprints/Teams/BP_FPSTeamOrderManager"
-ROLE_ASSIGNMENT = "/Game/FPS/Blueprints/Teams/BP_FPSRoleAssignment"
-FOLLOW_TASK = "/Game/FPS/AI/Tasks/BTT_FPSFollowPlayer"
-GUARD_TASK = "/Game/FPS/AI/Tasks/BTT_FPSGuardPoint"
-ATTACK_TASK = "/Game/FPS/AI/Tasks/BTT_FPSAttackRoute"
-SPECTATOR_WIDGET = "/Game/FPS/Blueprints/UI/WBP_FPSSpectator"
-TEST = "/Game/FPS/Tests/FT_FPS_3v3_Elimination"
+MAP = "/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination"
+ORDER_MANAGER = "/Game/BLA/Blueprints/Teams/BP_BLATeamOrderManager"
+ROLE_ASSIGNMENT = "/Game/BLA/Blueprints/Teams/BP_BLARoleAssignment"
+FOLLOW_TASK = "/Game/BLA/AI/Tasks/BTT_BLAFollowPlayer"
+GUARD_TASK = "/Game/BLA/AI/Tasks/BTT_BLAGuardPoint"
+ATTACK_TASK = "/Game/BLA/AI/Tasks/BTT_BLAAttackRoute"
+SPECTATOR_WIDGET = "/Game/BLA/Blueprints/UI/WBP_BLASpectator"
+TEST = "/Game/BLA/Tests/FT_BLA_3v3_Elimination"
 
 
 def fail(message):
@@ -34,24 +34,24 @@ def require_blueprint(path, parent_path):
 
 
 def main():
-    require_native_type("FPSTeamOrderManager")
-    require_native_type("FPSRoleAssignment")
-    require_native_type("FPS3v3EliminationTest")
+    require_native_type("BLATeamOrderManager")
+    require_native_type("BLARoleAssignment")
+    require_native_type("BLA3v3EliminationTest")
 
-    order_values = {value.name for value in unreal.FPS_TeamOrder}
+    order_values = {value.name for value in unreal.BLA_TeamOrder}
     expected_orders = {"FOLLOW_PLAYER", "HOLD_HERE", "ATTACK_TARGET", "RETREAT"}
     if order_values != expected_orders:
-        fail(f"unexpected EFPS_TeamOrder values {sorted(order_values)}")
+        fail(f"unexpected EBLA_TeamOrder values {sorted(order_values)}")
 
-    require_blueprint(ORDER_MANAGER, "/Script/FPS.FPSTeamOrderManager")
-    require_blueprint(ROLE_ASSIGNMENT, "/Script/FPS.FPSRoleAssignment")
+    require_blueprint(ORDER_MANAGER, "/Script/BLA.BLATeamOrderManager")
+    require_blueprint(ROLE_ASSIGNMENT, "/Script/BLA.BLARoleAssignment")
     require_blueprint(FOLLOW_TASK, "/Script/AIModule.BTTask_BlueprintBase")
     require_blueprint(GUARD_TASK, "/Script/AIModule.BTTask_BlueprintBase")
     require_blueprint(ATTACK_TASK, "/Script/AIModule.BTTask_BlueprintBase")
     require_blueprint(SPECTATOR_WIDGET, "/Script/UMG.UserWidget")
-    require_blueprint(TEST, "/Script/FPS.FPS3v3EliminationTest")
+    require_blueprint(TEST, "/Script/BLA.BLA3v3EliminationTest")
 
-    tree = unreal.load_asset("/Game/FPS/AI/BehaviorTrees/BT_FPSBotElimination")
+    tree = unreal.load_asset("/Game/BLA/AI/BehaviorTrees/BT_BLABotElimination")
     root = tree.get_editor_property("root_node") if tree else None
     children = root.get_editor_property("children") if root else []
     if len(children) != 4:
@@ -70,19 +70,19 @@ def main():
         "Attacker Protected Spawn", "Attacker Spawn 2", "Attacker Spawn 3",
         "Defender Protected Spawn", "Defender Spawn 2", "Defender Spawn 3",
         "Attack Route Point", "Guard Point", "Retreat Point",
-        "Fixed Spectator Camera", "FPS 3v3 Elimination Functional Test",
+        "Fixed Spectator Camera", "BLA 3v3 Elimination Functional Test",
     }
     missing = required_labels - labels
     if missing:
         fail(f"map missing required actors {sorted(missing)}")
-    spawn_points = [actor for actor in level_actors if isinstance(actor, unreal.FPSSpawnPoint)]
-    attacker_spawns = [point for point in spawn_points if point.get_editor_property("team") == unreal.FPS_Team.ATTACKERS]
-    defender_spawns = [point for point in spawn_points if point.get_editor_property("team") == unreal.FPS_Team.DEFENDERS]
+    spawn_points = [actor for actor in level_actors if isinstance(actor, unreal.BLASpawnPoint)]
+    attacker_spawns = [point for point in spawn_points if point.get_editor_property("team") == unreal.BLA_Team.ATTACKERS]
+    defender_spawns = [point for point in spawn_points if point.get_editor_property("team") == unreal.BLA_Team.DEFENDERS]
     if len(attacker_spawns) != 3 or len(defender_spawns) != 3:
         fail(f"expected three spawns per team, got attackers={len(attacker_spawns)} defenders={len(defender_spawns)}")
 
     unreal.log(
-        "FPS_TASK8_CONTRACTS_OK native=3 orders=4 team_sizes=3 roles=3 "
+        "BLA_TASK8_CONTRACTS_OK native=3 orders=4 team_sizes=3 roles=3 "
         "commands=4 spectator=1 assets=7 spawns=6 tactical_points=3"
     )
 

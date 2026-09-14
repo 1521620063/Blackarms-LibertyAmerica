@@ -2,7 +2,7 @@ import math
 import unreal
 
 
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
 MAX_STARTUP_TICKS = 600
 MOVEMENT_TICKS = 120
 MIN_MOVEMENT_DISTANCE = 10.0
@@ -28,9 +28,9 @@ def distance(a, b):
 def finish(success, message):
     state["finished"] = True
     if success:
-        unreal.log(f"FPS_PIE_VERIFY_OK {message}")
+        unreal.log(f"BLA_PIE_VERIFY_OK {message}")
     else:
-        unreal.log_error(f"FPS_PIE_VERIFY_FAILED {message}")
+        unreal.log_error(f"BLA_PIE_VERIFY_FAILED {message}")
 
     if level_editor.is_in_play_in_editor():
         state["end_requested"] = True
@@ -84,4 +84,4 @@ if not level_editor.load_level(BOOTSTRAP_LEVEL):
 
 callback_handle = unreal.register_slate_post_tick_callback(tick)
 level_editor.editor_request_begin_play()
-unreal.log("FPS_PIE_VERIFY_STARTED")
+unreal.log("BLA_PIE_VERIFY_STARTED")

@@ -8,6 +8,6 @@ def tick(_):
         return
     if level.is_in_play_in_editor():
         state["pie"] += 1
-        if state["pie"] >= 180: unreal.log("FPS_TASK6_PIE_DRIVER_OK ticks=180"); state["end"] = True; level.editor_request_end_play()
-    elif state["ticks"] >= 600: unreal.log_error("FPS_TASK6_PIE_DRIVER_FAILED start"); state["end"] = True; unreal.SystemLibrary.quit_editor()
-level.load_level("/Game/FPS/Maps/Graybox/L_TestBootstrap"); handle = unreal.register_slate_post_tick_callback(tick); level.editor_request_begin_play()
+        if state["pie"] >= 180: unreal.log("BLA_TASK6_PIE_DRIVER_OK ticks=180"); state["end"] = True; level.editor_request_end_play()
+    elif state["ticks"] >= 600: unreal.log_error("BLA_TASK6_PIE_DRIVER_FAILED start"); state["end"] = True; unreal.SystemLibrary.quit_editor()
+level.load_level("/Game/BLA/Maps/Graybox/L_TestBootstrap"); handle = unreal.register_slate_post_tick_callback(tick); level.editor_request_begin_play()

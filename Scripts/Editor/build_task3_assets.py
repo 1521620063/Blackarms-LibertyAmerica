@@ -1,20 +1,20 @@
 import unreal
 
 
-CHARACTER_PATH = "/Game/FPS/Blueprints/Characters"
+CHARACTER_PATH = "/Game/BLA/Blueprints/Characters"
 INPUT_PATH = f"{CHARACTER_PATH}/Input"
-TEST_PATH = "/Game/FPS/Tests"
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
-COMBATANT_INTERFACE = "/Game/FPS/Blueprints/Core/BPI_FPSCombatant"
+TEST_PATH = "/Game/BLA/Tests"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+COMBATANT_INTERFACE = "/Game/BLA/Blueprints/Core/BPI_BLACombatant"
 
 BLUEPRINTS = {
-    "BP_FPSCharacterBase": unreal.FPSCharacterBase,
-    "BP_FPSPlayerCharacter": unreal.FPSPlayerCharacter,
-    "BP_FPSBotCharacter": unreal.FPSBotCharacter,
-    "BP_FPSHealthComponent": unreal.FPSHealthComponent,
-    "BP_FPSInteractionComponent": unreal.FPSInteractionComponent,
-    "BP_FPSPlayerController": unreal.FPSPlayerController,
-    "BP_FPSPlayerState": unreal.FPSPlayerState,
+    "BP_BLACharacterBase": unreal.BLACharacterBase,
+    "BP_BLAPlayerCharacter": unreal.BLAPlayerCharacter,
+    "BP_BLABotCharacter": unreal.BLABotCharacter,
+    "BP_BLAHealthComponent": unreal.BLAHealthComponent,
+    "BP_BLAInteractionComponent": unreal.BLAInteractionComponent,
+    "BP_BLAPlayerController": unreal.BLAPlayerController,
+    "BP_BLAPlayerState": unreal.BLAPlayerState,
 }
 
 ACTION_TYPES = {
@@ -68,10 +68,10 @@ def create_blueprints():
     interface = unreal.load_asset(COMBATANT_INTERFACE)
     if interface is None:
         raise RuntimeError(f"Missing {COMBATANT_INTERFACE}")
-    if not unreal.FPSBlueprintAssetBuilder.add_blueprint_interface(
-        created["BP_FPSCharacterBase"], interface.generated_class()
+    if not unreal.BLABlueprintAssetBuilder.add_blueprint_interface(
+        created["BP_BLACharacterBase"], interface.generated_class()
     ):
-        raise RuntimeError("Failed to add BPI_FPSCombatant to BP_FPSCharacterBase")
+        raise RuntimeError("Failed to add BPI_BLACombatant to BP_BLACharacterBase")
 
     for blueprint in created.values():
         unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
@@ -116,7 +116,7 @@ def mapping_modifiers(mode, context):
 
 
 def create_mapping_context(actions):
-    name = "IMC_FPSPlayer"
+    name = "IMC_BLAPlayer"
     path = f"{INPUT_PATH}/{name}"
     if asset_subsystem.does_asset_exist(path):
         context = unreal.load_asset(path)
@@ -148,12 +148,12 @@ def create_mapping_context(actions):
 
 
 def place_runtime_validator():
-    path = f"{TEST_PATH}/BP_FPSCharacterFoundationValidator"
+    path = f"{TEST_PATH}/BP_BLACharacterFoundationValidator"
     if asset_subsystem.does_asset_exist(path):
         blueprint = unreal.load_asset(path)
     else:
         blueprint = unreal.BlueprintEditorLibrary.create_blueprint_asset_with_parent(
-            path, unreal.FPSCharacterFoundationValidator
+            path, unreal.BLACharacterFoundationValidator
         )
     if blueprint is None:
         raise RuntimeError(f"Failed to create {path}")
@@ -176,7 +176,7 @@ def place_runtime_validator():
         )
         if actor is None:
             raise RuntimeError("Failed to place character foundation validator")
-        actor.set_actor_label("FPS Character Foundation Validator")
+        actor.set_actor_label("BLA Character Foundation Validator")
     elif len(actors) > 1:
         for duplicate in actors[1:]:
             actor_subsystem.destroy_actor(duplicate)
@@ -192,7 +192,7 @@ def main():
     }
     create_mapping_context(actions)
     place_runtime_validator()
-    unreal.log("FPS_TASK3_ASSETS_BUILT blueprints=8 actions=8 mappings=11 validators=1")
+    unreal.log("BLA_TASK3_ASSETS_BUILT blueprints=8 actions=8 mappings=11 validators=1")
 
 
 main()

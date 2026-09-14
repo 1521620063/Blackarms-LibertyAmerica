@@ -2,7 +2,7 @@ import unreal
 
 
 SOURCE_LEVEL = "/Game/FirstPerson/Lvl_FirstPerson"
-BOOTSTRAP_LEVEL = "/Game/FPS/Maps/Graybox/L_TestBootstrap"
+BOOTSTRAP_LEVEL = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     if not level_editor.save_current_level():
         raise RuntimeError(f"Failed to save {BOOTSTRAP_LEVEL}")
 
-    unreal.log(f"FPS_BOOTSTRAP_OK level={BOOTSTRAP_LEVEL}")
+    unreal.log(f"BLA_BOOTSTRAP_OK level={BOOTSTRAP_LEVEL}")
 
 
 main()

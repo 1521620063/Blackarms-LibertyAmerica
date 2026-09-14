@@ -6,13 +6,13 @@ Ruling: implement on `main`, not a worktree — Tasks 1-8 landed on main and eve
 
 Ruling: Task 9 is split into two sequential implementer dispatches (9A objective core + contracts/PIE verification; 9B objective AI tree + functional test) because one dispatch would span native C++ core, editor asset automation, behavior-tree construction, and a scripted functional test. Reviewed as one task. Cost if wrong: an interface seam inside one task that the task review must catch.
 
-Ruling: objective truth lives in `AFPSObjectiveManager` and is mirrored to `AFPSGameState::CurrentObjectiveState`; `AFPSDataCore` only owns its physical carry state. This follows the plan's Global Constraint "Core truth stays in GameMode/GameState/PlayerState and managers; UI is read-only". Cost if wrong: a later task that expects to read objective truth from the core actor finds only carry state.
+Ruling: objective truth lives in `ABLAObjectiveManager` and is mirrored to `ABLAGameState::CurrentObjectiveState`; `ABLADataCore` only owns its physical carry state. This follows the plan's Global Constraint "Core truth stays in GameMode/GameState/PlayerState and managers; UI is read-only". Cost if wrong: a later task that expects to read objective truth from the core actor finds only carry state.
 
 Instruction from the human partner: planning and process artifacts belong in `docs/`, not in scratch directories. This workspace therefore lives at `docs/superpowers/sdd/2026-09-14-ue5-tactical-fps-mvp/` and is committed with the task it documents.
 
-Ruling: Task 9 does not add a Data Core branch to `AFPSGameModeElimination`. The objective system, its AI, and its functional test are the deliverable; selecting the mode and loading the map belongs to Task 10's player flow and Task 11's map config. Cost if wrong: a human pressing Play on the graybox map in Data Core mode sees inert objective actors until Task 10 wires the flow.
+Ruling: Task 9 does not add a Data Core branch to `ABLAGameModeElimination`. The objective system, its AI, and its functional test are the deliverable; selecting the mode and loading the map belongs to Task 10's player flow and Task 11's map config. Cost if wrong: a human pressing Play on the graybox map in Data Core mode sees inert objective actors until Task 10 wires the flow.
 
-Ruling: the map gets the core, the objective zone, the PlantPoint/DefusePoint tactical points, and `FT_FPS_DataCore`; the functional test spawns its own isolated manager/rules/combatants so its assertions cannot race the level's actors. Cost if wrong: the level's objective actors are unmanaged until Task 10, and the test proves the system rather than the level wiring.
+Ruling: the map gets the core, the objective zone, the PlantPoint/DefusePoint tactical points, and `FT_BLA_DataCore`; the functional test spawns its own isolated manager/rules/combatants so its assertions cannot race the level's actors. Cost if wrong: the level's objective actors are unmanaged until Task 10, and the test proves the system rather than the level wiring.
 
 Note: the multi-agent dispatch channel did not deliver task content to a spawned implementer (three attempts; the child reported an empty task each time). Task 9A is therefore implemented directly in this session, and the task review still runs as a separate reviewer pass.
 
@@ -20,18 +20,18 @@ Note: the multi-agent dispatch channel did not deliver task content to a spawned
 
 | Pair | Producer → Consumer | Finding |
 |------|--------------------|---------|
-| 9 → 10 | Objective state + actors → HUD objective status, mode select | No conflict. Task 9 must mirror state to `AFPSGameState::CurrentObjectiveState` so Task 10 has a read-only source. |
-| 9 → 11 | Objective actors, plant/defuse tactical points → `L_FPS_ZeroFacility` | No conflict. Task 9 wires the existing graybox map only; Task 11 rebuilds the final map and re-places the same actors. |
+| 9 → 10 | Objective state + actors → HUD objective status, mode select | No conflict. Task 9 must mirror state to `ABLAGameState::CurrentObjectiveState` so Task 10 has a read-only source. |
+| 9 → 11 | Objective actors, plant/defuse tactical points → `L_BLA_ZeroFacility` | No conflict. Task 9 wires the existing graybox map only; Task 11 rebuilds the final map and re-places the same actors. |
 | 9 → 12 | Outside-map core recovery → `OBJECTIVE_CORE_RESET` diagnostic | Interface dependency: Task 9 must implement reset-outside-valid-area and expose it (manager function + validity check) so Task 12 can add the marker. Recorded for Task 12's dispatch. |
-| 10 → 11 | Settings save object, map config asset, GameMode map load | No file overlap: Task 10 owns `WBP_*`/`BP_FPSUIManager`, Task 11 owns `DA_FPSMapConfig_ZeroFacility` and `BP_FPSMapConfig`. |
+| 10 → 11 | Settings save object, map config asset, GameMode map load | No file overlap: Task 10 owns `WBP_*`/`BP_BLAUIManager`, Task 11 owns `DA_BLAMapConfig_ZeroFacility` and `BP_BLAMapConfig`. |
 | 10 → 12 | Test harness drives mode/scale/map selection; HUD refresh assertions | No conflict. |
 | 11 → 12 | Navigation test, packaging of the final map | No conflict. |
-| 9 self | Files list vs bullets | Files list covers every bullet: objectives (manager/zone/core), objective tree + five tasks, functional test. Bullet "timeout" rides the existing `AFPSRoundManager::EvaluateTimeout`; no new file needed. |
+| 9 self | Files list vs bullets | Files list covers every bullet: objectives (manager/zone/core), objective tree + five tasks, functional test. Bullet "timeout" rides the existing `ABLARoundManager::EvaluateTimeout`; no new file needed. |
 | 10 self | Files list vs bullets | Consistent: menus, HUD, results, settings, interaction prompt, command selector all named. |
 | 11 self | Files list vs bullets | Consistent: map, map zone, map config asset, navigation test all named. |
 | 12 self | Files list vs bullets | Consistent: harness, debug subsystem, two docs, packaging. |
 | 9 vs Global Constraints | "Core truth stays in managers; UI read-only"; "no new plugins"; "no broad renames" | Task 9 adds two Blueprintable actor classes + one manager and one editor helper function; it must not restructure Task 5 round rules. |
-| 9 vs Task 8 regression | Objective AI must not break `FPS_3V3_ELIMINATION_OK` | Task 9 must re-run the Task 2-8 verification set; a regression there blocks the task. |
+| 9 vs Task 8 regression | Objective AI must not break `BLA_3V3_ELIMINATION_OK` | Task 9 must re-run the Task 2-8 verification set; a regression there blocks the task. |
 
 No plan defect found that would stop execution. Scan recorded before dispatching Task 9.
 
@@ -41,8 +41,8 @@ Task 9: implemented directly in the controller session (delegation unavailable).
 
 Task 9: review seat — the collaboration channel did not deliver the review dispatch to a fresh reviewer subagent either (third failed dispatch this turn; the child reported an empty task). A controller self-review of the full task diff was performed instead, recorded here:
 
-- Finding (Important): `AFPSAIController::ResolveObjectiveDirective` issued `MoveToLocation` on every tick while an objective manager was attached — a per-frame path request. Fixed by refreshing the move request only when the destination moves more than 150 units or the pawn is no longer moving (`fix: rate-limit objective ai move requests`).
-- Finding (Minor, deferred): `AFPSDataCore::SetObjectiveState` is public, so a non-manager system could mirror a state value; completion decisions still live only in `AFPSObjectiveManager` (the contract suite asserts the core exposes no completion API).
+- Finding (Important): `ABLAAIController::ResolveObjectiveDirective` issued `MoveToLocation` on every tick while an objective manager was attached — a per-frame path request. Fixed by refreshing the move request only when the destination moves more than 150 units or the pawn is no longer moving (`fix: rate-limit objective ai move requests`).
+- Finding (Minor, deferred): `ABLADataCore::SetObjectiveState` is public, so a non-manager system could mirror a state value; completion decisions still live only in `ABLAObjectiveManager` (the contract suite asserts the core exposes no completion API).
 - Finding (Minor, deferred): `ResolveObjectiveDirective` keeps the Task 8 `AActor* PlayerActor` parameter for signature symmetry with `ResolveRoleDirective` but does not use it.
 - Finding (Minor, deferred): pickup is restricted to attackers even though the plan only mandates attackers-plant / defenders-defuse. Ruling: attackers carry the objective; defenders intercept, investigate, and defuse. Cost if wrong: a future mode that wants defenders to carry needs the constraint relaxed.
 
