@@ -2,7 +2,7 @@
 
 - 日期：2026-09-14
 - 状态：已确认设计，待执行开发计划
-- 项目目录：`C:\project\FPS`
+- 项目目录：`D:\dev\fps-game`
 - 目标平台：Windows PC
 - 引擎：Unreal Engine 5
 

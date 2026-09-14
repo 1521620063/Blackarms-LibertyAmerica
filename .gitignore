@@ -1,0 +1,27 @@
+# Unreal generated directories
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+
+# Generated IDE and build files
+*.VC.db
+*.VC.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+*.code-workspace
+
+# User-specific files
+*.opensdf
+*.sln.docstates
+*.user
+*.userprefs
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini

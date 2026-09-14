@@ -8,7 +8,7 @@
 
 **Tech Stack:** Unreal Engine 5, Blueprint, UMG, Enhanced Input, AI Controller, Behavior Tree, Blackboard, AI Perception, NavMesh, Data Assets/Data Tables, Functional Tests, Windows Packaging.
 
-**Spec:** `C:\project\FPS\docs\superpowers\specs\2026-09-14-ue5-tactical-fps-design.md`
+**Spec:** `D:\dev\fps-game\docs\superpowers\specs\2026-09-14-ue5-tactical-fps-design.md`
 
 ## Global Constraints
 
@@ -31,16 +31,16 @@ Create assets only in their owning folders: `Content/FPS/Blueprints/Core`, `Char
 
 ### Task 1: Bootstrap the UE5 project and repository
 
-**Files:** Create `C:\project\FPS\FPS.uproject`, `README.md`, `.gitignore`, the `Content/FPS/` folder tree, and `Content/FPS/Maps/Graybox/L_TestBootstrap`.
+**Files:** Create `D:\dev\fps-game\FPS.uproject`, `README.md`, `.gitignore`, the `Content/FPS/` folder tree, and `Content/FPS/Maps/Graybox/L_TestBootstrap`.
 
 **Interfaces:** Produces a runnable Blueprint UE5 project, default test map, exact asset ownership tree, and documented UE5 version.
 
-- [ ] Create a Games > First Person Blueprint project at `C:\project\FPS`, Desktop/Windows target, Enhanced Input enabled, default map `L_TestBootstrap`.
-- [ ] Create the exact folders in the Asset Ownership Map; do not create gameplay `Misc` folders.
-- [ ] Configure Windows target and record the exact engine version in `README.md`.
-- [ ] Create `.gitignore` excluding `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, `.vs/`, and generated IDE files. Document opening and the Level Blueprint rule.
-- [ ] Open the project, load the bootstrap map, press Play, move the template character, stop PIE, close/reopen, and confirm no load errors.
-- [ ] If Git is initialized, commit `chore: bootstrap UE5 FPS project`; otherwise initialize Git before implementation and make that commit.
+- [x] Create a Games > First Person Blueprint project at `D:\dev\fps-game`, Desktop/Windows target, Enhanced Input enabled, default map `L_TestBootstrap`.
+- [x] Create the exact folders in the Asset Ownership Map; do not create gameplay `Misc` folders.
+- [x] Configure Windows target and record the exact engine version in `README.md`.
+- [x] Create `.gitignore` excluding `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, `.vs/`, and generated IDE files. Document opening and the Level Blueprint rule.
+- [x] Open the project, load the bootstrap map, press Play, move the template character, stop PIE, close/reopen, and confirm no load errors.
+- [x] If Git is initialized, commit `chore: bootstrap UE5 FPS project`; otherwise initialize Git before implementation and make that commit.
 
 ---
 
