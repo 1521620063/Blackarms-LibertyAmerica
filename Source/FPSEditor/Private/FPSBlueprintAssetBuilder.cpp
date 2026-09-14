@@ -65,6 +65,53 @@ bool UFPSBlueprintAssetBuilder::ConfigureFPSBotBehaviorTree(UBehaviorTree* Behav
     return true;
 }
 
+bool UFPSBlueprintAssetBuilder::ConfigureFPSBotObjectiveBehaviorTree(UBehaviorTree* BehaviorTree, UBlackboardData* Blackboard,
+    const TArray<UClass*>& BaseTaskClasses, const TArray<UClass*>& ObjectiveTaskClasses,
+    const TArray<UClass*>& ServiceClasses)
+{
+    if (!BehaviorTree || !Blackboard || BaseTaskClasses.Num() != 1 || ObjectiveTaskClasses.Num() != 5)
+    {
+        return false;
+    }
+    UBTComposite_Selector* Root = NewObject<UBTComposite_Selector>(BehaviorTree, TEXT("PrioritySelector"));
+    Root->NodeName = TEXT("Combat, Objective Role Tasks");
+    if (!BaseTaskClasses[0] || !BaseTaskClasses[0]->IsChildOf(UBTTaskNode::StaticClass()))
+    {
+        return false;
+    }
+    FBTCompositeChild CombatChild;
+    CombatChild.ChildTask = NewObject<UBTTaskNode>(Root, BaseTaskClasses[0]);
+    Root->Children.Add(CombatChild);
+
+    UBTComposite_Selector* ObjectiveSelector = NewObject<UBTComposite_Selector>(Root, TEXT("ObjectiveSelector"));
+    ObjectiveSelector->NodeName = TEXT("Seek Core, Carry Core, Plant, Defend Objective, Defuse");
+    for (UClass* TaskClass : ObjectiveTaskClasses)
+    {
+        if (!TaskClass || !TaskClass->IsChildOf(UBTTaskNode::StaticClass()))
+        {
+            return false;
+        }
+        FBTCompositeChild ObjectiveChild;
+        ObjectiveChild.ChildTask = NewObject<UBTTaskNode>(ObjectiveSelector, TaskClass);
+        ObjectiveSelector->Children.Add(ObjectiveChild);
+    }
+    FBTCompositeChild SelectorChild;
+    SelectorChild.ChildComposite = ObjectiveSelector;
+    Root->Children.Add(SelectorChild);
+
+    for (UClass* ServiceClass : ServiceClasses)
+    {
+        if (ServiceClass && ServiceClass->IsChildOf(UBTService::StaticClass()))
+        {
+            Root->Services.Add(NewObject<UBTService>(Root, ServiceClass));
+        }
+    }
+    BehaviorTree->RootNode = Root;
+    BehaviorTree->BlackboardAsset = Blackboard;
+    BehaviorTree->MarkPackageDirty();
+    return true;
+}
+
 bool UFPSBlueprintAssetBuilder::ConfigureFPSBotBlackboard(UBlackboardData* Blackboard)
 {
     if (!Blackboard)

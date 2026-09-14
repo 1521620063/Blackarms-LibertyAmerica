@@ -205,13 +205,13 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 **Interfaces:** Consumes round, team, interaction, perception, and tactical systems; produces objective mode without duplicating round rules.
 
-- [ ] Implement objective states `Available`, `Carried`, `Dropped`, `Planting`, `Planted`, `Uploading`, `Defusing`, `Defused`, and `Completed`; drop on carrier death and reset outside valid area.
-- [ ] Allow attackers to plant and defenders to defuse only after plant; use 5 seconds for plant/defuse and 30 seconds for upload.
-- [ ] Cancel interaction on movement, damage, death, leaving zone, or round transition; only ObjectiveManager may complete the objective.
-- [ ] Route elimination, timeout, defuse, and upload wins through `RoundManager.EndRound` with explicit reasons.
-- [ ] Build objective tree: attackers seek/carry/plant/defend; defenders guard/intercept/investigate/defuse.
-- [ ] Test pickup, drop, repickup, plant interruption, plant, defuse interruption, defuse, upload, timeout, and reset.
-- [ ] Commit `feat: add data core attack and defense mode`.
+- [x] Implement objective states `Available`, `Carried`, `Dropped`, `Planting`, `Planted`, `Uploading`, `Defusing`, `Defused`, and `Completed`; drop on carrier death and reset outside valid area.
+- [x] Allow attackers to plant and defenders to defuse only after plant; use 5 seconds for plant/defuse and 30 seconds for upload.
+- [x] Cancel interaction on movement, damage, death, leaving zone, or round transition; only ObjectiveManager may complete the objective.
+- [x] Route elimination, timeout, defuse, and upload wins through `RoundManager.EndRound` with explicit reasons.
+- [x] Build objective tree: attackers seek/carry/plant/defend; defenders guard/intercept/investigate/defuse.
+- [x] Test pickup, drop, repickup, plant interruption, plant, defuse interruption, defuse, upload, timeout, and reset.
+- [x] Commit `feat: add data core attack and defense mode`.
 
 ---
 

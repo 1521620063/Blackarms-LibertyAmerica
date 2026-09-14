@@ -8,6 +8,7 @@ class AFPSTacticalManager;
 class AFPSTacticalPoint;
 class AFPSTeamManager;
 class AFPSTeamOrderManager;
+class AFPSObjectiveManager;
 class UBehaviorTree;
 class UFPSBotDifficultyDataAsset;
 class UFPSBotPerception;
@@ -67,6 +68,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "FPS|AI")
     void ConfigureTeamOrders(AFPSTeamOrderManager* OrderManager);
 
+    UFUNCTION(BlueprintCallable, Category = "FPS|AI")
+    void ConfigureObjective(AFPSObjectiveManager* InManager, AFPSTacticalManager* InTacticalManager);
+
+    UFUNCTION(BlueprintCallable, Category = "FPS|AI")
+    bool ResolveObjectiveDirective(AFPSObjectiveManager* InManager, AFPSTacticalManager* InTacticalManager, AActor* PlayerActor);
+
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    bool bHasObjectiveDirective = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "FPS|AI")
+    FName CurrentObjectiveTask;
+
 protected:
     virtual void OnPossess(APawn* InPawn) override;
 
@@ -81,6 +94,10 @@ private:
     TObjectPtr<AFPSTeamManager> RoleTeamManager;
     UPROPERTY()
     TObjectPtr<AActor> RolePlayerActor;
+    UPROPERTY()
+    TObjectPtr<AFPSObjectiveManager> ObjectiveManager;
+    UPROPERTY()
+    TObjectPtr<AFPSTacticalManager> ObjectiveTacticalManager;
     FVector LastStuckCheckLocation = FVector::ZeroVector;
     float StuckElapsed = 0.0f;
 };

@@ -3,7 +3,10 @@
 #include "BehaviorTree/BehaviorTree.h"
 #include "FPSBotPerception.h"
 #include "FPSCharacterBase.h"
+#include "FPSDataCore.h"
 #include "FPSHealthComponent.h"
+#include "FPSObjectiveManager.h"
+#include "FPSObjectiveZone.h"
 #include "FPSTacticalManager.h"
 #include "FPSTacticalPoint.h"
 #include "FPSTeamManager.h"
@@ -48,6 +51,16 @@ void AFPSAIController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     APawn* ControlledPawn = GetPawn();
+    if (ControlledPawn && ObjectiveManager)
+    {
+        const EFPS_ObjectiveState ObjectiveState = ObjectiveManager->ObjectiveState;
+        if (ObjectiveState != EFPS_ObjectiveState::None
+            && ObjectiveState != EFPS_ObjectiveState::Defused
+            && ObjectiveState != EFPS_ObjectiveState::Completed)
+        {
+            ResolveObjectiveDirective(ObjectiveManager, ObjectiveTacticalManager, nullptr);
+        }
+    }
     if (!ControlledPawn || GetMoveStatus() != EPathFollowingStatus::Moving)
     {
         StuckElapsed = 0.0f;
@@ -205,6 +218,115 @@ void AFPSAIController::ConfigureTeamOrders(AFPSTeamOrderManager* OrderManager)
     {
         TeamOrderManager->OnOrderChanged.AddUObject(this, &AFPSAIController::HandleTeamOrderChanged);
     }
+}
+
+void AFPSAIController::ConfigureObjective(AFPSObjectiveManager* InManager, AFPSTacticalManager* InTacticalManager)
+{
+    ObjectiveManager = InManager;
+    ObjectiveTacticalManager = InTacticalManager;
+    CurrentObjectiveTask = NAME_None;
+    bHasObjectiveDirective = false;
+}
+
+bool AFPSAIController::ResolveObjectiveDirective(AFPSObjectiveManager* InManager, AFPSTacticalManager* InTacticalManager, AActor* PlayerActor)
+{
+    AFPSCharacterBase* Bot = Cast<AFPSCharacterBase>(GetPawn());
+    if (!Bot || !InManager || !Bot->GetIsAlive())
+    {
+        bHasObjectiveDirective = false;
+        DirectiveTarget = nullptr;
+        CurrentObjectiveTask = NAME_None;
+        return false;
+    }
+    ObjectiveManager = InManager;
+    ObjectiveTacticalManager = InTacticalManager;
+    DirectiveTarget = nullptr;
+    FollowTarget = nullptr;
+    bHasObjectiveDirective = false;
+    CurrentObjectiveTask = NAME_None;
+
+    AFPSDataCore* Core = InManager->DataCore;
+    AFPSObjectiveZone* Zone = InManager->ObjectiveZone;
+    const EFPS_ObjectiveState ObjectiveState = InManager->ObjectiveState;
+    const bool bPlanted = InManager->IsPlanted();
+
+    const auto MoveToDirective = [this](const FVector& Location)
+    {
+        bHasObjectiveDirective = true;
+        DirectiveLocation = Location;
+        MoveToLocation(Location, 50.0f, true);
+    };
+    const auto ResolvePoint = [this, InTacticalManager, Bot](EFPS_TacticalPointType Type)
+    {
+        return InTacticalManager ? InTacticalManager->FindBestPoint(Bot, Type, Bot->Team, BotRole) : nullptr;
+    };
+
+    if (Bot->Team == EFPS_Team::Attackers)
+    {
+        if (Core && Core->IsCarriedBy(Bot))
+        {
+            if (ObjectiveState == EFPS_ObjectiveState::Planting)
+            {
+                CurrentObjectiveTask = TEXT("Plant");
+                return true;
+            }
+            if (Zone && Zone->ContainsActor(Bot))
+            {
+                CurrentObjectiveTask = TEXT("Plant");
+                return InManager->BeginPlant(Bot);
+            }
+            DirectiveTarget = ResolvePoint(EFPS_TacticalPointType::PlantPoint);
+            MoveToDirective(DirectiveTarget ? DirectiveTarget->GetActorLocation()
+                : (Zone ? Zone->GetActorLocation() : Bot->GetActorLocation()));
+            CurrentObjectiveTask = TEXT("CarryToPlant");
+            return true;
+        }
+        if (Core && Core->CanBePickedUp())
+        {
+            CurrentObjectiveTask = TEXT("SeekCore");
+            if (FVector::Dist(Bot->GetActorLocation(), Core->GetActorLocation()) <= InManager->PickupRange)
+            {
+                return InManager->BeginPickup(Bot);
+            }
+            MoveToDirective(Core->GetActorLocation());
+            return true;
+        }
+        DirectiveTarget = ResolvePoint(EFPS_TacticalPointType::PlantPoint);
+        MoveToDirective(DirectiveTarget ? DirectiveTarget->GetActorLocation()
+            : (Zone ? Zone->GetActorLocation() : Bot->GetActorLocation()));
+        CurrentObjectiveTask = TEXT("DefendPlant");
+        return true;
+    }
+
+    if (bPlanted && Core)
+    {
+        CurrentObjectiveTask = TEXT("Defuse");
+        if (Zone && Zone->ContainsActor(Bot) && ObjectiveState != EFPS_ObjectiveState::Defusing
+            && ObjectiveState != EFPS_ObjectiveState::Defused && ObjectiveState != EFPS_ObjectiveState::Completed
+            && InManager->BeginDefuse(Bot))
+        {
+            return true;
+        }
+        MoveToDirective(Core->GetActorLocation());
+        return true;
+    }
+    if (Core && Core->Carrier && Core->Carrier != Bot)
+    {
+        MoveToDirective(Core->Carrier->GetActorLocation());
+        CurrentObjectiveTask = TEXT("InterceptCarrier");
+        return true;
+    }
+    if (Core && Core->State == EFPS_ObjectiveState::Dropped)
+    {
+        MoveToDirective(Core->GetActorLocation());
+        CurrentObjectiveTask = TEXT("Investigate");
+        return true;
+    }
+    DirectiveTarget = ResolvePoint(EFPS_TacticalPointType::DefusePoint);
+    MoveToDirective(DirectiveTarget ? DirectiveTarget->GetActorLocation()
+        : (Zone ? Zone->GetActorLocation() : Bot->GetActorLocation()));
+    CurrentObjectiveTask = TEXT("GuardObjective");
+    return true;
 }
 
 void AFPSAIController::HandleTeamOrderChanged(EFPS_RoundPhase Phase)

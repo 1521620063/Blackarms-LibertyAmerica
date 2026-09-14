@@ -49,6 +49,9 @@ public:
     void ResetAllCombatants();
 
     UFUNCTION(BlueprintCallable, Category = "FPS|Round")
+    FFPSMatchRules GetActiveRules() const;
+
+    UFUNCTION(BlueprintCallable, Category = "FPS|Round")
     void ConfigureManagers(AFPSGameState* InGameState, AFPSTeamManager* InTeamManager,
         AFPSTeamOrderManager* InOrderManager = nullptr);
 

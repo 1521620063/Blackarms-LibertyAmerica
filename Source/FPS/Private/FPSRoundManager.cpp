@@ -161,6 +161,11 @@ void AFPSRoundManager::ResetAllCombatants()
     }
 }
 
+FFPSMatchRules AFPSRoundManager::GetActiveRules() const
+{
+    return ActiveRules;
+}
+
 void AFPSRoundManager::HandleCombatantDeath(AFPSCharacterBase* DeadCombatant, AActor* InstigatorActor)
 {
     if (!FPSGameState || FPSGameState->RoundPhase != EFPS_RoundPhase::Combat || bIsRoundEnding)
