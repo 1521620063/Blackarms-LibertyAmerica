@@ -2,6 +2,7 @@
 
 #include "AIController.h"
 #include "BLAGameplayTypes.h"
+#include "Perception/AIPerceptionTypes.h"
 #include "BLAAIController.generated.h"
 
 class ABLATacticalManager;
@@ -100,11 +101,22 @@ protected:
 private:
     void HandleTeamOrderChanged(EBLA_RoundPhase Phase);
     void UpdateTargetMemory();
+    void UpdateDirectiveFromSources(float DeltaSeconds);
+    void TickCombat();
+    void TickMovement();
+    void IssueDirectiveMove(const FVector& Location, float AcceptanceRadius);
     AActor* ResolveAssistTarget(ABLATeamManager* TeamManager, AActor* PlayerActor);
+
+    UFUNCTION()
+    void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
     double TargetAcquiredTime = -1.0;
     double LastFireTime = -1.0;
     double TargetLostTime = -1.0;
+    float DirectiveRefreshElapsed = 0.0f;
+    bool bObjectiveOwnsMovement = false;
+    bool bHasDirectiveMoveTarget = false;
+    FVector LastDirectiveMoveTarget = FVector::ZeroVector;
 
     UPROPERTY()
     TObjectPtr<ABLATeamOrderManager> TeamOrderManager;

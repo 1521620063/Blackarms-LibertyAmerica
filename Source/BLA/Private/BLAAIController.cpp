@@ -4,6 +4,7 @@
 #include "BLABotPerception.h"
 #include "BLACharacterBase.h"
 #include "BLADataCore.h"
+#include "BLAGameState.h"
 #include "BLAHealthComponent.h"
 #include "BLAObjectiveManager.h"
 #include "BLAObjectiveZone.h"
@@ -17,10 +18,14 @@
 #include "Perception/AISenseConfig_Damage.h"
 #include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "Perception/AIPerceptionSystem.h"
+#include "Perception/AISense_Damage.h"
+#include "Perception/AISense_Hearing.h"
 
 namespace
 {
     constexpr float DirectiveMoveRefreshDistance = 150.0f;
+    constexpr float DirectiveRefreshSeconds = 5.0f;
 }
 
 ABLAAIController::ABLAAIController()
@@ -40,6 +45,7 @@ ABLAAIController::ABLAAIController()
     AIPerception->ConfigureSense(*CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig")));
     AIPerception->ConfigureSense(*CreateDefaultSubobject<UAISenseConfig_Damage>(TEXT("DamageConfig")));
     AIPerception->SetDominantSense(Sight->GetSenseImplementation());
+    AIPerception->OnTargetPerceptionUpdated.AddDynamic(this, &ABLAAIController::HandleTargetPerceptionUpdated);
 }
 
 void ABLAAIController::OnPossess(APawn* InPawn)
@@ -56,6 +62,9 @@ void ABLAAIController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     UpdateTargetMemory();
+    UpdateDirectiveFromSources(DeltaSeconds);
+    TickCombat();
+    TickMovement();
     APawn* ControlledPawn = GetPawn();
     if (ControlledPawn && ObjectiveManager)
     {
@@ -245,6 +254,113 @@ AActor* ABLAAIController::ResolveAssistTarget(ABLATeamManager* TeamManager, AAct
         }
     }
     return BestFriendly;
+}
+
+void ABLAAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
+{
+    if (!Actor || !Stimulus.WasSuccessfullySensed())
+    {
+        return;
+    }
+    EBLA_StimulusType Type = EBLA_StimulusType::Sight;
+    const TSubclassOf<UAISense> SenseClass = UAIPerceptionSystem::GetSenseClassForStimulus(this, Stimulus);
+    if (SenseClass == UAISense_Hearing::StaticClass())
+    {
+        Type = EBLA_StimulusType::Hearing;
+    }
+    else if (SenseClass == UAISense_Damage::StaticClass())
+    {
+        Type = EBLA_StimulusType::Damage;
+    }
+    UpdateTarget(Actor, Type);
+}
+
+void ABLAAIController::UpdateDirectiveFromSources(float DeltaSeconds)
+{
+    const ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
+    const EBLA_RoundPhase Phase = State ? State->RoundPhase : EBLA_RoundPhase::Combat;
+    if (TeamOrderManager && TeamOrderManager->IsOrderActive(Phase))
+    {
+        ResolveTeamOrder(TeamOrderManager, Phase);
+        return;
+    }
+    bHasActiveTeamOrder = false;
+
+    if (ObjectiveManager && ObjectiveManager->ObjectiveState != EBLA_ObjectiveState::None
+        && ObjectiveManager->ObjectiveState != EBLA_ObjectiveState::Defused
+        && ObjectiveManager->ObjectiveState != EBLA_ObjectiveState::Completed)
+    {
+        // The objective directive issues its own rate-limited moves and holds position
+        // while a plant/defuse runs.
+        bObjectiveOwnsMovement = true;
+        ResolveObjectiveDirective(ObjectiveManager, ObjectiveTacticalManager, RolePlayerActor);
+        return;
+    }
+    bObjectiveOwnsMovement = false;
+
+    DirectiveRefreshElapsed += DeltaSeconds;
+    const bool bNeedsDirective = !IsValid(DirectiveTarget) && !IsValid(FollowTarget);
+    if ((bNeedsDirective || DirectiveRefreshElapsed >= DirectiveRefreshSeconds) && RoleTacticalManager && RoleTeamManager)
+    {
+        DirectiveRefreshElapsed = 0.0f;
+        ResolveRoleDirective(RoleTacticalManager, RoleTeamManager, RolePlayerActor);
+    }
+}
+
+void ABLAAIController::TickCombat()
+{
+    const ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
+    if (State && State->RoundPhase != EBLA_RoundPhase::Combat)
+    {
+        // Bots hold fire outside combat; movement and directives keep running.
+        return;
+    }
+    if (BotPerception && BotPerception->TargetActor)
+    {
+        AimAndFireAtTarget();
+    }
+}
+
+void ABLAAIController::TickMovement()
+{
+    const ABLACharacterBase* Bot = Cast<ABLACharacterBase>(GetPawn());
+    if (!Bot || !Bot->GetIsAlive() || bObjectiveOwnsMovement)
+    {
+        return;
+    }
+    if (bIsStuck && RoleTacticalManager)
+    {
+        bIsStuck = false;
+        bHasDirectiveMoveTarget = false;
+        RecoverFromStuck(RoleTacticalManager);
+        return;
+    }
+    if (bHasActiveTeamOrder)
+    {
+        IssueDirectiveMove(DirectiveLocation, 50.0f);
+        return;
+    }
+    if (IsValid(DirectiveTarget))
+    {
+        IssueDirectiveMove(DirectiveTarget->GetActorLocation(), 50.0f);
+        return;
+    }
+    if (IsValid(FollowTarget))
+    {
+        IssueDirectiveMove(FollowTarget->GetActorLocation(), 350.0f);
+    }
+}
+
+void ABLAAIController::IssueDirectiveMove(const FVector& Location, float AcceptanceRadius)
+{
+    const bool bTargetMoved = !bHasDirectiveMoveTarget
+        || FVector::DistSquared(Location, LastDirectiveMoveTarget) > FMath::Square(DirectiveMoveRefreshDistance);
+    if (bTargetMoved || GetMoveStatus() != EPathFollowingStatus::Moving)
+    {
+        bHasDirectiveMoveTarget = true;
+        LastDirectiveMoveTarget = Location;
+        MoveToLocation(Location, AcceptanceRadius, true);
+    }
 }
 
 bool ABLAAIController::MoveToTacticalPoint(ABLATacticalPoint* Point)
