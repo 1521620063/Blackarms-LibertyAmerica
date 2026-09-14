@@ -18,6 +18,11 @@
 #include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISenseConfig_Sight.h"
 
+namespace
+{
+    constexpr float DirectiveMoveRefreshDistance = 150.0f;
+}
+
 AFPSAIController::AFPSAIController()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -226,6 +231,7 @@ void AFPSAIController::ConfigureObjective(AFPSObjectiveManager* InManager, AFPST
     ObjectiveTacticalManager = InTacticalManager;
     CurrentObjectiveTask = NAME_None;
     bHasObjectiveDirective = false;
+    bHasObjectiveMoveTarget = false;
 }
 
 bool AFPSAIController::ResolveObjectiveDirective(AFPSObjectiveManager* InManager, AFPSTacticalManager* InTacticalManager, AActor* PlayerActor)
@@ -254,7 +260,14 @@ bool AFPSAIController::ResolveObjectiveDirective(AFPSObjectiveManager* InManager
     {
         bHasObjectiveDirective = true;
         DirectiveLocation = Location;
-        MoveToLocation(Location, 50.0f, true);
+        const bool bTargetMoved = !bHasObjectiveMoveTarget
+            || FVector::DistSquared(Location, LastObjectiveMoveTarget) > FMath::Square(DirectiveMoveRefreshDistance);
+        if (bTargetMoved || GetMoveStatus() != EPathFollowingStatus::Moving)
+        {
+            bHasObjectiveMoveTarget = true;
+            LastObjectiveMoveTarget = Location;
+            MoveToLocation(Location, 50.0f, true);
+        }
     };
     const auto ResolvePoint = [this, InTacticalManager, Bot](EFPS_TacticalPointType Type)
     {

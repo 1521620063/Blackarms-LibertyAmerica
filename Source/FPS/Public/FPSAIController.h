@@ -98,6 +98,9 @@ private:
     TObjectPtr<AFPSObjectiveManager> ObjectiveManager;
     UPROPERTY()
     TObjectPtr<AFPSTacticalManager> ObjectiveTacticalManager;
+    UPROPERTY()
+    bool bHasObjectiveMoveTarget = false;
+    FVector LastObjectiveMoveTarget = FVector::ZeroVector;
     FVector LastStuckCheckLocation = FVector::ZeroVector;
     float StuckElapsed = 0.0f;
 };

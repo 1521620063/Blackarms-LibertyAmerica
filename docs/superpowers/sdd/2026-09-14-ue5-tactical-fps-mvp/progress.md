@@ -38,3 +38,12 @@ No plan defect found that would stop execution. Scan recorded before dispatching
 ## Progress
 
 Task 9: implemented directly in the controller session (delegation unavailable). Evidence: `docs/superpowers/sdd/2026-09-14-ue5-tactical-fps-mvp/task-9-report.md`.
+
+Task 9: review seat — the collaboration channel did not deliver the review dispatch to a fresh reviewer subagent either (third failed dispatch this turn; the child reported an empty task). A controller self-review of the full task diff was performed instead, recorded here:
+
+- Finding (Important): `AFPSAIController::ResolveObjectiveDirective` issued `MoveToLocation` on every tick while an objective manager was attached — a per-frame path request. Fixed by refreshing the move request only when the destination moves more than 150 units or the pawn is no longer moving (`fix: rate-limit objective ai move requests`).
+- Finding (Minor, deferred): `AFPSDataCore::SetObjectiveState` is public, so a non-manager system could mirror a state value; completion decisions still live only in `AFPSObjectiveManager` (the contract suite asserts the core exposes no completion API).
+- Finding (Minor, deferred): `ResolveObjectiveDirective` keeps the Task 8 `AActor* PlayerActor` parameter for signature symmetry with `ResolveRoleDirective` but does not use it.
+- Finding (Minor, deferred): pickup is restricted to attackers even though the plan only mandates attackers-plant / defenders-defuse. Ruling: attackers carry the objective; defenders intercept, investigate, and defuse. Cost if wrong: a future mode that wants defenders to carry needs the constraint relaxed.
+
+Task 9: complete (commits ce36f7b..HEAD, self-reviewed: 1 Important found and fixed, 3 Minor deferred).
