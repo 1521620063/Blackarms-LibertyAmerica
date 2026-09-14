@@ -174,12 +174,12 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 **Interfaces:** Consumes Tasks 1–6; produces the first complete playable match loop and permanent regression fixture.
 
-- [ ] Build a small room with protected team spawn areas, three cover objects, a central combat area, and complete NavMesh.
-- [ ] Configure Team Elimination, Solo rules, one player attacker, one defender bot, and match start after registration.
-- [ ] Attach weapon components and bind fire/reload/switch inputs.
-- [ ] Play a win and a loss, confirm next-round reset, score change, and match result at three wins.
-- [ ] Functional test must assert match start, registration, preparation/combat phases, single round end, score increment, idempotent reset, and MatchResult.
-- [ ] Commit `feat: complete 1v1 elimination vertical slice`.
+- [x] Build a small room with protected team spawn areas, three cover objects, a central combat area, and complete NavMesh.
+- [x] Configure Team Elimination, Solo rules, one player attacker, one defender bot, and match start after registration.
+- [x] Attach weapon components and bind fire/reload/switch inputs.
+- [x] Play a win and a loss, confirm next-round reset, score change, and match result at three wins.
+- [x] Functional test must assert match start, registration, preparation/combat phases, single round end, score increment, idempotent reset, and MatchResult.
+- [x] Commit `feat: complete 1v1 elimination vertical slice`.
 
 ---
 
