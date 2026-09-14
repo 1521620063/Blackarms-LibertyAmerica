@@ -96,3 +96,34 @@ Supporting evidence:
 `Scripts/run_verification.ps1` runs the whole matrix (19 checks), enforces the marker contract (a run must
 emit its `BLA_*_OK` marker; `_FAILED`, missing markers, timeouts and contract tracebacks fail fast), refuses to
 overlap editor instances, and exits non-zero on any failure. `README.md` documents it.
+
+## Follow-up pass (2026-09-15, requested by the human partner)
+
+Three deferred items from the table above were actioned:
+
+1. **Difficulty parameters (item 1)** - all six are now applied: `VisionReactionSeconds` gates the first shot
+   after a fresh acquisition, `FireDelaySeconds` throttles AI fire, `HearingRadius` limits hearing stimuli,
+   `SearchSeconds` bounds how long a lost target is remembered, `TacticalExecutionProbability` gates the
+   Assault/Defender point commitment (falling back to team-follow) and `TeamAssistProbability` decides whether a
+   Support bot assists a teammate or holds its own point. Asserted by the Task 6 fixture (hearing cut-off,
+   reaction gate, fire-delay gate) and the 3v3 test (deterministic 1.0 role directives plus 0.0
+   fallback/no-idle assertions).
+2. **Default game mode (item 4)** - `GlobalDefaultGameMode` and the bootstrap map's world settings now point at
+   `BP_BLAGameMode`; `verify_task5_contracts` asserts the map binding, `verify_bootstrap_pie` asserts PIE runs a
+   `BLAGameMode` with a BLA pawn, and `verify_task7_pie` asserts the 1v1 map runs `BLAGameModeElimination`.
+3. **Stale binaries (item 8)** - the pre-rename `*FPS*` artifacts under `Binaries/`/`Intermediate/` and the
+   empty `Content/__ExternalActors__/FPS` tree were deleted; the rebuilt manifest lists only `BLA`/`BLAEditor`.
+
+The runner also grew a required-marker contract (the Task 7/8 drivers must see `BLA_1V1_ELIMINATION_OK` and
+`BLA_3V3_ELIMINATION_OK`). It paid off immediately: the 3v3 test failed with `reason=support_player_follow`
+because the probability assertions left the 0.0 difficulty applied, and the driver reported
+`FAILED missing_markers BLA_3V3_ELIMINATION_OK` instead of a silent pass. Fixed by restoring the deterministic
+difficulty after the probability assertions.
+
+Final evidence for this pass: `Build.bat` succeeded; `Scripts/run_verification.ps1 -Tag final2` reported
+`MATRIX_DONE checks=19 failed=0 / MATRIX_OK`.
+
+New standing finding (recorded in the ledger, not fixed): the behavior-tree nodes remain structural shells and
+nothing in C++ drives the live loop (`UpdateTarget`, `AimAndFireAtTarget`, `MoveToTacticalPoint` are only called
+by tests; `OnTargetPerceptionUpdated` is unbound), so a played match has passive bots until the behavior loop is
+wired in Task 10/12.

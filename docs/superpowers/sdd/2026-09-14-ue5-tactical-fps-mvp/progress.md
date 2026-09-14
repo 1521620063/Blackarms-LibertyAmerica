@@ -95,3 +95,47 @@ area; repoint `GlobalDefaultGameMode` during Task 10; clean inert delegate `Stru
 `BLA Bootstrap Navigation Bounds` cleanup and the stale pre-rename binaries.
 
 Task 10 remains the next planned task.
+
+## Follow-up pass (2026-09-15, human-partner decisions)
+
+The human partner asked for three follow-ups after the review: put the six bot difficulty parameters to
+reasonable use, repoint the default game mode at `BP_BLAGameMode`, and delete the stale pre-rename
+artifacts from the local `Binaries`/`Intermediate` trees.
+
+Difficulty parameters are now applied by `ABLAAIController::ApplyDifficulty`:
+
+- `VisionReactionSeconds` gates the first shot after a fresh target acquisition.
+- `FireDelaySeconds` throttles AI fire between shots (`IsFireDelayElapsed`); the weapon cooldown is unchanged.
+- `HearingRadius` limits hearing stimuli inside `UBLABotPerception::ReportStimulus`; sight and damage are not limited.
+- `SearchSeconds` keeps a lost target's last known position alive in `ABLAAIController::UpdateTargetMemory` before the bot forgets it.
+- `TacticalExecutionProbability` is the chance an Assault/Defender bot commits to its assigned tactical point; a failed roll falls back to following the team.
+- `TeamAssistProbability` is the chance a Support bot assists a teammate instead of holding a point of its own.
+
+Coverage: the Task 6 fixture asserts the hearing-radius cut-off, the reaction gate and the fire-delay gate;
+the 3v3 test pins both probabilities to 1.0 for the deterministic role directives and then asserts the 0.0
+fallback (Assault/Defender follow the team, Support takes its own point, no bot left without a directive);
+Task 6 contracts assert the six fields and `hearing_radius`.
+
+Default game mode: `Config/DefaultEngine.ini` points `GlobalDefaultGameMode` at `BP_BLAGameMode`, and
+`build_task5_assets.py` writes the same game mode into the bootstrap map's world settings (the map was copied
+from the FirstPerson template and carried the template override). `verify_task5_contracts` asserts
+`default_map_game_mode=1`; `verify_bootstrap_pie` asserts PIE runs a `BLAGameMode` with a BLA character pawn;
+`verify_task7_pie` asserts the 1v1 map runs `BLAGameModeElimination`.
+
+Local cleanup: deleted the pre-rename `*FPS*` artifacts under `Binaries/` (10 files) and `Intermediate/`
+(10 module directories plus the BuildRules files) and the empty `Content/__ExternalActors__/FPS` tree. The next
+build regenerated `Binaries/Win64/UnrealEditor.modules` with only `BLA`/`BLAEditor`, and no `*FPS*` artifact
+remains under `Binaries`/`Intermediate`.
+
+Runner hardening: matrix entries can now require extra log markers, and the Task 7/8 drivers require
+`BLA_1V1_ELIMINATION_OK` and `BLA_3V3_ELIMINATION_OK`. That contract immediately caught a real regression in
+this pass: the 3v3 test failed with `reason=support_player_follow` because the probability assertions left the
+0.0 difficulty applied for the later automatic re-resolution; fixed by restoring the deterministic difficulty.
+
+Evidence: `Build.bat` succeeded and `Scripts/run_verification.ps1 -Tag final2` reported
+`MATRIX_DONE checks=19 failed=0 / MATRIX_OK`.
+
+Standing finding for Task 10/12 (not fixed here): the behavior-tree nodes are still structural shells and no
+C++ code drives the live loop - `UpdateTarget`, `AimAndFireAtTarget` and `MoveToTacticalPoint` are only called
+by tests, and `AIPerception->OnTargetPerceptionUpdated` is unbound, so a played match currently has passive
+bots. The new difficulty gates take effect as soon as that behavior loop is wired.
