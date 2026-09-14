@@ -38,7 +38,10 @@ ABLATacticalPoint* ABLATacticalManager::FindNearestReachablePoint(APawn* Request
     }
     UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
     ABLATacticalPoint* Best = nullptr;
+    ABLATacticalPoint* Fallback = nullptr;
     float BestDistance = TNumericLimits<float>::Max();
+    float FallbackDistance = TNumericLimits<float>::Max();
+    constexpr float MinRecoveryDistance = 300.0f;
     for (TActorIterator<ABLATacticalPoint> It(GetWorld()); It; ++It)
     {
         ABLATacticalPoint* Point = *It;
@@ -52,13 +55,19 @@ ABLATacticalPoint* ABLATacticalManager::FindNearestReachablePoint(APawn* Request
             continue;
         }
         const float Distance = FVector::DistSquared2D(Requester->GetActorLocation(), Point->GetActorLocation());
-        if (Distance < BestDistance)
+        // Prefer a recovery point far enough away to actually break the blockage.
+        if (Distance >= FMath::Square(MinRecoveryDistance) && Distance < BestDistance)
         {
             BestDistance = Distance;
             Best = Point;
         }
+        if (Distance < FallbackDistance)
+        {
+            FallbackDistance = Distance;
+            Fallback = Point;
+        }
     }
-    return Best;
+    return Best ? Best : Fallback;
 }
 
 bool ABLATacticalManager::ReservePoint(ABLATacticalPoint* Point)

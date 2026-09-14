@@ -2,16 +2,18 @@
 
 #include "BLAGameplayTypes.h"
 #include "GameFramework/Character.h"
+#include "GenericTeamAgentInterface.h"
 #include "BLACharacterBase.generated.h"
 
 class UCameraComponent;
+class UAIPerceptionStimuliSourceComponent;
 class UBLAHealthComponent;
 class UBLAHitFeedbackComponent;
 class UBLAInteractionComponent;
 class UBLAWeaponComponent;
 
 UCLASS(Blueprintable)
-class BLA_API ABLACharacterBase : public ACharacter
+class BLA_API ABLACharacterBase : public ACharacter, public IGenericTeamAgentInterface
 {
     GENERATED_BODY()
 
@@ -32,6 +34,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BLA")
     TObjectPtr<UBLAHitFeedbackComponent> HitFeedbackComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BLA")
+    TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionSource;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA")
     EBLA_Team Team = EBLA_Team::Neutral;
@@ -54,6 +59,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Round")
     void ResetCombatant();
+
+    virtual FGenericTeamId GetGenericTeamId() const override;
+    virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
 
 protected:
     virtual void BeginPlay() override;

@@ -74,6 +74,7 @@ private:
     void HandleCombatantDeath(ABLACharacterBase* DeadCombatant, AActor* InstigatorActor);
     void EvaluateTimeout();
     float GetRemainingHealth(EBLA_Team Team) const;
+    void ResetCombatantPositions();
 
     FBLAMatchRules ActiveRules;
     bool bOvertimeUsed = false;

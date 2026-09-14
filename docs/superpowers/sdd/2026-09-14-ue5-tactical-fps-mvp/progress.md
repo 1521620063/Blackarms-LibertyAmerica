@@ -192,3 +192,38 @@ matrix, which is now 21 checks.
 
 Evidence: `Build.bat` succeeded; `verify_task10_pie` reported
 `BLA_TASK10_PIE_DRIVER_OK menu=1 match=1 travel=roundtrip`.
+
+## Task 11: Zero Facility graybox map (2026-09-15)
+
+Assets and runtime:
+
+- `ABLAMapZone` (BP_BLAMapZone) - box-shaped zone metadata for the eight Zero Facility zones.
+- `UBLAMapConfigDataAsset` + `ABLAMapConfig` (BP_BLAMapConfig + DA_BLAMapConfig_ZeroFacility) - supported modes
+  (both), supported sizes (1/2/3), spawn/cover expectations, route names, and the level references the game
+  mode now reads instead of searching by class: `ABLAGameModeElimination::InitializeMatch` resolves the
+  objective manager and the effective team size from the map config, logs
+  `BLA_MAP_CONFIG_MODE_UNSUPPORTED` / `BLA_MAP_CONFIG_SIZE_CLAMPED` when the selection does not fit and falls
+  back to the tag search for maps without a config.
+- `ABLAMapNavigationTest` (FT_BLA_MapNavigation) - route reachability (attack → defence, mid, objective, left,
+  right, flank), every tactical point reachable, 3+ spawns per team with 200+ unit separation, no direct
+  spawn-to-spawn sight line and the core inside the objective zone. It retries while runtime navigation data
+  streams in and reports `BLA_MAP_NAVIGATION_OK` / `_FAILED reason=...`.
+- `build_task11_assets.py` builds `/Game/BLA/Maps/Final/L_BLA_ZeroFacility` (32 walls/covers, 8 zones, 6 spawns,
+  7 tactical points, objective set, map config, navmesh bounds, lights, test actor) and sets the Recast navmesh
+  to dynamic runtime generation - without that the runtime world had no navigation at all in PIE.
+
+Gameplay fixes found by Task 11 work (all verified by the matrix):
+
+- AI perception: combatants now implement `IGenericTeamAgentInterface` and carry an
+  `UAIPerceptionStimuliSourceComponent`; sight acquisition runs as a deterministic C++ scan
+  (`ScanForTargets`, `HasClearShot`) because the perception delegate never fired in headless PIE. Bots acquire
+  targets and shoot in every multi-bot configuration (first contact ticks recorded in the README soak table).
+- Rounds start from the team spawns again (`ABLARoundManager::StartPreparationPhase` repositions combatants),
+  which the soak relies on to measure a match's own travel.
+- Stuck recovery now prefers a reachable point at least 300 units away
+  (`ABLATacticalManager::FindNearestReachablePoint`), and the soak shows the remaining jam cases in the README.
+
+Verification: `Build.bat` succeeded; `verify_task11_contracts` reported
+`zones=8 spawns=6 tactical=7 cover=21 config=1 objective=1 nav_test=1 modes=2 sizes=3`;
+`verify_task11_pie` reported `BLA_TASK11_PIE_DRIVER_OK navigation=1 moved=1331.8`; the six-configuration soak
+(30 matches) ran to `BLA_TASK11_SOAK_OK` for every configuration with the metrics recorded in `README.md`.

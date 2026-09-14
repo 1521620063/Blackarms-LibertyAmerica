@@ -53,6 +53,8 @@ public:
     bool bTargetLost = false;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     float MaxEngagementDistance = 5000.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|AI")
+    float SightRadius = 3000.0f;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     TObjectPtr<AActor> DirectiveTarget;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
@@ -101,6 +103,8 @@ protected:
 private:
     void HandleTeamOrderChanged(EBLA_RoundPhase Phase);
     void UpdateTargetMemory();
+    void ScanForTargets();
+    bool HasClearShot(const AActor* Candidate) const;
     void UpdateDirectiveFromSources(float DeltaSeconds);
     void TickCombat();
     void TickMovement();
@@ -113,6 +117,7 @@ private:
     double TargetAcquiredTime = -1.0;
     double LastFireTime = -1.0;
     double TargetLostTime = -1.0;
+    double LastTargetScanTime = -1.0;
     float DirectiveRefreshElapsed = 0.0f;
     bool bObjectiveOwnsMovement = false;
     bool bHasDirectiveMoveTarget = false;

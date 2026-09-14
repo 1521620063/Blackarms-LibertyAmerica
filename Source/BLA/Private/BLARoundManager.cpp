@@ -3,6 +3,7 @@
 #include "BLACharacterBase.h"
 #include "BLAGameState.h"
 #include "BLAHealthComponent.h"
+#include "BLASpawnPoint.h"
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -77,8 +78,34 @@ void ABLARoundManager::StartPreparationPhase()
 {
     bIsRoundEnding = false;
     bOvertimeUsed = false;
+    ResetCombatantPositions();
     BLAGameState->RoundPhase = EBLA_RoundPhase::Preparation;
     BLAGameState->RoundTimeRemaining = ActiveRules.PreparationSeconds;
+}
+
+void ABLARoundManager::ResetCombatantPositions()
+{
+    if (!TeamManager)
+    {
+        return;
+    }
+    // Every round starts from the team spawns again; without this combatants resume from
+    // wherever the previous round ended.
+    TeamManager->ResetReservations();
+    for (ABLACharacterBase* Combatant : TeamManager->GetTeamMembers(EBLA_Team::Attackers))
+    {
+        if (ABLASpawnPoint* Spawn = TeamManager->SelectSpawnPoint(EBLA_Team::Attackers, NAME_None))
+        {
+            Combatant->SetActorTransform(Spawn->GetActorTransform());
+        }
+    }
+    for (ABLACharacterBase* Combatant : TeamManager->GetTeamMembers(EBLA_Team::Defenders))
+    {
+        if (ABLASpawnPoint* Spawn = TeamManager->SelectSpawnPoint(EBLA_Team::Defenders, NAME_None))
+        {
+            Combatant->SetActorTransform(Spawn->GetActorTransform());
+        }
+    }
 }
 
 void ABLARoundManager::StartCombatPhase()

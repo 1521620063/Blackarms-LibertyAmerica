@@ -13,6 +13,7 @@
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
 #include "BLAWeaponComponent.h"
+#include "EngineUtils.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Damage.h"
@@ -26,6 +27,7 @@ namespace
 {
     constexpr float DirectiveMoveRefreshDistance = 150.0f;
     constexpr float DirectiveRefreshSeconds = 5.0f;
+    constexpr float TargetScanInterval = 0.3f;
 }
 
 ABLAAIController::ABLAAIController()
@@ -62,6 +64,7 @@ void ABLAAIController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     UpdateTargetMemory();
+    ScanForTargets();
     UpdateDirectiveFromSources(DeltaSeconds);
     TickCombat();
     TickMovement();
@@ -98,7 +101,7 @@ bool ABLAAIController::UpdateTarget(AActor* Candidate, EBLA_StimulusType Stimulu
     {
         return false;
     }
-    if (StimulusType == EBLA_StimulusType::Sight && !LineOfSightTo(Candidate))
+    if (StimulusType == EBLA_StimulusType::Sight && !HasClearShot(Candidate))
     {
         return false;
     }
@@ -122,7 +125,7 @@ bool ABLAAIController::AimAndFireAtTarget()
     ABLACharacterBase* Shooter = Cast<ABLACharacterBase>(GetPawn());
     ABLACharacterBase* Target = BotPerception ? Cast<ABLACharacterBase>(BotPerception->TargetActor) : nullptr;
     if (!Shooter || !Target || !Shooter->GetIsAlive() || !Target->GetIsAlive() || Shooter->Team == Target->Team
-        || !Shooter->WeaponComponent || !Shooter->WeaponComponent->CanFire() || !LineOfSightTo(Target))
+        || !Shooter->WeaponComponent || !Shooter->WeaponComponent->CanFire() || !HasClearShot(Target))
     {
         return false;
     }
@@ -200,7 +203,7 @@ void ABLAAIController::UpdateTargetMemory()
         return;
     }
     const ABLACharacterBase* TargetCombatant = Cast<ABLACharacterBase>(Target);
-    const bool bTargetVisible = TargetCombatant && TargetCombatant->GetIsAlive() && LineOfSightTo(Target);
+    const bool bTargetVisible = TargetCombatant && TargetCombatant->GetIsAlive() && HasClearShot(Target);
     if (bTargetVisible)
     {
         TargetLostTime = -1.0;
@@ -221,6 +224,68 @@ void ABLAAIController::UpdateTargetMemory()
         TargetAcquiredTime = -1.0;
         bTargetLost = false;
     }
+}
+
+void ABLAAIController::ScanForTargets()
+{
+    if (!BotPerception || BotPerception->TargetActor || !GetWorld())
+    {
+        return;
+    }
+    ABLACharacterBase* Bot = Cast<ABLACharacterBase>(GetPawn());
+    if (!Bot || !Bot->GetIsAlive())
+    {
+        return;
+    }
+    const double Now = GetWorld()->GetTimeSeconds();
+    if (LastTargetScanTime >= 0.0 && Now - LastTargetScanTime < TargetScanInterval)
+    {
+        return;
+    }
+    LastTargetScanTime = Now;
+
+    // Deterministic sight pass: the AI perception component still handles hearing and
+    // damage stimuli, but target acquisition is owned here so the live loop is testable.
+    ABLACharacterBase* Best = nullptr;
+    float BestDistance = TNumericLimits<float>::Max();
+    for (TActorIterator<ABLACharacterBase> It(GetWorld()); It; ++It)
+    {
+        ABLACharacterBase* Candidate = *It;
+        if (!Candidate || Candidate == Bot || !Candidate->GetIsAlive()
+            || Candidate->Team == Bot->Team || Candidate->Team == EBLA_Team::Neutral)
+        {
+            continue;
+        }
+        const float Distance = FVector::Dist(Bot->GetActorLocation(), Candidate->GetActorLocation());
+        if (Distance > SightRadius || Distance >= BestDistance || !HasClearShot(Candidate))
+        {
+            continue;
+        }
+        Best = Candidate;
+        BestDistance = Distance;
+    }
+    if (Best)
+    {
+        UpdateTarget(Best, EBLA_StimulusType::Sight);
+    }
+}
+
+bool ABLAAIController::HasClearShot(const AActor* Candidate) const
+{
+    const APawn* Bot = GetPawn();
+    if (!Candidate || !Bot || !GetWorld())
+    {
+        return false;
+    }
+    FHitResult Hit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(BLASightScan), false, Bot);
+    Params.AddIgnoredActor(Candidate);
+    const bool bBlocked = GetWorld()->LineTraceSingleByChannel(
+        Hit,
+        Bot->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f),
+        Candidate->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f),
+        ECC_Visibility, Params);
+    return !bBlocked;
 }
 
 AActor* ABLAAIController::ResolveAssistTarget(ABLATeamManager* TeamManager, AActor* PlayerActor)

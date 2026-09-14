@@ -5,14 +5,14 @@
 
 namespace
 {
-    const TCHAR* DifficultyAssetPaths[] =
+    const TCHAR* GameInstanceDifficultyPaths[] =
     {
         TEXT("/Game/BLA/Data/AI/DA_BLABotDifficulty_Easy.DA_BLABotDifficulty_Easy"),
         TEXT("/Game/BLA/Data/AI/DA_BLABotDifficulty_Normal.DA_BLABotDifficulty_Normal"),
         TEXT("/Game/BLA/Data/AI/DA_BLABotDifficulty_Hard.DA_BLABotDifficulty_Hard")
     };
 
-    const TCHAR* RulesAssetPaths[] =
+    const TCHAR* GameInstanceRulesPaths[] =
     {
         TEXT("/Game/BLA/Data/Rules/DA_BLAMatchRules_Solo.DA_BLAMatchRules_Solo"),
         TEXT("/Game/BLA/Data/Rules/DA_BLAMatchRules_2v2.DA_BLAMatchRules_2v2"),
@@ -28,14 +28,14 @@ void UBLAGameInstance::ApplyModeSelection(EBLA_MatchMode Mode)
 void UBLAGameInstance::ApplyTeamSize(int32 TeamSize)
 {
     SelectedTeamSize = FMath::Clamp(TeamSize, 1, 3);
-    SelectedRules = LoadObject<UBLAMatchRulesDataAsset>(nullptr, RulesAssetPaths[SelectedTeamSize - 1]);
+    SelectedRules = LoadObject<UBLAMatchRulesDataAsset>(nullptr, GameInstanceRulesPaths[SelectedTeamSize - 1]);
 }
 
 void UBLAGameInstance::ApplyDifficultyLevel(EBLA_DifficultyLevel Level)
 {
     SelectedDifficultyLevel = Level;
     SelectedDifficulty = LoadObject<UBLABotDifficultyDataAsset>(
-        nullptr, DifficultyAssetPaths[static_cast<int32>(Level)]);
+        nullptr, GameInstanceDifficultyPaths[static_cast<int32>(Level)]);
 }
 
 void UBLAGameInstance::SaveSettings()

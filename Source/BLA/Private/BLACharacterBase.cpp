@@ -7,6 +7,10 @@
 #include "BLAInteractionComponent.h"
 #include "BLAWeaponComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Perception/AISense_Damage.h"
+#include "Perception/AISense_Hearing.h"
+#include "Perception/AISense_Sight.h"
 
 ABLACharacterBase::ABLACharacterBase()
 {
@@ -22,6 +26,12 @@ ABLACharacterBase::ABLACharacterBase()
     InteractionComponent = CreateDefaultSubobject<UBLAInteractionComponent>(TEXT("InteractionComponent"));
     WeaponComponent = CreateDefaultSubobject<UBLAWeaponComponent>(TEXT("WeaponComponent"));
     HitFeedbackComponent = CreateDefaultSubobject<UBLAHitFeedbackComponent>(TEXT("HitFeedbackComponent"));
+
+    // Register combatants as perception sources so AI senses can actually detect them.
+    PerceptionSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("PerceptionSource"));
+    PerceptionSource->RegisterForSense(UAISense_Sight::StaticClass());
+    PerceptionSource->RegisterForSense(UAISense_Hearing::StaticClass());
+    PerceptionSource->RegisterForSense(UAISense_Damage::StaticClass());
 
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -59,6 +69,31 @@ void ABLACharacterBase::ResetCombatant()
     WeaponComponent->ResetWeapons();
     GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+FGenericTeamId ABLACharacterBase::GetGenericTeamId() const
+{
+    // AI perception filters by affiliation; without this every combatant looks neutral and
+    // sight detection ignores it.
+    return FGenericTeamId(static_cast<uint8>(Team));
+}
+
+ETeamAttitude::Type ABLACharacterBase::GetTeamAttitudeTowards(const AActor& Other) const
+{
+    const ABLACharacterBase* OtherCombatant = Cast<ABLACharacterBase>(&Other);
+    if (!OtherCombatant)
+    {
+        return ETeamAttitude::Neutral;
+    }
+    if (OtherCombatant->Team == Team)
+    {
+        return ETeamAttitude::Friendly;
+    }
+    if (Team == EBLA_Team::Neutral || OtherCombatant->Team == EBLA_Team::Neutral)
+    {
+        return ETeamAttitude::Neutral;
+    }
+    return ETeamAttitude::Hostile;
 }
 
 void ABLACharacterBase::HandleHealthDeath(AActor* InstigatorActor)
