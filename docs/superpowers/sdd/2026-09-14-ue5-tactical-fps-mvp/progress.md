@@ -139,3 +139,23 @@ Standing finding for Task 10/12 (not fixed here): the behavior-tree nodes are st
 C++ code drives the live loop - `UpdateTarget`, `AimAndFireAtTarget` and `MoveToTacticalPoint` are only called
 by tests, and `AIPerception->OnTargetPerceptionUpdated` is unbound, so a played match currently has passive
 bots. The new difficulty gates take effect as soon as that behavior loop is wired.
+
+## AI behavior loop (2026-09-15, requested by the human partner)
+
+The standing finding above is resolved: `ABLAAIController` now drives the live loop in C++ while the behavior
+tree stays a structural shell (same convention the objective mode already used).
+
+- `AIPerception->OnTargetPerceptionUpdated` is bound and maps the sense to `EBLA_StimulusType`
+  (sight/hearing/damage) before calling `UpdateTarget`, so bots acquire targets on their own.
+- `Tick` runs `UpdateTargetMemory` (search/forget with `SearchSeconds`), `UpdateDirectiveFromSources`
+  (active team order, else objective directive, else role directive refreshed every 5s), `TickCombat`
+  (fires through `AimAndFireAtTarget` and only during the Combat phase) and `TickMovement`
+  (rate-limited `MoveToLocation` toward the order/point/follow target, stuck recovery through
+  `RecoverFromStuck`); objective movement stays owned by `ResolveObjectiveDirective` so the plant/defuse
+  hold rule is preserved.
+- `verify_task8_pie.py` now samples the registered bots as soon as they exist and requires at least one of
+  them to travel 100+ units, which makes "bots act on their directives" a checked property instead of an
+  assumption.
+
+Evidence: `Build.bat` succeeded; `Scripts/run_verification.ps1 -Tag loop` reported
+`MATRIX_DONE checks=19 failed=0 / MATRIX_OK` with `moved=1026.9 / 1188.1 / 1080.4` for team sizes 1/2/3.
