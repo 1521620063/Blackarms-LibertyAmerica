@@ -7,6 +7,7 @@
 #include "BLAObjectiveZone.h"
 #include "BLARoundManager.h"
 #include "BLATeamManager.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -36,11 +37,34 @@ void ABLAObjectiveManager::BeginPlay()
     }
     if (!DataCore)
     {
-        DataCore = Cast<ABLADataCore>(UGameplayStatics::GetActorOfClass(this, ABLADataCore::StaticClass()));
+        // Prefer the level's tagged core: test maps may spawn extra cores of their own.
+        for (TActorIterator<ABLADataCore> It(GetWorld()); It; ++It)
+        {
+            if (It->ActorHasTag(TEXT("BLAObjectiveCore")))
+            {
+                DataCore = *It;
+                break;
+            }
+        }
+        if (!DataCore)
+        {
+            DataCore = Cast<ABLADataCore>(UGameplayStatics::GetActorOfClass(this, ABLADataCore::StaticClass()));
+        }
     }
     if (!ObjectiveZone)
     {
-        ObjectiveZone = Cast<ABLAObjectiveZone>(UGameplayStatics::GetActorOfClass(this, ABLAObjectiveZone::StaticClass()));
+        for (TActorIterator<ABLAObjectiveZone> It(GetWorld()); It; ++It)
+        {
+            if (It->ActorHasTag(TEXT("BLAObjectiveZone")))
+            {
+                ObjectiveZone = *It;
+                break;
+            }
+        }
+        if (!ObjectiveZone)
+        {
+            ObjectiveZone = Cast<ABLAObjectiveZone>(UGameplayStatics::GetActorOfClass(this, ABLAObjectiveZone::StaticClass()));
+        }
     }
     if (!TeamManager)
     {

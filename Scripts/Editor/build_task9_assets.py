@@ -19,6 +19,7 @@ OBJECTIVE_TASKS = [
 TASK9_LABELS = {
     "Data Core",
     "Data Core Objective Zone",
+    "BLA Objective Manager",
     "Data Core Plant Point",
     "Data Core Defuse Point",
     "BLA Data Core Functional Test",
@@ -60,6 +61,17 @@ def spawn_zone(zone_blueprint, location):
     zone.set_editor_property("tags", ["BLAObjectiveZone"])
     zone.set_editor_property("zone_extent", unreal.Vector(300.0, 300.0, 200.0))
     return zone
+
+
+def spawn_manager(manager_blueprint, core, zone):
+    manager = actors.spawn_actor_from_class(manager_blueprint.generated_class(), unreal.Vector(0.0, 0.0, 0.0), unreal.Rotator())
+    if manager is None:
+        raise RuntimeError("Failed to place the objective manager")
+    manager.set_actor_label("BLA Objective Manager")
+    manager.set_editor_property("tags", ["BLALevelObjectiveManager"])
+    manager.set_editor_property("data_core", core)
+    manager.set_editor_property("objective_zone", zone)
+    return manager
 
 
 def spawn_tactical_point(label, point_type, role, location):
@@ -108,8 +120,10 @@ def main():
         if actor.get_actor_label() in TASK9_LABELS:
             actors.destroy_actor(actor)
 
-    spawn_core(core_blueprint, unreal.Vector(400.0, 0.0, 150.0))
-    spawn_zone(zone_blueprint, unreal.Vector(400.0, 0.0, 150.0))
+    core_actor = spawn_core(core_blueprint, unreal.Vector(400.0, 0.0, 150.0))
+    zone_actor = spawn_zone(zone_blueprint, unreal.Vector(400.0, 0.0, 150.0))
+    manager_blueprint = blueprint(MANAGER_BLUEPRINT, unreal.BLAObjectiveManager)
+    spawn_manager(manager_blueprint, core_actor, zone_actor)
     spawn_tactical_point("Data Core Plant Point", unreal.BLA_TacticalPointType.PLANT_POINT,
                          unreal.BLA_BotRole.ASSAULT, unreal.Vector(300.0, -150.0, 100.0))
     spawn_tactical_point("Data Core Defuse Point", unreal.BLA_TacticalPointType.DEFUSE_POINT,

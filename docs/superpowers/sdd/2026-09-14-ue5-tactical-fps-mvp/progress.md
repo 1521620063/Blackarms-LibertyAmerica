@@ -159,3 +159,36 @@ tree stays a structural shell (same convention the objective mode already used).
 
 Evidence: `Build.bat` succeeded; `Scripts/run_verification.ps1 -Tag loop` reported
 `MATRIX_DONE checks=19 failed=0 / MATRIX_OK` with `moved=1026.9 / 1188.1 / 1080.4` for team sizes 1/2/3.
+
+## Task 10: menus, HUD, settings, results and player flow (2026-09-15)
+
+Runtime (`Source/BLA`):
+
+- `UBLASettingsSaveGame` - the dedicated settings save object (mouse sensitivity, FOV, resolution/fullscreen,
+  master/music/effects volume, subtitles, crosshair, colour assistance).
+- `UBLAGameInstance` - selection API (`ApplyModeSelection`, `ApplyTeamSize` which loads the matching rules asset,
+  `ApplyDifficultyLevel` which loads the difficulty asset) plus settings persistence (`SaveSettings`,
+  `LoadSettings`, `ResetSettings`) and the single entry point for level travel (`TravelTo`, `RequestStartMatch`,
+  `RequestReturnToMenu`, `LastTravelRequest`, `bTravelImmediately`).
+- `ABLAUIManager` - read-only view layer: screen state machine (main menu, mode select, settings, match HUD,
+  round result, match result), widget classes wired on `BP_BLAUIManager`, `FBLAMatchHUDState` refreshed from
+  health/armor/weapon/PlayerState/GameState/team-order/objective sources, hit-feedback counter, and the
+  round/match result payload (winner, reason, scores, kills, damage, objective contribution).
+- `ABLAGameMode` spawns the UI manager (menu maps start on the main menu, match maps on the HUD);
+  `ABLAGameModeElimination::InitializeMatch` now sets `GameState->MatchMode` from the GameInstance selection,
+  wires the level objective manager (tag `BLALevelObjectiveManager`) to the bots in DataCore mode and leaves it
+  inert in TeamElimination mode, and `RestartMatch()` implements the results-screen restart.
+- `ABLAUIFlowTest` - functional test actor placed twice: menu flow (selections, settings round-trip, entry
+  travel) and match flow (HUD refresh, round result, match result, restart, return to menu).
+- Supporting fixes found by this work: the graybox map had no level objective manager (only the Task 9 test's
+  own), so `build_task9_assets.py` now places a tagged `BP_BLAObjectiveManager` wired to the level core/zone and
+  `verify_task9_contracts.py` asserts `level_manager=1`; `ABLAObjectiveManager` prefers tagged core/zone actors
+  and exposes `DataCore`/`ObjectiveZone` as `EditAnywhere` so the placed manager can be wired.
+
+Assets and automation: `Scripts/Editor/build_task10_assets.py` (11 WBP widgets, `BP_BLAUIManager` with every
+widget class wired, `FT_BLA_UIFlow` placed in both maps), `verify_task10_contracts.py` and
+`verify_task10_pie.py` (menu - real travel - match HUD/results/restart - return to menu); both are part of the
+matrix, which is now 21 checks.
+
+Evidence: `Build.bat` succeeded; `verify_task10_pie` reported
+`BLA_TASK10_PIE_DRIVER_OK menu=1 match=1 travel=roundtrip`.

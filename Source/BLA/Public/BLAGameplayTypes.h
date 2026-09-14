@@ -78,6 +78,14 @@ enum class EBLA_DeathState : uint8
     Spectating
 };
 
+UENUM(BlueprintType)
+enum class EBLA_DifficultyLevel : uint8
+{
+    Easy,
+    Normal,
+    Hard
+};
+
 USTRUCT(BlueprintType)
 struct BLA_API FBLAMatchRules
 {

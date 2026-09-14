@@ -221,13 +221,13 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 **Interfaces:** Reads GameInstance selections, GameState, PlayerState, weapon/health/objective components, and controller events; never decides gameplay results.
 
-- [ ] Main menu: Start, Mode, Settings, Exit. Mode: Team Elimination/Data Core; scale: Solo/2v2/3v3; difficulty: Easy/Normal/Hard.
-- [ ] Save selected mode/rules/team size/difficulty to GameInstance, then load the graybox map.
-- [ ] HUD: health, armor, weapon/ammo, score, round, timer, side, teammate states, enemy count, crosshair, hit feedback, objective state.
-- [ ] Results: winner, reason, kills, damage, objective contribution, score, restart, return to menu; restart calls GameMode/GameInstance entry point.
-- [ ] Settings: mouse sensitivity, FOV, resolution/fullscreen, master/music/effects volume, subtitles, crosshair, color assistance; save through a dedicated save object.
-- [ ] Test menu selections, both modes, all scales/difficulties, HUD refresh, round result, spectator, match result, restart, and return to menu.
-- [ ] Commit `feat: add menus HUD spectator and results flow`.
+- [x] Main menu: Start, Mode, Settings, Exit. Mode: Team Elimination/Data Core; scale: Solo/2v2/3v3; difficulty: Easy/Normal/Hard.
+- [x] Save selected mode/rules/team size/difficulty to GameInstance, then load the graybox map.
+- [x] HUD: health, armor, weapon/ammo, score, round, timer, side, teammate states, enemy count, crosshair, hit feedback, objective state.
+- [x] Results: winner, reason, kills, damage, objective contribution, score, restart, return to menu; restart calls GameMode/GameInstance entry point.
+- [x] Settings: mouse sensitivity, FOV, resolution/fullscreen, master/music/effects volume, subtitles, crosshair, color assistance; save through a dedicated save object.
+- [x] Test menu selections, both modes, all scales/difficulties, HUD refresh, round result, spectator, match result, restart, and return to menu.
+- [x] Commit `feat: add menus HUD spectator and results flow`.
 
 ---
 

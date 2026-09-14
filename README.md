@@ -33,4 +33,4 @@ pwsh -File Scripts/run_verification.ps1 -Only verify_task9_pie
 
 Run it with no other `UnrealEditor-Cmd.exe` process active: a second instance silently loses the project lock and produces an empty log. Logs are written to `Saved/Logs/V_<check>_<tag>.log`.
 
-Content generators must be run in order (`bootstrap_project.py` then `build_task2_assets.py` … `build_task9_assets.py`). Each generator now destroys only the actors it owns, so re-running one generator no longer deletes another task's level content.
+Content generators must be run in order (`bootstrap_project.py` then `build_task2_assets.py` … `build_task10_assets.py`). Each generator now destroys only the actors it owns, so re-running one generator no longer deletes another task's level content.

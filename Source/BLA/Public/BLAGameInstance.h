@@ -6,6 +6,7 @@
 
 class UBLABotDifficultyDataAsset;
 class UBLAMatchRulesDataAsset;
+class UBLASettingsSaveGame;
 
 UCLASS(Blueprintable)
 class BLA_API UBLAGameInstance : public UGameInstance
@@ -24,4 +25,52 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Selection", meta = (ClampMin = "1", ClampMax = "3"))
     int32 SelectedTeamSize = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Selection")
+    EBLA_DifficultyLevel SelectedDifficultyLevel = EBLA_DifficultyLevel::Normal;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Settings")
+    TObjectPtr<UBLASettingsSaveGame> Settings;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Flow")
+    FString MenuMapPath = TEXT("/Game/BLA/Maps/Graybox/L_TestBootstrap");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Flow")
+    FString MatchMapPath = TEXT("/Game/BLA/Maps/Graybox/L_BLA_1v1_Elimination");
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Flow")
+    FString LastTravelRequest;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Flow")
+    bool bTravelImmediately = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Settings")
+    FString SettingsSlotName = TEXT("BLAPlayerSettings");
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
+    void ApplyModeSelection(EBLA_MatchMode Mode);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
+    void ApplyTeamSize(int32 TeamSize);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
+    void ApplyDifficultyLevel(EBLA_DifficultyLevel Level);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Settings")
+    void SaveSettings();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Settings")
+    void LoadSettings();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Settings")
+    void ResetSettings();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
+    bool TravelTo(const FString& MapPath);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
+    void RequestStartMatch();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
+    void RequestReturnToMenu();
 };

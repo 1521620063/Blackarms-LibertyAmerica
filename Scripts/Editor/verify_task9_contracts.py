@@ -38,6 +38,7 @@ PRESERVED_LABELS = {
 }
 TASK9_LABELS = {
     "Data Core", "Data Core Objective Zone",
+    "BLA Objective Manager",
     "Data Core Plant Point", "Data Core Defuse Point",
     "BLA Data Core Functional Test",
 }
@@ -137,6 +138,19 @@ def main():
     if not any(actor.actor_has_tag("BLAObjectiveZone") for actor in zones):
         fail("objective zone is missing the BLAObjectiveZone tag")
 
+    managers = [
+        actor for actor in level_actors
+        if isinstance(actor, unreal.BLAObjectiveManager) and actor.actor_has_tag("BLALevelObjectiveManager")
+    ]
+    if len(managers) != 1:
+        fail(f"level objective manager count={len(managers)}")
+    manager_core = managers[0].get_editor_property("data_core")
+    manager_zone = managers[0].get_editor_property("objective_zone")
+    if manager_core != cores[0]:
+        fail(f"level objective manager core mismatch manager={manager_core} core={cores[0]}")
+    if manager_zone != zones[0]:
+        fail(f"level objective manager zone mismatch manager={manager_zone} zone={zones[0]}")
+
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     path = unreal.NavigationSystemV1.find_path_to_location_synchronously(
         world, unreal.Vector(-1000.0, -600.0, 20.0), unreal.Vector(400.0, 0.0, 20.0))
@@ -144,7 +158,7 @@ def main():
         fail("objective zone is not reachable from the attacker side")
 
     unreal.log("BLA_TASK9_CONTRACTS_OK native=4 blueprints=4 states=10 manager_functions=8 core_completion_api=0 "
-               "core=1 zone=1 tactical=2 functional_tests=1 map_preserved=1 objective_tasks=5 behavior_trees=1")
+               "core=1 zone=1 level_manager=1 tactical=2 functional_tests=1 map_preserved=1 objective_tasks=5 behavior_trees=1")
 
 
 main()

@@ -14,7 +14,8 @@ public class BLA : ModuleRules
             "EnhancedInput",
             "AIModule",
             "GameplayTasks",
-            "NavigationSystem"
+            "NavigationSystem",
+            "UMG"
         });
     }
 }

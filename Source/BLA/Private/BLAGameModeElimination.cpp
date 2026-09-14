@@ -4,6 +4,7 @@
 #include "BLACharacterBase.h"
 #include "BLAGameInstance.h"
 #include "BLAGameState.h"
+#include "BLAObjectiveManager.h"
 #include "BLAPlayerController.h"
 #include "BLARoleAssignment.h"
 #include "BLARoundManager.h"
@@ -11,9 +12,12 @@
 #include "BLATacticalManager.h"
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
+#include "BLAUIManager.h"
 #include "BLAWeaponBase.h"
 #include "BLAWeaponComponent.h"
 #include "BLAWeaponTypes.h"
+#include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
 ABLAGameModeElimination::ABLAGameModeElimination()
@@ -93,10 +97,87 @@ void ABLAGameModeElimination::InitializeMatch()
     {
         PlayerController->ConfigureTeamSystems(TeamManager, TeamOrderManager);
     }
-    RoundManager->ConfigureManagers(GetGameState<ABLAGameState>(), TeamManager, TeamOrderManager);
+    // One state pointer for the whole match: the functional tests in these maps spawn their
+    // own AGameStateBase actors, so the world pointer is not a reliable match state.
+    ABLAGameState* MatchState = GetGameState<ABLAGameState>();
+    RoundManager->ConfigureManagers(MatchState, TeamManager, TeamOrderManager);
+
+    // Mode selection belongs to the player flow: TeamElimination leaves the map's objective
+    // actors inert, DataCoreAttackDefense hands them to the objective manager and the bots.
+    const EBLA_MatchMode Mode = GameInstance ? GameInstance->SelectedMode : EBLA_MatchMode::TeamElimination;
+    if (MatchState)
+    {
+        MatchState->MatchMode = Mode;
+    }
+    int32 ObjectiveConfigured = 0;
+    ABLAObjectiveManager* Objective = nullptr;
+    for (TActorIterator<ABLAObjectiveManager> It(GetWorld()); It; ++It)
+    {
+        if (It->ActorHasTag(TEXT("BLALevelObjectiveManager")))
+        {
+            Objective = *It;
+            break;
+        }
+    }
+    if (!Objective)
+    {
+        Objective = Cast<ABLAObjectiveManager>(
+            UGameplayStatics::GetActorOfClass(this, ABLAObjectiveManager::StaticClass()));
+    }
+    if (Objective)
+    {
+        if (UIManager)
+        {
+            UIManager->SetObjectiveManager(Objective);
+        }
+        if (Mode == EBLA_MatchMode::DataCoreAttackDefense)
+        {
+            Objective->Configure(MatchState, RoundManager, Objective->DataCore,
+                Objective->ObjectiveZone, TeamManager);
+            for (ABLAAIController* AI : AttackerBots)
+            {
+                AI->ConfigureObjective(Objective, TacticalManager);
+            }
+            for (ABLAAIController* AI : DefenderBots)
+            {
+                AI->ConfigureObjective(Objective, TacticalManager);
+            }
+            ObjectiveConfigured = 1;
+        }
+        else
+        {
+            Objective->ResetObjective();
+        }
+    }
+
     RoundManager->StartMatch(ResolveRules(TeamSize));
-    UE_LOG(LogTemp, Display, TEXT("BLA_ELIMINATION_MATCH_READY mode=team_elimination team_size=%d registration=%d attacker_bots=%d defender_bots=%d roles=deterministic loadouts=%d primary=pulse_rifle secondary=energy_pistol"),
-        TeamSize, TeamSize * 2, AttackerBots.Num(), DefenderBots.Num(), TeamSize * 2);
+    if (UIManager)
+    {
+        UIManager->Configure(this, RoundManager, TeamOrderManager);
+        UIManager->OpenMatchHUD();
+    }
+    UE_LOG(LogTemp, Display, TEXT("BLA_ELIMINATION_MATCH_READY mode=team_elimination team_size=%d registration=%d attacker_bots=%d defender_bots=%d roles=deterministic loadouts=%d primary=pulse_rifle secondary=energy_pistol selected_mode=%d objective_configured=%d"),
+        TeamSize, TeamSize * 2, AttackerBots.Num(), DefenderBots.Num(), TeamSize * 2,
+        static_cast<int32>(Mode), ObjectiveConfigured);
+}
+
+void ABLAGameModeElimination::RestartMatch()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (!RoundManager || !TeamManager || !State)
+    {
+        return;
+    }
+    const UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
+    const int32 TeamSize = FMath::Clamp(GameInstance ? GameInstance->SelectedTeamSize : 1, 1, 3);
+    RoundManager->ConfigureManagers(State, TeamManager, TeamOrderManager);
+    RoundManager->StartMatch(ResolveRules(TeamSize));
+    RoundManager->ResetAllCombatants();
+    if (UIManager)
+    {
+        UIManager->OpenMatchHUD();
+    }
+    UE_LOG(LogTemp, Display, TEXT("BLA_MATCH_RESTARTED team_size=%d"), TeamSize);
 }
 
 ABLAAIController* ABLAGameModeElimination::SpawnBot(EBLA_Team Team, int32 TeamIndex, FName PreferredZone)

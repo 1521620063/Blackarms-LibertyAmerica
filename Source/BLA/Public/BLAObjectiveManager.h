@@ -93,10 +93,10 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Objective")
     TObjectPtr<ABLARoundManager> RoundManager;
 
-    UPROPERTY(BlueprintReadWrite, Category = "BLA|Objective")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Objective")
     TObjectPtr<ABLADataCore> DataCore;
 
-    UPROPERTY(BlueprintReadWrite, Category = "BLA|Objective")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Objective")
     TObjectPtr<ABLAObjectiveZone> ObjectiveZone;
 
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Objective")

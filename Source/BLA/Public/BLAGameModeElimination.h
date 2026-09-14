@@ -17,8 +17,13 @@ class BLA_API ABLAGameModeElimination : public ABLAGameMode
     GENERATED_BODY()
 public:
     ABLAGameModeElimination();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Round")
+    void RestartMatch();
+
 protected:
     virtual void BeginPlay() override;
+    virtual bool ShouldStartInMainMenu() const override { return false; }
 private:
     void InitializeMatch();
     ABLAAIController* SpawnBot(EBLA_Team Team, int32 TeamIndex, FName PreferredZone);
