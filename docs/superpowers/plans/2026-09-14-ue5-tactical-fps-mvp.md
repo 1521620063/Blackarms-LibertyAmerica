@@ -79,10 +79,10 @@ BPI_FPSObjectiveCarrier: HasObjectiveCore() -> Boolean;
 GiveObjectiveCore(CoreActor: Actor) -> Boolean; RemoveObjectiveCore() -> Actor
 ```
 
-- [ ] Create enums, structs, interfaces, and six data assets with the exact names/fields.
-- [ ] Create the validator; fail if team size or rounds are below 1, times are negative, or MVP objective count is not 1.
-- [ ] Place the validator in the bootstrap map, run PIE, and confirm the Output Log reports every asset with no failure.
-- [ ] Commit `feat: define FPS gameplay data contracts`.
+- [x] Create enums, structs, interfaces, and six data assets with the exact names/fields.
+- [x] Create the validator; fail if team size or rounds are below 1, times are negative, or MVP objective count is not 1.
+- [x] Place the validator in the bootstrap map, run PIE, and confirm the Output Log reports every asset with no failure.
+- [x] Commit `feat: define FPS gameplay data contracts`.
 
 ---
 

@@ -3,6 +3,13 @@
   "EngineAssociation": "5.8",
   "Category": "Games",
   "Description": "Offline tactical team FPS MVP",
+  "Modules": [
+    {
+      "Name": "FPS",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
   "Plugins": [
     {
       "Name": "PythonScriptPlugin",
