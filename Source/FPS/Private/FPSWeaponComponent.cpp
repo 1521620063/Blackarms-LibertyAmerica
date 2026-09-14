@@ -135,6 +135,17 @@ int32 UFPSWeaponComponent::GetReserveAmmo() const
     return State ? State->ReserveAmmo : 0;
 }
 
+bool UFPSWeaponComponent::GetCurrentWeaponData(FFPSWeaponData& OutData) const
+{
+    const FWeaponSlotState* State = CurrentState();
+    if (!State || !State->DataAsset)
+    {
+        return false;
+    }
+    OutData = State->DataAsset->WeaponData;
+    return true;
+}
+
 void UFPSWeaponComponent::ResetWeapons()
 {
     GetWorld()->GetTimerManager().ClearTimer(ReloadTimer);

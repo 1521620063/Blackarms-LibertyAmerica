@@ -11,7 +11,10 @@ public class FPS : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
-            "EnhancedInput"
+            "EnhancedInput",
+            "AIModule",
+            "GameplayTasks",
+            "NavigationSystem"
         });
     }
 }

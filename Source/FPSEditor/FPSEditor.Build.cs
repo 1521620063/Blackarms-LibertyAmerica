@@ -16,7 +16,8 @@ public class FPSEditor : ModuleRules
         PrivateDependencyModuleNames.AddRange(new string[]
         {
             "FPS",
-            "UnrealEd"
+            "UnrealEd",
+            "AIModule"
         });
     }
 }

@@ -157,14 +157,14 @@ Weapon data: `WeaponType`, `BaseDamage`, `WeakPointMultiplier=2.0`, `BodyMultipl
 
 Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint`, `CurrentTask`, `Team`, `BotRole`, `HasObjectiveCore`, `IsUnderFire`, `IsStuck`.
 
-- [ ] Implement tactical point type/team/role/priority/occupied/objective properties for `CoverPoint`, `GuardPoint`, `AttackPoint`, `FlankPoint`, `RetreatPoint`, `PlantPoint`, and `DefusePoint`.
-- [ ] Add sight, hearing, and damage stimuli; reject actors on the same team; store last known location.
-- [ ] Implement move failure, stuck detection using displacement over an interval, and recovery to the nearest reachable point.
-- [ ] Implement aim/fire guards for alive state, target validity, cooldown, line of sight, and preferred range; call WeaponComponent rather than duplicating damage.
-- [ ] Build priority tree: dead/wait, live target combat or cover, stuck recovery, assigned point movement, fallback patrol/hold.
-- [ ] Apply difficulty parameters with non-zero aim error and perception limits.
-- [ ] Test two opposing bots reaching points, seeing/hearing/damaging each other, firing, seeking cover, searching last location, and recovering from a blocked point.
-- [ ] Commit `feat: add first bot perception and combat behavior`.
+- [x] Implement tactical point type/team/role/priority/occupied/objective properties for `CoverPoint`, `GuardPoint`, `AttackPoint`, `FlankPoint`, `RetreatPoint`, `PlantPoint`, and `DefusePoint`.
+- [x] Add sight, hearing, and damage stimuli; reject actors on the same team; store last known location.
+- [x] Implement move failure, stuck detection using displacement over an interval, and recovery to the nearest reachable point.
+- [x] Implement aim/fire guards for alive state, target validity, cooldown, line of sight, and preferred range; call WeaponComponent rather than duplicating damage.
+- [x] Build priority tree: dead/wait, live target combat or cover, stuck recovery, assigned point movement, fallback patrol/hold.
+- [x] Apply difficulty parameters with non-zero aim error and perception limits.
+- [x] Test two opposing bots reaching points, seeing/hearing/damaging each other, firing, seeking cover, searching last location, and recovering from a blocked point.
+- [x] Commit `feat: add first bot perception and combat behavior`.
 
 ---
 

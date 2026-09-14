@@ -54,6 +54,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "FPS|Weapon")
     bool IsReloading() const { return bIsReloading; }
 
+    UFUNCTION(BlueprintPure, Category = "FPS|Weapon")
+    bool GetCurrentWeaponData(FFPSWeaponData& OutData) const;
+
     UFUNCTION(BlueprintCallable, Category = "FPS|Round")
     void ResetWeapons();
 
