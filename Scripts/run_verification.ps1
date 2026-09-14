@@ -53,10 +53,10 @@ $matrix = @(
     @{ Script = "verify_task4_pie"; Marker = "BLA_TASK4_PIE_DRIVER_(OK|FAILED)" }
     @{ Script = "verify_task5_pie"; Marker = "BLA_TASK5_PIE_DRIVER_(OK|FAILED)" }
     @{ Script = "verify_task6_pie"; Marker = "BLA_TASK6_PIE_DRIVER_(OK|FAILED)" }
-    @{ Script = "verify_task7_pie"; Marker = "BLA_TASK7_PIE_DRIVER_(OK|FAILED)" }
-    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "1" }
-    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "2" }
-    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "3" }
+    @{ Script = "verify_task7_pie"; Marker = "BLA_TASK7_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_1V1_ELIMINATION_OK", "BLA_3V3_ELIMINATION_OK") }
+    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_1V1_ELIMINATION_OK", "BLA_3V3_ELIMINATION_OK"); EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "1" }
+    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_1V1_ELIMINATION_OK", "BLA_3V3_ELIMINATION_OK"); EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "2" }
+    @{ Script = "verify_task8_pie"; Marker = "BLA_TASK8_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_1V1_ELIMINATION_OK", "BLA_3V3_ELIMINATION_OK"); EnvName = "BLA_TASK8_TEAM_SIZE"; EnvValue = "3" }
     @{ Script = "verify_task9_pie"; Marker = "BLA_TASK9_PIE_DRIVER_(OK|FAILED)" }
 )
 
@@ -115,6 +115,16 @@ foreach ($entry in $matrix) {
     while ((Get-Date) -lt $graceEnd -and -not $process.HasExited) { Start-Sleep -Seconds 1 }
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
     $watch.Stop()
+
+    $missing = @()
+    if ($marker -ne "" -and $marker -notmatch "FAILED" -and $entry.Require) {
+        foreach ($required in $entry.Require) {
+            if (-not (Select-String -Path $log -Pattern $required -Quiet)) { $missing += $required }
+        }
+    }
+    if ($missing.Count -gt 0) {
+        $marker = "FAILED missing_markers " + ($missing -join ",")
+    }
 
     if ($marker -eq "") {
         $failed++
