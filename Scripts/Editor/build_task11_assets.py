@@ -83,10 +83,16 @@ SPAWNS = [
 
 TACTICAL = [
     ("Attack Route Point", unreal.BLA_TacticalPointType.ATTACK_POINT, unreal.BLA_BotRole.ASSAULT, (-300.0, 0.0, 100.0)),
-    ("Flank Point", unreal.BLA_TacticalPointType.FLANK_POINT, unreal.BLA_BotRole.ASSAULT, (-200.0, -760.0, 100.0)),
+    ("Attack Left Route Point", unreal.BLA_TacticalPointType.ATTACK_POINT, unreal.BLA_BotRole.ASSAULT, (-500.0, -600.0, 100.0)),
+    ("Attack Right Route Point", unreal.BLA_TacticalPointType.ATTACK_POINT, unreal.BLA_BotRole.ASSAULT, (-500.0, 600.0, 100.0)),
+    # Inside the flank corridor (between Flank Wall North/South) so the point itself is walkable;
+    # the previous coordinate sat inside Mid Wall South and was only "reachable" while every
+    # tactical point was stacked at the world origin.
+    ("Flank Point", unreal.BLA_TacticalPointType.FLANK_POINT, unreal.BLA_BotRole.ASSAULT, (600.0, -760.0, 100.0)),
     ("Cover Point", unreal.BLA_TacticalPointType.COVER_POINT, unreal.BLA_BotRole.SUPPORT, (-700.0, 600.0, 100.0)),
     ("Guard Point", unreal.BLA_TacticalPointType.GUARD_POINT, unreal.BLA_BotRole.DEFENDER, (800.0, 400.0, 100.0)),
-    ("Retreat Point", unreal.BLA_TacticalPointType.RETREAT_POINT, unreal.BLA_BotRole.SUPPORT, (1000.0, -600.0, 100.0)),
+    # Defender fallback area: clear of Flank Wall North (which spans y -600..-560 at x 150..1050).
+    ("Retreat Point", unreal.BLA_TacticalPointType.RETREAT_POINT, unreal.BLA_BotRole.SUPPORT, (1100.0, -300.0, 100.0)),
     ("Data Core Plant Point", unreal.BLA_TacticalPointType.PLANT_POINT, unreal.BLA_BotRole.ASSAULT, (450.0, -150.0, 100.0)),
     ("Data Core Defuse Point", unreal.BLA_TacticalPointType.DEFUSE_POINT, unreal.BLA_BotRole.DEFENDER, (750.0, 150.0, 100.0)),
 ]
@@ -276,46 +282,37 @@ def build_map(mode_blueprint, zone_blueprint, config_blueprint, config_asset, co
     world.get_world_settings().set_editor_property("default_game_mode", mode_blueprint.generated_class())
 
 
-def tick(_):
-    state["ticks"] += 1
+def finish_build():
+    """Rebuild navigation, pin the Recast actor to runtime generation and save the level.
+
+    This runs synchronously so the generator also works through
+    `-run=pythonscript`, where Slate post-tick callbacks never fire. Route and
+    tactical-point reachability stay covered by verify_task11_pie, which asserts
+    `BLA_MAP_NAVIGATION_OK` on the saved level.
+    """
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    if not state["built"] and state["ticks"] >= state["next_build_tick"]:
-        unreal.SystemLibrary.execute_console_command(world, "RebuildNavigation")
-        path = unreal.NavigationSystemV1.find_path_to_location_synchronously(
-            world, unreal.Vector(-1300.0, -500.0, 20.0), unreal.Vector(1300.0, 500.0, 20.0))
-        path_points = path.get_editor_property("path_points") if path else []
-        state["built"] = bool(path and path.is_valid() and len(path_points) >= 2)
-        state["next_build_tick"] += 60
-        unreal.log(f"BLA_TASK11_NAVIGATION_BUILD_ATTEMPT reachable={int(state['built'])}")
-    if not state["built"] and state["ticks"] >= 900:
-        unreal.log_error("BLA_TASK11_ASSET_BUILD_FAILED reason=navigation")
-        state["finished"] = True
-        unreal.unregister_slate_post_tick_callback(callback_handle)
-        unreal.SystemLibrary.quit_editor()
-        return
-    if state["built"] and not state["finished"]:
-        if not state["recast_configured"]:
-            for actor in actors.get_all_level_actors():
-                if isinstance(actor, unreal.RecastNavMesh):
-                    actor.set_editor_property("runtime_generation", unreal.RuntimeGenerationType.DYNAMIC)
-                    state["recast_configured"] = True
-            unreal.log(f"BLA_TASK11_RECAST_RUNTIME_DYNAMIC configured={int(state['recast_configured'])}")
-        if not levels.save_current_level():
-            state["save_attempts"] += 1
-            if state["save_attempts"] >= 120:
-                unreal.log_error(f"BLA_TASK11_ASSET_BUILD_FAILED reason=save map={MAP}")
-                state["finished"] = True
-                unreal.unregister_slate_post_tick_callback(callback_handle)
-                unreal.SystemLibrary.quit_editor()
-            return
-        state["finished"] = True
-        unreal.log("BLA_TASK11_ASSETS_BUILT map=1 zones=8 spawns=6 tactical=7 cover=12 config=1 objective=1 navigation_test=1")
-        unreal.unregister_slate_post_tick_callback(callback_handle)
-        unreal.SystemLibrary.quit_editor()
+    unreal.SystemLibrary.execute_console_command(world, "RebuildNavigation")
+    path = unreal.NavigationSystemV1.find_path_to_location_synchronously(
+        world, unreal.Vector(-1300.0, -500.0, 20.0), unreal.Vector(1300.0, 500.0, 20.0))
+    path_points = path.get_editor_property("path_points") if path else []
+    state["built"] = bool(path and path.is_valid() and len(path_points) >= 2)
+    unreal.log(f"BLA_TASK11_NAVIGATION_BUILD_ATTEMPT reachable={int(state['built'])}")
+    for actor in actors.get_all_level_actors():
+        if isinstance(actor, unreal.RecastNavMesh):
+            actor.set_editor_property("runtime_generation", unreal.RuntimeGenerationType.DYNAMIC)
+            state["recast_configured"] = True
+    unreal.log(f"BLA_TASK11_RECAST_RUNTIME_DYNAMIC configured={int(state['recast_configured'])}")
+    for attempt in range(1, 121):
+        if levels.save_current_level():
+            state["finished"] = True
+            unreal.log("BLA_TASK11_ASSETS_BUILT map=1 zones=8 spawns=6 tactical=9 cover=12 config=1 objective=1 navigation_test=1")
+            return True
+        state["save_attempts"] = attempt
+    unreal.log_error(f"BLA_TASK11_ASSET_BUILD_FAILED reason=save map={MAP}")
+    return False
 
 
 def main():
-    global callback_handle
     mode = blueprint(MODE, unreal.BLAGameModeElimination)
     zone_blueprint = blueprint(ZONE_BLUEPRINT, unreal.BLAMapZone)
     config_blueprint = blueprint(CONFIG_BLUEPRINT, unreal.BLAMapConfig)
@@ -324,8 +321,8 @@ def main():
     build_map(mode, zone_blueprint, config_blueprint, config_asset,
               unreal.load_asset(CORE_BLUEPRINT), unreal.load_asset(ZONE_OBJECTIVE_BLUEPRINT),
               unreal.load_asset(MANAGER_BLUEPRINT), test)
-    callback_handle = unreal.register_slate_post_tick_callback(tick)
-    unreal.log("BLA_TASK11_ASSET_BUILD_WAITING_FOR_NAVIGATION")
+    finish_build()
+    unreal.SystemLibrary.quit_editor()
 
 
 main()

@@ -44,6 +44,14 @@ def start_match_metrics():
         "stuck_ticks": 0,
         "start_positions": {},
         "route_hits": set(),
+        "directive_targets": set(),
+        "recovery_points": set(),
+        "latest_zone": "",
+        "latest_tactical_point": "",
+        "no_displacement_ticks": 0,
+        "recovery_count": 0,
+        "last_positions": {},
+        "last_recovery_by_bot": {},
     }
 
 
@@ -54,13 +62,34 @@ def collect(game_world, metrics, tick):
     zones = unreal.GameplayStatics.get_all_actors_of_class(game_world, unreal.BLAMapZone)
     for bot in bots:
         location = bot.get_actor_location()
+        bot_key = bot.get_path_name()
+        previous = metrics["last_positions"].get(bot_key)
+        if previous is not None:
+            moved = math.sqrt(
+                (location.x - previous.x) ** 2 + (location.y - previous.y) ** 2 + (location.z - previous.z) ** 2)
+            if moved < 5.0:
+                metrics["no_displacement_ticks"] += 1
+        metrics["last_positions"][bot_key] = location
         for zone in zones:
             if zone.contains_location(location):
-                metrics["route_hits"].add(str(zone.get_editor_property("zone_name")))
+                zone_name = str(zone.get_editor_property("zone_name"))
+                metrics["route_hits"].add(zone_name)
+                metrics["latest_zone"] = zone_name
         controller = bot.get_controller()
         if isinstance(controller, unreal.BLAAIController):
             if controller.get_editor_property("is_stuck"):
                 metrics["stuck_ticks"] += 1
+            directive = controller.get_editor_property("directive_target")
+            if directive is not None:
+                metrics["directive_targets"].add(directive.get_name())
+                metrics["latest_tactical_point"] = directive.get_name()
+            recovery_point = controller.get_editor_property("last_recovery_point")
+            if recovery_point is not None:
+                recovery_name = recovery_point.get_name()
+                metrics["recovery_points"].add(recovery_name)
+                if metrics["last_recovery_by_bot"].get(bot_key) != recovery_name:
+                    metrics["recovery_count"] += 1
+                    metrics["last_recovery_by_bot"][bot_key] = recovery_name
             perception = controller.get_editor_property("bot_perception")
             target = perception.get_editor_property("target_actor") if perception else None
             if target is not None and metrics["first_contact"] is None:
@@ -93,6 +122,12 @@ def finish_match(game_world, metrics):
         "score": score,
         "round": round_number,
         "objective_states": sorted(metrics["objective_states"]),
+        "directive_targets": sorted(metrics["directive_targets"]),
+        "recovery_points": sorted(metrics["recovery_points"]),
+        "latest_zone": metrics["latest_zone"],
+        "latest_tactical_point": metrics["latest_tactical_point"],
+        "no_displacement_ticks": metrics["no_displacement_ticks"],
+        "recovery_count": metrics["recovery_count"],
     }
 
 
@@ -141,7 +176,10 @@ def tick_impl():
         f"BLA_TASK11_SOAK_MATCH mode={'data_core' if IS_DATA_CORE else 'elimination'} size={TEAM_SIZE} "
         f"match={result['match']} first_contact={result['first_contact']} moved={result['moved']} "
         f"stuck={result['stuck_ticks']} score={result['score']} round={result['round']} "
-        f"routes={','.join(result['routes'])} objective={','.join(result['objective_states'])}")
+        f"routes={','.join(result['routes'])} targets={','.join(result['directive_targets'])} "
+        f"recoveries={','.join(result['recovery_points'])} recovery_count={result['recovery_count']} "
+        f"latest_zone={result['latest_zone']} latest_point={result['latest_tactical_point']} "
+        f"no_displacement={result['no_displacement_ticks']} objective={','.join(result['objective_states'])}")
 
     state["match"] = None
     state["match_index"] += 1
@@ -153,12 +191,30 @@ def tick_impl():
     contacts_text = ",".join(str(value) for value in contacts) if contacts else "none"
     routes = sorted({route for item in state["results"] for route in item["routes"]})
     objectives = sorted({value for item in state["results"] for value in item["objective_states"]})
+    targets = sorted({target for item in state["results"] for target in item["directive_targets"]})
+    recoveries = sorted({point for item in state["results"] for point in item["recovery_points"]})
+    stuck_ticks = sum(item["stuck_ticks"] for item in state["results"])
+    if TEAM_SIZE == 3 and "LeftRoute" not in routes:
+        fail("missing LeftRoute")
+        return
+    if TEAM_SIZE == 3 and IS_DATA_CORE and stuck_ticks >= 6756:
+        fail(f"stuck_ticks={stuck_ticks} not below baseline 6756")
+        return
+    if TEAM_SIZE == 3 and not IS_DATA_CORE and stuck_ticks >= 2000:
+        fail(f"stuck_ticks={stuck_ticks} exceeds elimination cap 2000")
+        return
+    if TEAM_SIZE == 3 and stuck_ticks > 0 and not recoveries:
+        fail(f"stuck_ticks={stuck_ticks} without recovery points")
+        return
     unreal.log(
         f"BLA_TASK11_SOAK_OK mode={'data_core' if IS_DATA_CORE else 'elimination'} size={TEAM_SIZE} "
         f"matches={len(state['results'])} first_contact_ticks={contacts_text} "
         f"min_moved={min(item['moved'] for item in state['results'])} "
-        f"stuck_ticks={sum(item['stuck_ticks'] for item in state['results'])} "
-        f"routes={','.join(routes)} objective_states={','.join(objectives)}")
+        f"stuck_ticks={stuck_ticks} "
+        f"routes={','.join(routes)} targets={','.join(targets)} recoveries={','.join(recoveries)} "
+        f"recovery_count={sum(item['recovery_count'] for item in state['results'])} "
+        f"no_displacement={sum(item['no_displacement_ticks'] for item in state['results'])} "
+        f"objective_states={','.join(objectives)}")
     state["finished"] = True
     level.editor_request_end_play()
     unreal.unregister_slate_post_tick_callback(handle)
@@ -173,6 +229,7 @@ def tick(_):
 
 
 default_instance = unreal.get_default_object(unreal.BLAGameInstance)
+default_instance.set_editor_property("soak_requested", True)
 default_instance.set_editor_property(
     "selected_mode",
     unreal.BLA_MatchMode.DATA_CORE_ATTACK_DEFENSE if IS_DATA_CORE else unreal.BLA_MatchMode.TEAM_ELIMINATION)
@@ -182,6 +239,9 @@ if not level.load_level(MAP):
 editor_world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 editor_instance = unreal.GameplayStatics.get_game_instance(editor_world) if editor_world else None
 if isinstance(editor_instance, unreal.BLAGameInstance):
+    # PIE reuses the editor's game instance, so the soak flag has to be set there too; the
+    # in-level flow tests read it and stand down instead of ending the match mid-observation.
+    editor_instance.set_editor_property("soak_requested", True)
     editor_instance.set_editor_property(
         "selected_mode",
         unreal.BLA_MatchMode.DATA_CORE_ATTACK_DEFENSE if IS_DATA_CORE else unreal.BLA_MatchMode.TEAM_ELIMINATION)

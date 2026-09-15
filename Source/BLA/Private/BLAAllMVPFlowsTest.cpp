@@ -15,6 +15,7 @@
 #include "BLAUIManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
 
 namespace
 {
@@ -54,6 +55,15 @@ void ABLAAllMVPFlowsTest::Tick(float DeltaSeconds)
         return;
     }
     UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
+    if (FParse::Param(FCommandLine::Get(), TEXT("BLASoakTest"))
+        || (GameInstance && GameInstance->bSoakRequested))
+    {
+        // The soak drives a live match for AI observation; this flow test forces damage, ends
+        // matches and travels, so it stays out of the way and reports a neutral marker.
+        bFinished = true;
+        UE_LOG(LogTemp, Display, TEXT("BLA_ALL_MVP_FLOWS_SKIPPED reason=soak"));
+        return;
+    }
     ABLAUIManager* UIManager = Cast<ABLAUIManager>(
         UGameplayStatics::GetActorOfClass(this, ABLAUIManager::StaticClass()));
     if (!GameInstance || !GameInstance->bHarnessRequested || !UIManager || !UIManager->GetRoundManager())

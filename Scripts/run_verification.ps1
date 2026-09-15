@@ -12,6 +12,7 @@ instance silently loses the project lock and produces empty logs.
 Example:
   pwsh -File Scripts/run_verification.ps1
   pwsh -File Scripts/run_verification.ps1 -Only verify_task9_pie
+  pwsh -File Scripts/run_verification.ps1 -Soak            # adds the two 3v3 Zero Facility soaks
 #>
 [CmdletBinding()]
 param(
@@ -19,7 +20,8 @@ param(
     [string]$Tag = (Get-Date -Format "MMdd-HHmmss"),
     [int]$TimeoutSeconds = 300,
     [int]$GraceSeconds = 8,
-    [string]$Only = ""
+    [string]$Only = "",
+    [switch]$Soak
 )
 
 $ErrorActionPreference = "Stop"
@@ -147,6 +149,50 @@ foreach ($entry in $matrix) {
 }
 
 Get-Process UnrealEditor-Cmd -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+if ($Soak -and $Only -eq "") {
+    # Long-running soak: five 3v3 matches per mode on the Zero Facility map. The runner above
+    # cannot express this entry (it needs environment variables and a much longer timeout), so it
+    # reuses the same invocation form and marker contract here.
+    foreach ($soakMode in @("elimination", "data_core")) {
+        $soakLabel = "soak_${soakMode}_3v3"
+        $soakLog = Join-Path $logDir ("V_" + $soakLabel + "_" + $Tag + ".log")
+        $env:BLA_TASK11_SOAK_MODE = $soakMode
+        $env:BLA_TASK11_SOAK_SIZE = "3"
+        $soakArguments = '"{0}" -unattended -nop4 -nosplash -nullrhi -NoSound -BLASoakTest -ExecCmds="py {1}/verify_task11_soak.py" -abslog="{2}"' -f `
+            $project, ($scriptDir -replace "\\", "/"), $soakLog
+        $soakWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $soakProcess = Start-Process -FilePath $editor -ArgumentList $soakArguments -PassThru -WindowStyle Hidden
+        $soakDeadline = (Get-Date).AddSeconds($TimeoutSeconds * 4)
+        while ((Get-Date) -lt $soakDeadline -and -not $soakProcess.HasExited) {
+            Start-Sleep -Seconds 5
+            if (Test-Path $soakLog) {
+                $soakMatch = Select-String -Path $soakLog -Pattern "BLA_TASK11_SOAK_(OK|FAILED)" -AllMatches | Select-Object -Last 1
+                if ($soakMatch) { break }
+            }
+        }
+        if (-not $soakProcess.HasExited) { Stop-Process -Id $soakProcess.Id -Force -ErrorAction SilentlyContinue }
+        $soakWatch.Stop()
+        $soakMarker = ""
+        if (Test-Path $soakLog) {
+            $soakMatch = Select-String -Path $soakLog -Pattern "BLA_TASK11_SOAK_(OK|FAILED)" -AllMatches | Select-Object -Last 1
+            if ($soakMatch) { $soakMarker = $soakMatch.Line.Trim() }
+        }
+        if ($soakMarker -eq "") {
+            $failed++
+            $status = "NO_MARKER"
+        } elseif ($soakMarker -match "FAILED") {
+            $failed++
+            $status = $soakMarker
+        } else {
+            $status = $soakMarker
+        }
+        $line = "[{0,6:N1}s] {1} :: {2}" -f $soakWatch.Elapsed.TotalSeconds, $soakLabel, $status
+        Write-Host $line
+        $results += $line
+        Get-Process UnrealEditor-Cmd -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Write-Host ""
 Write-Host ("MATRIX_DONE checks={0} failed={1}" -f $results.Count, $failed)

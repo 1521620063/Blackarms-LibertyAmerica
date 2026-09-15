@@ -1,3 +1,5 @@
+import math
+
 import unreal
 
 
@@ -29,6 +31,10 @@ EXPECTED_TACTICAL = [
 ]
 
 MIN_COVER = 12
+
+# The map must offer one assault entry point per lane so the AI cannot collapse
+# onto the center route only; the soak test measures the same lanes.
+MIN_ATTACK_POINTS = 3
 
 
 def fail(message):
@@ -92,6 +98,22 @@ def main():
     if missing_types:
         fail(f"tactical point types missing {missing_types}")
 
+    attack_points = [point for point in tactical if point.get_editor_property("point_type") == unreal.BLA_TacticalPointType.ATTACK_POINT]
+    if len(attack_points) < MIN_ATTACK_POINTS:
+        fail(f"attack route points={len(attack_points)}")
+    attack_lanes = {round(point.get_actor_location().y / 250.0) for point in attack_points}
+    if len(attack_lanes) < MIN_ATTACK_POINTS:
+        fail(f"attack route lanes={sorted(attack_lanes)}")
+
+    tactical_locations = {(round(point.get_actor_location().x, 1), round(point.get_actor_location().y, 1))
+                          for point in tactical}
+    if len(tactical_locations) != len(tactical):
+        fail(f"tactical points share a transform: {len(tactical_locations)}/{len(tactical)} distinct")
+    off_origin = [point for point in tactical
+                  if math.hypot(point.get_actor_location().x, point.get_actor_location().y) > 200.0]
+    if len(off_origin) != len(tactical):
+        fail(f"tactical points stacked near the origin: {len(off_origin)}/{len(tactical)} placed")
+
     cover = [actor for actor in level_actors if actor.get_actor_label().startswith(("Mid ", "Objective ", "Left ", "Right ", "Center "))]
     if len(cover) < MIN_COVER:
         fail(f"cover pieces={len(cover)}")
@@ -127,7 +149,8 @@ def main():
     if default_mode is None or "BP_BLAGameMode_Elimination" not in default_mode.get_path_name():
         fail(f"map default game mode: {default_mode}")
 
-    unreal.log("BLA_TASK11_CONTRACTS_OK zones=8 spawns=6 tactical=7 cover=%d config=1 objective=1 nav_test=1 modes=2 sizes=3" % len(cover))
+    unreal.log("BLA_TASK11_CONTRACTS_OK zones=8 spawns=6 tactical=%d attack_points=%d cover=%d config=1 objective=1 nav_test=1 modes=2 sizes=3"
+               % (len(tactical), len(attack_points), len(cover)))
 
 
 main()

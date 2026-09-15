@@ -1,0 +1,97 @@
+# 单机完整版进度账本（2026-09-15）
+
+计划：`docs/superpowers/plans/2026-09-15-single-player-complete.md`
+
+## 范围裁决
+
+- 本阶段只做单机版：菜单/HUD/结算流程、两种模式、Solo/2v2/3v3、AI 路线与卡点、Windows 打包冒烟。
+- 局域网 Listen Server、服务端权威、会话、断线重连全部推迟到 `LAN 扩展路线`，本阶段不引入任何复制代码。
+- 沿用现有架构：GameInstance 存选择与设置，GameMode/GameState/RoundManager/ObjectiveManager 存比赛真相，UI 只读。
+
+## Task 1：单机基线（已完成）
+
+- 命令：`pwsh -File Scripts/run_verification.ps1 -Tag singleplayer-baseline`
+- 结果：`MATRIX_DONE checks=25 failed=0`、`MATRIX_OK`。
+- 基线数据与验收阈值写入 `docs/testing/single-player-baseline-2026-09-15.md` 与 `docs/testing/mvp-test-matrix.md`。
+- 提交：`docs: define single player baseline`。
+
+## Task 2：Zero Facility 路线与卡点（已完成）
+
+### 根因 1：战术点坐标全部丢失（严重）
+
+`ABLATacticalPoint` 继承自 `AActor` 且没有根组件。UE 编辑器只在 Actor 有根组件时保存放置变换，
+因此关卡里 9 个战术点全部序列化到世界原点 (0,0,0)，与它们设计的坐标无关。
+
+后果：
+
+- AI 的 `FindBestPoint` 只能挑到全部位于原点的点，所有 bot 挤向地图中心 → 这正是"左路从不使用"与
+  "隘口卡死"的真实原因，而不是权重调参问题。
+- 因为点在原点，导航测试此前"可达"，掩盖了问题。
+
+修复：
+
+- `Source/BLA/Private/BLATacticalPoint.cpp` 增加 `USceneComponent` 根组件，注释说明原因。
+- 修复后 dump 验证：`Attack Route Point(-300,0)`、`Attack Left Route Point(-500,-600)`、
+  `Attack Right Route Point(-500,600)`、`Flank Point(600,-760)`、`Cover Point(-700,600)`、
+  `Guard Point(800,400)`、`Retreat Point(1100,-300)`、`Plant(450,-150)`、`Defuse(750,150)`。
+
+### 根因 2：两个战术点原本嵌在墙体里
+
+坐标恢复真实值后，导航测试立刻报 `tactical_unreachable`：
+
+- `Flank Point` 原坐标 (-200,-760) 位于 Mid Wall South（x -220..-180，y -1000..-730）内部 → 移到侧翼走廊中心 (600,-760)。
+- `Retreat Point` 原坐标 (1000,-600) 位于 Flank Wall North（x 150..1050，y -600..-560）内部 → 移到防守区 (1100,-300)。
+
+### 根因 3：AI 从不预留战术点
+
+`ABLATacticalManager::ReservePoint` 只被测试调用，AI 决策从不预留，因此多名突击手会一直选中同一个点。
+
+修复：
+
+- `ABLAAIController` 新增 `ReservedPoint`，`ResolveRoleDirective` 在解析前释放自己的旧预留、解析后预留新点，
+  回合进入 Preparation 时统一释放。
+- 车道分配改为按队伍内稳定序号：`PreferredLane = 队伍成员排序序号 % 3`，通过
+  `FindBestPoint(..., PreferredLane)` 传入；左侧/中路/右侧各一个攻击点，3 人小队自然展开。
+
+### 根因 4：生成器依赖 Slate tick，commandlet 下静默不保存
+
+`build_task11_assets.py` 把"重建导航 → 设 Recast 为 Dynamic → 保存关卡"放在
+`register_slate_post_tick_callback` 回调里，`-run=pythonscript` 没有 tick 回调，
+脚本看起来成功但关卡从未保存。
+
+修复：改为同步 `finish_build()`，同时保留可达性日志；
+路线与战术点可达性由 `verify_task11_pie`（`BLA_MAP_NAVIGATION_OK`）保证。
+
+### 新增验证
+
+- `Scripts/Editor/verify_task11_contracts.py`：
+  - 至少 3 个 `AttackPoint` 且分属 3 条不同车道；
+  - 所有战术点坐标互不相同且不堆在原点（此前那条"全部落在原点"的缺陷现在会被直接测出来）。
+
+### 证据
+
+| 项目 | 修复前 | 修复后 |
+|---|---|---|
+| 战术点坐标 | 全部 (0,0,0) | 各自设计坐标 |
+| `verify_task11_contracts` | `tactical=7`（未检查坐标） | `tactical=7 attack_points=3` |
+| `verify_task11_pie` | `moved=1334.4` | `moved=1695.9 tactical=9 routes=4` |
+| 3v3 浸泡路由 | 只有 CenterRoute/RightRoute | 两种模式都有 LeftRoute |
+
+### 最终 3v3 soak（tag=singleplayer-routes）
+
+| 模式 | First contact | Min moved | Stuck ticks | 基线 stuck | Routes | Recoveries |
+|---|---|---:|---:|---:|---|---|
+| Team Elimination | 137,1,1,1,1 | 908.1 | 832 | 21 | AttackSpawn,CenterRoute,DefenseSpawn,FlankZone,LeftRoute,MidCombatZone,ObjectiveZone,RightRoute | 30 |
+| Data Core | 56,1,1,1,1 | 1661.4 | 1783 | 6756 | AttackSpawn,CenterRoute,DefenseSpawn,LeftRoute,MidCombatZone,ObjectiveZone | 40 |
+
+- 两种模式都出现 LeftRoute；Elimination 还覆盖 RightRoute 与 FlankZone。
+- Data Core stuck 从 6756 降到 1783，并观察到 AVAILABLE/CARRIED/DROPPED/PLANTING。
+- Elimination stuck 从 21 升到 832：bot 不再挤在原点，开始走真实战术点，仍低于 2000 上限，且每次 stuck 都有 recovery point。
+- 脚本化测试：BLA_DATACORE_OK（approach_lane=1 stuck_recover=1）、BLA_MAP_NAVIGATION_OK tactical=9、BLA_TASK11_CONTRACTS_OK attack_points=3。
+- 提交：`fix: balance offline bot routes and recovery`。
+
+## 待办
+
+- Task 3：Data Core 节奏与阶段竞态。
+- Task 4：单机流程幂等与失败提示。
+- Task 5：全矩阵回归、Windows 打包冒烟、发布文档与 LAN 路线改写。

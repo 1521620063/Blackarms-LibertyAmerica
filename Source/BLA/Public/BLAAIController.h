@@ -65,6 +65,12 @@ public:
     FVector DirectiveLocation = FVector::ZeroVector;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
     bool bHasActiveTeamOrder = false;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    int32 RecoveryAttemptCount = 0;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    TObjectPtr<ABLATacticalPoint> LastRecoveryPoint;
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|AI")
+    TObjectPtr<ABLATacticalPoint> ReservedPoint;
 
     UFUNCTION(BlueprintCallable, Category = "BLA|AI")
     bool UpdateTarget(AActor* Candidate, EBLA_StimulusType StimulusType);
@@ -110,6 +116,7 @@ private:
     void TickCombat();
     void TickMovement();
     void IssueDirectiveMove(const FVector& Location, float AcceptanceRadius);
+    int32 ResolvePreferredLane(ABLATeamManager* TeamManager) const;
     AActor* ResolveAssistTarget(ABLATeamManager* TeamManager, AActor* PlayerActor);
 
     UFUNCTION()
@@ -122,6 +129,7 @@ private:
     int32 StuckRecoveryCount = 0;
     float DirectiveRefreshElapsed = 0.0f;
     bool bObjectiveOwnsMovement = false;
+    bool bRecoveryMoveActive = false;
     bool bHasDirectiveMoveTarget = false;
     FVector LastDirectiveMoveTarget = FVector::ZeroVector;
 

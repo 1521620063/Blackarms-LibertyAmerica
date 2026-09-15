@@ -78,6 +78,13 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
     bool bHarnessRequested = false;
 
+    /**
+     * Set by the Zero Facility soak driver. The in-level flow tests end rounds and travel between
+     * maps, which corrupts an unattended AI observation run, so they stand down while this is set.
+     */
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    bool bSoakRequested = false;
+
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
     bool bHarnessRunAll = false;
 

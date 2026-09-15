@@ -13,10 +13,11 @@ class BLA_API ABLATacticalManager : public AActor
 
 public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Tactical")
-    ABLATacticalPoint* FindBestPoint(APawn* Requester, EBLA_TacticalPointType Type, EBLA_Team Team, EBLA_BotRole RequestedRole) const;
+    ABLATacticalPoint* FindBestPoint(APawn* Requester, EBLA_TacticalPointType Type, EBLA_Team Team, EBLA_BotRole RequestedRole,
+        int32 PreferredLane = -1) const;
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Tactical")
-    ABLATacticalPoint* FindNearestReachablePoint(APawn* Requester, EBLA_Team Team) const;
+    ABLATacticalPoint* FindNearestReachablePoint(APawn* Requester, EBLA_Team Team, ABLATacticalPoint* ExcludedPoint = nullptr) const;
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Tactical")
     bool ReservePoint(ABLATacticalPoint* Point);

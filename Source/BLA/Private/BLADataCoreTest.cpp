@@ -26,6 +26,8 @@ namespace
     const float DefuseSeconds = 5.0f;
     const float UploadSeconds = 30.0f;
     const float CombatSeconds = 60.0f;
+    // High enough to beat map-placed tactical points that now keep a real transform.
+    const float TestOwnedPointPriority = 10000.0f;
 }
 
 ABLADataCoreTest::ABLADataCoreTest()
@@ -398,10 +400,10 @@ void ABLADataCoreTest::BeginPlay()
     }
     PlantPoint->PointType = EBLA_TacticalPointType::PlantPoint;
     PlantPoint->PreferredRole = EBLA_BotRole::Assault;
-    PlantPoint->Priority = 3.0f;
+    PlantPoint->Priority = TestOwnedPointPriority;
     DefusePoint->PointType = EBLA_TacticalPointType::DefusePoint;
     DefusePoint->PreferredRole = EBLA_BotRole::Defender;
-    DefusePoint->Priority = 3.0f;
+    DefusePoint->Priority = TestOwnedPointPriority;
     AttackerBot->Team = EBLA_Team::Attackers;
     DefenderBot->Team = EBLA_Team::Defenders;
     AttackerAI->Possess(AttackerBot);
@@ -556,6 +558,67 @@ void ABLADataCoreTest::BeginPlay()
         return;
     }
 
+    ABLATacticalPoint* LeftAttackPoint = GetWorld()->SpawnActor<ABLATacticalPoint>(FVector(-200.0f, -600.0f, 150.0f), FRotator::ZeroRotator);
+    ABLATacticalPoint* CenterAttackPoint = GetWorld()->SpawnActor<ABLATacticalPoint>(FVector(-200.0f, 0.0f, 150.0f), FRotator::ZeroRotator);
+    ABLATacticalPoint* RightAttackPoint = GetWorld()->SpawnActor<ABLATacticalPoint>(FVector(-200.0f, 600.0f, 150.0f), FRotator::ZeroRotator);
+    if (!Require(LeftAttackPoint && CenterAttackPoint && RightAttackPoint, TEXT("ai_lane_points")))
+    {
+        return;
+    }
+    LeftAttackPoint->PointType = EBLA_TacticalPointType::AttackPoint;
+    LeftAttackPoint->PreferredRole = EBLA_BotRole::Assault;
+    LeftAttackPoint->Priority = TestOwnedPointPriority;
+    CenterAttackPoint->PointType = EBLA_TacticalPointType::AttackPoint;
+    CenterAttackPoint->PreferredRole = EBLA_BotRole::Assault;
+    CenterAttackPoint->Priority = TestOwnedPointPriority;
+    RightAttackPoint->PointType = EBLA_TacticalPointType::AttackPoint;
+    RightAttackPoint->PreferredRole = EBLA_BotRole::Assault;
+    RightAttackPoint->Priority = TestOwnedPointPriority;
+    // Force human names ahead of the bot so lane assignment must ignore players.
+    // Including them would give the single attacker bot slot 2 (right) instead of slot 0 (left).
+    Attacker->Rename(TEXT("AAA_HumanAttacker"));
+    AttackerDummy->Rename(TEXT("AAB_HumanDummy"));
+
+    AttackerBot->SetActorLocation(TestAttackerStart);
+    AttackerAI->bIsStuck = false;
+    AttackerAI->LastRecoveryPoint = nullptr;
+    if (!Require(AttackerAI->ResolveObjectiveDirective(Manager, Tactics, nullptr)
+        && AttackerAI->CurrentObjectiveTask == FName(TEXT("SeekCore"))
+        && FVector::Dist2D(AttackerAI->DirectiveLocation, LeftAttackPoint->GetActorLocation()) <= 100.0f,
+        TEXT("ai_attacker_approach_lane")))
+    {
+        return;
+    }
+
+    AttackerBot->SetActorLocation(Core->GetActorLocation() + FVector(60.0f, 0.0f, 0.0f));
+    if (!Require(AttackerAI->ResolveObjectiveDirective(Manager, Tactics, nullptr)
+        && Manager->ObjectiveState == EBLA_ObjectiveState::Carried, TEXT("ai_attacker_lane_pickup")))
+    {
+        return;
+    }
+    AttackerBot->SetActorLocation(FVector(-200.0f, 0.0f, 150.0f));
+    if (!Require(AttackerAI->ResolveObjectiveDirective(Manager, Tactics, nullptr)
+        && AttackerAI->CurrentObjectiveTask == FName(TEXT("CarryToPlant"))
+        && FVector::Dist2D(AttackerAI->DirectiveLocation, PlantPoint->GetActorLocation()) <= 100.0f,
+        TEXT("ai_attacker_carry_ignores_lane")))
+    {
+        return;
+    }
+
+    Manager->ResetObjective();
+    AttackerBot->SetActorLocation(LeftAttackPoint->GetActorLocation());
+    AttackerAI->LastRecoveryPoint = LeftAttackPoint;
+    AttackerAI->bIsStuck = true;
+    if (!Require(AttackerAI->ResolveObjectiveDirective(Manager, Tactics, nullptr)
+        && AttackerAI->LastRecoveryPoint != nullptr
+        && AttackerAI->LastRecoveryPoint != LeftAttackPoint
+        && FVector::Dist2D(AttackerAI->LastRecoveryPoint->GetActorLocation(), AttackerBot->GetActorLocation()) >= 300.0f
+        && FVector::Dist2D(AttackerAI->LastRecoveryPoint->GetActorLocation(), Core->GetActorLocation()) > 100.0f,
+        TEXT("ai_attacker_stuck_recover")))
+    {
+        return;
+    }
+
     bTestSucceeded = true;
-    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 defuse_hold=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area authority=manager"));
+    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 defuse_hold=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area approach_lane=1 stuck_recover=1 authority=manager"));
 }

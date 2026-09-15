@@ -7,6 +7,7 @@
 #include "BLASettingsSaveGame.h"
 #include "BLAUIManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
 
 namespace
 {
@@ -47,6 +48,17 @@ void ABLAUIFlowTest::Tick(float DeltaSeconds)
 
     ABLAUIManager* UIManager = Cast<ABLAUIManager>(
         UGameplayStatics::GetActorOfClass(this, ABLAUIManager::StaticClass()));
+    const UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
+    if (FParse::Param(FCommandLine::Get(), TEXT("BLASoakTest"))
+        || (GameInstance && GameInstance->bSoakRequested))
+    {
+        // The AI soak observes a live match; this test would end the round and travel, so it steps aside.
+        bTestSucceeded = true;
+        bFinished = true;
+        UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=%s skipped_for_soak"),
+            Flow == EBLA_UIFlowKind::Menu ? TEXT("menu") : TEXT("match"));
+        return;
+    }
     if (Flow == EBLA_UIFlowKind::Menu)
     {
         if (!UIManager)

@@ -23,11 +23,11 @@ Files: create `docs/testing/single-player-baseline-2026-09-15.md`; modify `docs/
 
 Files: `Source/BLA/Private/BLAAIController.cpp`, `Source/BLA/Public/BLAAIController.h`, `Source/BLA/Private/BLATacticalManager.cpp`, `Source/BLA/Public/BLATacticalManager.h`, and `Scripts/Editor/verify_task11_soak.py`.
 
-- [ ] Extend soak output with latest zone, tactical point, no-displacement ticks, and recovery count; reproduce missing LeftRoute or same-point congestion in 3v3 Data Core.
-- [ ] Give LeftRoute attack/flank points normal candidate scoring. If a point is reserved by a teammate or the requester has failed recovery twice, lower its score and choose a reachable point at least 300uu away. Keep selection deterministic.
-- [ ] Run `pwsh -File Scripts/run_verification.ps1 -Only verify_task11_pie -Tag singleplayer-routes`, then run elimination and Data Core 3v3 soak.
-- [ ] Require LeftRoute in both modes, lower stuck ticks than baseline, and no failed marker.
-- [ ] Commit `fix: balance offline bot routes and recovery`.
+- [x] Extend soak output with latest zone, tactical point, no-displacement ticks, and recovery count; reproduce missing LeftRoute or same-point congestion in 3v3 Data Core.
+- [x] Give LeftRoute attack/flank points normal candidate scoring. If a point is reserved by a teammate or the requester has failed recovery twice, lower its score and choose a reachable point at least 300uu away. Keep selection deterministic.
+- [x] Run `pwsh -File Scripts/run_verification.ps1 -Only verify_task11_pie -Tag singleplayer-routes`, then run elimination and Data Core 3v3 soak.
+- [x] Require LeftRoute in both modes, lower stuck ticks than baseline, and no failed marker.
+- [x] Commit `fix: balance offline bot routes and recovery`.
 
 ## Task 3: Stabilize Data Core objective rhythm
 

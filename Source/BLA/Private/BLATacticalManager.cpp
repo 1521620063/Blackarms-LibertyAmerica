@@ -1,10 +1,14 @@
 #include "BLATacticalManager.h"
 
+#include "BLAAIController.h"
+#include "Misc/Crc.h"
+
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "NavigationSystem.h"
 
-ABLATacticalPoint* ABLATacticalManager::FindBestPoint(APawn* Requester, EBLA_TacticalPointType Type, EBLA_Team Team, EBLA_BotRole RequestedRole) const
+ABLATacticalPoint* ABLATacticalManager::FindBestPoint(APawn* Requester, EBLA_TacticalPointType Type, EBLA_Team Team,
+    EBLA_BotRole RequestedRole, int32 PreferredLane) const
 {
     if (!Requester)
     {
@@ -12,15 +16,36 @@ ABLATacticalPoint* ABLATacticalManager::FindBestPoint(APawn* Requester, EBLA_Tac
     }
     ABLATacticalPoint* Best = nullptr;
     float BestScore = -TNumericLimits<float>::Max();
+    // Lane 0 = left route, 1 = center, 2 = right. Callers that know a bot's team slot pass the
+    // slot so a squad fans out over all three lanes; otherwise the stable name hash is used.
+    const int32 RequestedLane = PreferredLane >= 0
+        ? PreferredLane % 3
+        : static_cast<int32>(FCrc::StrCrc32(*Requester->GetName()) % 3u);
     for (TActorIterator<ABLATacticalPoint> It(GetWorld()); It; ++It)
     {
         ABLATacticalPoint* Point = *It;
-        if (Point->bIsOccupied || Point->PointType != Type || (Point->Team != EBLA_Team::Neutral && Point->Team != Team))
+        if (Point->PointType != Type || (Point->Team != EBLA_Team::Neutral && Point->Team != Team))
         {
             continue;
         }
+        if (Point->bIsOccupied)
+        {
+            const ABLAAIController* RequesterAI = Cast<ABLAAIController>(Requester->GetController());
+            if (!RequesterAI || RequesterAI->ReservedPoint != Point)
+            {
+                continue;
+            }
+        }
         const float RoleBonus = Point->PreferredRole == RequestedRole ? 1000.0f : 0.0f;
-        const float Score = Point->Priority * 100.0f + RoleBonus - FVector::DistSquared2D(Requester->GetActorLocation(), Point->GetActorLocation()) * 0.0001f;
+        float RouteBonus = 0.0f;
+        if (Point->PointType == EBLA_TacticalPointType::AttackPoint || Point->PointType == EBLA_TacticalPointType::FlankPoint)
+        {
+            const float Y = Point->GetActorLocation().Y;
+            const int32 PointLane = Y < -250.0f ? 0 : Y > 250.0f ? 2 : 1;
+            RouteBonus = PointLane == RequestedLane ? 2500.0f : 0.0f;
+        }
+        const float Score = Point->Priority * 100.0f + RoleBonus + RouteBonus
+            - FVector::DistSquared2D(Requester->GetActorLocation(), Point->GetActorLocation()) * 0.0001f;
         if (Score > BestScore)
         {
             BestScore = Score;
@@ -30,7 +55,7 @@ ABLATacticalPoint* ABLATacticalManager::FindBestPoint(APawn* Requester, EBLA_Tac
     return Best;
 }
 
-ABLATacticalPoint* ABLATacticalManager::FindNearestReachablePoint(APawn* Requester, EBLA_Team Team) const
+ABLATacticalPoint* ABLATacticalManager::FindNearestReachablePoint(APawn* Requester, EBLA_Team Team, ABLATacticalPoint* ExcludedPoint) const
 {
     if (!Requester)
     {
@@ -45,7 +70,7 @@ ABLATacticalPoint* ABLATacticalManager::FindNearestReachablePoint(APawn* Request
     for (TActorIterator<ABLATacticalPoint> It(GetWorld()); It; ++It)
     {
         ABLATacticalPoint* Point = *It;
-        if (Point->bIsOccupied || (Point->Team != EBLA_Team::Neutral && Point->Team != Team))
+        if (Point == ExcludedPoint || Point->bIsOccupied || (Point->Team != EBLA_Team::Neutral && Point->Team != Team))
         {
             continue;
         }
