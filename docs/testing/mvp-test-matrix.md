@@ -79,3 +79,13 @@ The managers report into `BLADebugSubsystem` (game-instance subsystem, C++) and 
   chokepoints and the Data Core objective is not completed inside a 15 s window (recorded in `README.md`).
 - Sight acquisition is a deterministic C++ scan; the AIPerception component still owns hearing/damage stimuli.
 - Placeholders stay in place until graybox playtests pass (walls/floors, cover, weapons, bots, lights, VFX/audio).
+
+## Single-player milestone acceptance (2026-09-15)
+
+The baseline is recorded in `docs/testing/single-player-baseline-2026-09-15.md`. Before the offline release is called complete:
+
+- Every multi-bot configuration records a first-contact tick.
+- Both Team Elimination and Data Core 3v3 soaks observe LeftRoute at least once.
+- Each `AI_STUCK_RECOVERED` diagnostic includes the bot and selected point, and repeated recovery does not select one blocked point forever.
+- The Data Core scripted flow reaches `Planted` and then `Completed` or `Defused` with no `OBJECTIVE_INVALID_STATE`.
+- The full matrix remains `MATRIX_DONE checks=25 failed=0`.
