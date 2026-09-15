@@ -12,8 +12,8 @@ enum class EBLA_UIFlowKind : uint8
 
 /**
  * Functional test for the Task 10 player flow. One instance lives on the menu map
- * (selections, settings round-trip, entry travel) and one on the match map (HUD refresh,
- * round/match result screens, restart, return to menu).
+ * (selections, settings round-trip, empty map / invalid size / duplicate start) and one
+ * on the match map (HUD refresh, round/match result screens, restart, results-to-menu).
  */
 UCLASS(Blueprintable)
 class BLA_API ABLAUIFlowTest : public AActor

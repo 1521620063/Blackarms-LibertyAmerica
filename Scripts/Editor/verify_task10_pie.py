@@ -72,7 +72,9 @@ def tick_impl():
             if not managers:
                 finish(False, "menu_flow ui_manager_missing_for_travel")
                 return
-            managers[0].start_match()
+            if managers[0].start_match() is False:
+                finish(False, "start_match_rejected")
+                return
             state["travel_requested"] = True
             unreal.log("BLA_TASK10_PIE_TRAVEL_REQUESTED start_match=1")
         if state["travel_requested"] and MATCH_MAP in map_path:
@@ -93,7 +95,9 @@ def tick_impl():
         if not managers:
             finish(False, "match_flow ui_manager_missing_for_return")
             return
-        managers[0].return_to_menu()
+        if managers[0].return_to_menu() is False:
+            finish(False, "return_to_menu_rejected")
+            return
         state["return_requested"] = True
         unreal.log("BLA_TASK10_PIE_TRAVEL_REQUESTED return_to_menu=1")
     if state["return_requested"] and MENU_MAP in map_path:

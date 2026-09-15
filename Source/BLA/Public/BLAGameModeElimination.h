@@ -19,7 +19,7 @@ public:
     ABLAGameModeElimination();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Round")
-    void RestartMatch();
+    bool RestartMatch();
 
 protected:
     virtual void BeginPlay() override;

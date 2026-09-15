@@ -113,6 +113,10 @@ def main():
         fail("BP_BLAUIManager did not wire spectator_class")
     if not callable(getattr(cdo, "restart_match", None)) or not callable(getattr(cdo, "evaluate_match_screens", None)):
         fail("BP_BLAUIManager is missing flow entry points")
+    try:
+        cdo.get_editor_property("last_error_text")
+    except Exception as error:
+        fail(f"UI manager missing last_error_text: {error}")
 
     hud = unreal.BLAMatchHUDState()
     for field in HUD_FIELDS:
@@ -139,6 +143,8 @@ def main():
         "match_map_path",
         "last_travel_request",
         "travel_immediately",
+        "travel_in_progress",
+        "last_flow_error",
     ]:
         try:
             game_instance.get_editor_property(field)
@@ -184,7 +190,7 @@ def main():
         matches[0].get_editor_property("test_succeeded")
         matches[0].get_editor_property("test_failed")
 
-    unreal.log("BLA_TASK10_CONTRACTS_OK widgets=11 managers=1 flow_tests=2 hud_fields=24 settings_fields=11 game_instance_api=9")
+    unreal.log("BLA_TASK10_CONTRACTS_OK widgets=11 managers=1 flow_tests=2 hud_fields=24 settings_fields=11 game_instance_api=9 flow_guards=1")
 
 
 main()

@@ -43,10 +43,10 @@ Files: `Source/BLA/Private/BLAObjectiveManager.cpp`, `Source/BLA/Public/BLAObjec
 
 Files: `Source/BLA/Private/BLAUIManager.cpp`, `Source/BLA/Public/BLAUIManager.h`, `Source/BLA/Private/BLAGameInstance.cpp`, `Source/BLA/Public/BLAGameInstance.h`, `Scripts/Editor/build_task10_assets.py`, `Scripts/Editor/verify_task10_pie.py`, and `Source/BLA/Private/BLAUIFlowTest.cpp`.
 
-- [ ] Add assertions for empty map config, invalid team size, repeated restart, results-to-menu, and settings save/restore.
-- [ ] Guard `StartMatch`, `RestartMatch`, and `ReturnToMenu` against duplicate travel; clear old UI/round references and surface failures through `UBLADebugSubsystem` and menu error text.
-- [ ] Run `verify_task10_pie` and `verify_task12_pie`; require all 18 configurations to start, complete, and return to menu.
-- [ ] Commit `fix: harden offline player flow`.
+- [x] Add assertions for empty map config, invalid team size, repeated restart, results-to-menu, and settings save/restore.
+- [x] Guard `StartMatch`, `RestartMatch`, and `ReturnToMenu` against duplicate travel; clear old UI/round references and surface failures through `UBLADebugSubsystem` and menu error text.
+- [x] Run `verify_task10_pie` and `verify_task12_pie`; require all 18 configurations to start, complete, and return to menu.
+- [x] Commit `fix: harden offline player flow`.
 
 ## Task 5: Release regression and package
 

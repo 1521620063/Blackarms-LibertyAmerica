@@ -196,12 +196,12 @@ void ABLAGameModeElimination::InitializeMatch()
         static_cast<int32>(Mode), ObjectiveConfigured, MapConfig && MapConfig->Config ? 1 : 0);
 }
 
-void ABLAGameModeElimination::RestartMatch()
+bool ABLAGameModeElimination::RestartMatch()
 {
     ABLAGameState* State = GetGameState<ABLAGameState>();
     if (!RoundManager || !TeamManager || !State)
     {
-        return;
+        return false;
     }
     const UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
     const int32 TeamSize = FMath::Clamp(GameInstance ? GameInstance->SelectedTeamSize : 1, 1, 3);
@@ -213,6 +213,7 @@ void ABLAGameModeElimination::RestartMatch()
         UIManager->OpenMatchHUD();
     }
     UE_LOG(LogTemp, Display, TEXT("BLA_MATCH_RESTARTED team_size=%d"), TeamSize);
+    return true;
 }
 
 ABLAAIController* ABLAGameModeElimination::SpawnBot(EBLA_Team Team, int32 TeamIndex, FName PreferredZone)

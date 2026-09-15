@@ -44,6 +44,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Flow")
     bool bTravelImmediately = true;
 
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Flow")
+    bool bTravelInProgress = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Flow")
+    FString LastFlowError;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Settings")
     FString SettingsSlotName = TEXT("BLAPlayerSettings");
 
@@ -51,7 +57,7 @@ public:
     void ApplyModeSelection(EBLA_MatchMode Mode);
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
-    void ApplyTeamSize(int32 TeamSize);
+    bool ApplyTeamSize(int32 TeamSize);
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
     void ApplyDifficultyLevel(EBLA_DifficultyLevel Level);
@@ -69,10 +75,12 @@ public:
     bool TravelTo(const FString& MapPath);
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
-    void RequestStartMatch();
+    bool RequestStartMatch();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
-    void RequestReturnToMenu();
+    bool RequestReturnToMenu();
+
+    void ReportFlowFailure(const FString& Code, const FString& Details = FString());
 
     /** Test-harness configuration carried across the menu -> match -> menu travel (inert in Shipping). */
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
@@ -105,4 +113,10 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
     TArray<FString> HarnessResults;
+
+protected:
+    virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) override;
+
+private:
+    bool IsCurrentMap(const FString& MapPath) const;
 };

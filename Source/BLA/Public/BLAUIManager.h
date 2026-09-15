@@ -162,6 +162,9 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "BLA|UI")
     int32 HitFeedbackCount = 0;
 
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|UI")
+    FString LastErrorText;
+
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     void Configure(ABLAGameModeElimination* InGameMode, ABLARoundManager* InRoundManager, ABLATeamOrderManager* InOrderManager);
 
@@ -199,13 +202,13 @@ public:
     void SelectDifficulty(EBLA_DifficultyLevel Level);
 
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
-    void StartMatch();
+    bool StartMatch();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
-    void RestartMatch();
+    bool RestartMatch();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
-    void ReturnToMenu();
+    bool ReturnToMenu();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     void ApplySettings(float MouseSensitivity, float FieldOfView, int32 ResolutionWidth, int32 ResolutionHeight,
@@ -242,6 +245,8 @@ private:
 
     UUserWidget* CreateScreenWidget(EBLA_UIScreen Screen);
     void BindPlayerEvents();
+    void ClearMatchReferences();
+    void CopyFlowError(class UBLAGameInstance* GameInstance);
     class UBLAGameInstance* GetBLAGameInstance() const;
     class ABLAGameState* GetMatchState() const;
 

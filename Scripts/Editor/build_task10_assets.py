@@ -94,7 +94,7 @@ def main():
     test = blueprint(f"{TEST_PATH}/FT_BLA_UIFlow", unreal.BLAUIFlowTest)
     place_flow_test(test, MENU_LEVEL, "BLA UI Flow Test (Menu)", unreal.BLA_UIFlowKind.MENU)
     place_flow_test(test, MATCH_LEVEL, "BLA UI Flow Test (Match)", unreal.BLA_UIFlowKind.MATCH)
-    unreal.log("BLA_TASK10_ASSETS_BUILT widgets=11 managers=1 flow_tests=2 settings_wired=11")
+    unreal.log("BLA_TASK10_ASSETS_BUILT widgets=11 managers=1 flow_tests=2 settings_wired=11 flow_guards=1")
 
 
 main()

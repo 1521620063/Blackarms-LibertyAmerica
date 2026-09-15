@@ -170,10 +170,44 @@ void ABLAUIFlowTest::RunMenuFlow()
         return;
     }
 
+    const FString SavedMatchMap = GameInstance->MatchMapPath;
+    GameInstance->MatchMapPath.Empty();
+    const bool bEmptyMapRejected = !UIManager->StartMatch() && !UIManager->LastErrorText.IsEmpty();
+    GameInstance->MatchMapPath = SavedMatchMap;
+    if (!Require(bEmptyMapRejected, TEXT("empty_map")))
+    {
+        return;
+    }
+
+    UIManager->SelectTeamSize(0);
+    if (!Require(GameInstance->SelectedTeamSize == 3 && !UIManager->LastErrorText.IsEmpty(), TEXT("invalid_size")))
+    {
+        return;
+    }
+    UIManager->SelectTeamSize(4);
+    if (!Require(GameInstance->SelectedTeamSize == 3 && !UIManager->LastErrorText.IsEmpty(), TEXT("invalid_size")))
+    {
+        return;
+    }
+
+    GameInstance->bTravelImmediately = false;
+    const bool bDeferredStart = UIManager->StartMatch();
+    const bool bDuplicateStartRejected = !UIManager->StartMatch() && !UIManager->LastErrorText.IsEmpty();
+    GameInstance->bTravelInProgress = false;
+    GameInstance->bTravelImmediately = true;
+    if (!Require(bDeferredStart, TEXT("deferred_start")))
+    {
+        return;
+    }
+    if (!Require(bDuplicateStartRejected, TEXT("duplicate_start")))
+    {
+        return;
+    }
+
     bTestSucceeded = true;
-    // Level travel is left to the caller (the PIE driver calls ABLAUIManager::StartMatch),
-    // so this actor stays side-effect free for every other driver that plays the menu map.
-    UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=menu selections=1 settings=1 screens=3"));
+    // Real level travel stays with the PIE driver so this actor remains side-effect free
+    // for every other driver that plays the menu map.
+    UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=menu selections=1 settings=1 screens=3 empty_map=1 invalid_size=1 duplicate_start=1"));
 }
 
 void ABLAUIFlowTest::RunMatchFlow()
@@ -189,6 +223,14 @@ void ABLAUIFlowTest::RunMatchFlow()
             UIManager != nullptr ? 1 : 0, GameInstance != nullptr ? 1 : 0, RoundManager != nullptr ? 1 : 0,
             GameState ? static_cast<int32>(GameState->RoundPhase) : -1);
         Require(false, *Reason);
+        return;
+    }
+    if (GameInstance->bHarnessRequested)
+    {
+        // The Task 12 harness owns restart / return-to-menu; this actor must not clear
+        // match references or request a second travel while AllMVPFlows is running.
+        bTestSucceeded = true;
+        UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=match skipped_for_harness"));
         return;
     }
     if (!Require(UIManager->GetCurrentScreen() == EBLA_UIScreen::MatchHUD, TEXT("match_hud_initial")))
@@ -256,8 +298,42 @@ void ABLAUIFlowTest::RunMatchFlow()
         return;
     }
 
+    const FString TravelBeforeRestart = GameInstance->LastTravelRequest;
+    UIManager->RestartMatch();
+    UIManager->RefreshHUD();
+    if (!Require(UIManager->GetCurrentScreen() == EBLA_UIScreen::MatchHUD
+        && UIManager->GetHUDState().RoundPhase == EBLA_RoundPhase::Preparation
+        && UIManager->GetHUDState().AttackersScore == 0
+        && UIManager->GetHUDState().DefendersScore == 0
+        && GameInstance->LastTravelRequest == TravelBeforeRestart,
+        TEXT("repeated_restart")))
+    {
+        return;
+    }
+
+    GameInstance->bTravelImmediately = false;
+    const bool bReturned = UIManager->ReturnToMenu();
+    const bool bCleared = UIManager->GetCurrentScreen() == EBLA_UIScreen::MainMenu
+        && UIManager->GetRoundManager() == nullptr
+        && UIManager->GetObjectiveManager() == nullptr;
+    const bool bDuplicateReturnRejected = !UIManager->ReturnToMenu() && !UIManager->LastErrorText.IsEmpty();
+    GameInstance->bTravelInProgress = false;
+    GameInstance->bTravelImmediately = true;
+    if (!Require(bReturned, TEXT("results_to_menu")))
+    {
+        return;
+    }
+    if (!Require(bCleared, TEXT("results_to_menu_cleared")))
+    {
+        return;
+    }
+    if (!Require(bDuplicateReturnRejected, TEXT("duplicate_return")))
+    {
+        return;
+    }
+
     bTestSucceeded = true;
-    // The return-to-menu travel is driven by the PIE driver through ABLAUIManager::
-    // ReturnToMenu, so this actor never moves the other drivers' worlds.
-    UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=match hud=1 round_result=1 match_result=1 restart=1"));
+    // Real return-to-menu travel stays with the PIE driver so this actor never moves
+    // the other drivers' worlds.
+    UE_LOG(LogTemp, Display, TEXT("BLA_UIFLOW_OK flow=match hud=1 round_result=1 match_result=1 restart=1 repeated_restart=1 results_to_menu=1"));
 }

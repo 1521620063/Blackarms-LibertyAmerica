@@ -117,7 +117,30 @@
 - 本任务未重跑 3v3 soak。
 - 提交：`fix: stabilize offline data core pacing`。
 
+## Task 4：单机流程幂等与失败提示（已完成）
+
+开始比赛、重开、回菜单原先没有 travel 互斥，失败也没有菜单错误文本：
+
+- 空地图路径仍会发起 travel。
+- 非法队伍人数被 Clamp 成 1/3，菜单看起来成功。
+- 重复 StartMatch/ReturnToMenu 会再次 OpenLevel。
+- ReturnToMenu 先切主菜单再 travel，比赛引用残留，Tick 继续刷 HUD。
+
+修复：
+
+- GameInstance 增加 `bTravelInProgress` 与 `LastFlowError`。空路径报 `FLOW_EMPTY_MAP`；travel 进行中或已在目标图报 `FLOW_DUPLICATE_TRAVEL`。`OnWorldChanged` 仅在 `NewWorld` 有效时清 flag。
+- `ApplyTeamSize` / `RequestStartMatch` / `RequestReturnToMenu` / `RestartMatch` 改为返回 bool；非法人数不改 `SelectedTeamSize`。
+- UIManager 失败时复制 GameInstance 错误到 `LastErrorText`。`ReturnToMenu` 先 travel，再 `ClearMatchReferences()`，再 `ShowScreen(MainMenu)`。
+- Tick 在 `bStartInMainMenu`、主菜单或 travel 中不刷新比赛 UI。
+- 菜单测试覆盖 empty map / invalid size / deferred StartMatch 成功与第二次失败；比赛测试覆盖 repeated restart（不改 `LastTravelRequest`）与 deferred ReturnToMenu。`bHarnessRequested` 时 skip match UIFlowTest，避免和 AllMVPFlows 抢 travel。
+
+证据（tag=`singleplayer-flow`，新编译 `UnrealEditor-BLA.dll` 16:44:57）：
+
+- `verify_task10_pie`：`BLA_UIFLOW_OK flow=menu ... empty_map=1 invalid_size=1 duplicate_start=1`，`BLA_UIFLOW_OK flow=match ... repeated_restart=1 results_to_menu=1`，`BLA_TASK10_PIE_DRIVER_OK menu=1 match=1 travel=roundtrip`
+- `verify_task12_pie`：`ALL_MVP_FLOWS_OK mode=1 size=3 difficulty=2`，`HARNESS_CONFIGURATION_STARTED`，`BLA_TASK12_PIE_DRIVER_OK`，`MATRIX_DONE checks=1 failed=0` / `MATRIX_OK`
+- 18 套配置冒烟属于 Task 5 的 `-BLASmokeTest`，本任务未跑。
+- 提交：`fix: harden offline player flow`。
+
 ## 待办
 
-- Task 4：单机流程幂等与失败提示。
 - Task 5：全矩阵回归、Windows 打包冒烟、发布文档与 LAN 路线改写。

@@ -1,7 +1,10 @@
 #include "BLAGameInstance.h"
 
+#include "BLADebugSubsystem.h"
 #include "BLASettingsSaveGame.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 
 namespace
 {
@@ -25,10 +28,17 @@ void UBLAGameInstance::ApplyModeSelection(EBLA_MatchMode Mode)
     SelectedMode = Mode;
 }
 
-void UBLAGameInstance::ApplyTeamSize(int32 TeamSize)
+bool UBLAGameInstance::ApplyTeamSize(int32 TeamSize)
 {
-    SelectedTeamSize = FMath::Clamp(TeamSize, 1, 3);
+    if (TeamSize < 1 || TeamSize > 3)
+    {
+        ReportFlowFailure(TEXT("FLOW_INVALID_TEAM_SIZE"), FString::Printf(TEXT("team_size=%d"), TeamSize));
+        return false;
+    }
+    SelectedTeamSize = TeamSize;
     SelectedRules = LoadObject<UBLAMatchRulesDataAsset>(nullptr, GameInstanceRulesPaths[SelectedTeamSize - 1]);
+    LastFlowError.Empty();
+    return true;
 }
 
 void UBLAGameInstance::ApplyDifficultyLevel(EBLA_DifficultyLevel Level)
@@ -65,13 +75,54 @@ void UBLAGameInstance::ResetSettings()
     UGameplayStatics::SaveGameToSlot(Settings, SettingsSlotName, 0);
 }
 
+void UBLAGameInstance::ReportFlowFailure(const FString& Code, const FString& Details)
+{
+    LastFlowError = Details.IsEmpty() ? Code : FString::Printf(TEXT("%s %s"), *Code, *Details);
+    if (UBLADebugSubsystem* Debug = GetSubsystem<UBLADebugSubsystem>())
+    {
+        Debug->ReportEvent(FName(*Code), LastFlowError);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("BLA_FLOW_FAILED %s"), *LastFlowError);
+    }
+}
+
+bool UBLAGameInstance::IsCurrentMap(const FString& MapPath) const
+{
+    const UWorld* World = GetWorld();
+    if (!World || MapPath.IsEmpty())
+    {
+        return false;
+    }
+    const FString ShortName = FPackageName::GetShortName(MapPath);
+    return !ShortName.IsEmpty() && World->GetMapName().Contains(ShortName);
+}
+
+void UBLAGameInstance::OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld)
+{
+    Super::OnWorldChanged(OldWorld, NewWorld);
+    if (NewWorld)
+    {
+        bTravelInProgress = false;
+    }
+}
+
 bool UBLAGameInstance::TravelTo(const FString& MapPath)
 {
     if (MapPath.IsEmpty())
     {
+        ReportFlowFailure(TEXT("FLOW_EMPTY_MAP"), TEXT("path is empty"));
+        return false;
+    }
+    if (bTravelInProgress || IsCurrentMap(MapPath))
+    {
+        ReportFlowFailure(TEXT("FLOW_DUPLICATE_TRAVEL"), MapPath);
         return false;
     }
     LastTravelRequest = MapPath;
+    LastFlowError.Empty();
+    bTravelInProgress = true;
     if (bTravelImmediately)
     {
         UGameplayStatics::OpenLevel(this, FName(*MapPath));
@@ -79,12 +130,12 @@ bool UBLAGameInstance::TravelTo(const FString& MapPath)
     return true;
 }
 
-void UBLAGameInstance::RequestStartMatch()
+bool UBLAGameInstance::RequestStartMatch()
 {
-    TravelTo(MatchMapPath);
+    return TravelTo(MatchMapPath);
 }
 
-void UBLAGameInstance::RequestReturnToMenu()
+bool UBLAGameInstance::RequestReturnToMenu()
 {
-    TravelTo(MenuMapPath);
+    return TravelTo(MenuMapPath);
 }

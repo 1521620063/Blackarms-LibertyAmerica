@@ -1,6 +1,7 @@
 #include "BLAUIManager.h"
 
 #include "BLACharacterBase.h"
+#include "BLADebugSubsystem.h"
 #include "BLAGameInstance.h"
 #include "BLAGameModeElimination.h"
 #include "BLAGameState.h"
@@ -35,9 +36,16 @@ void ABLAUIManager::BeginPlay()
 void ABLAUIManager::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
-    if (bStartInMainMenu)
+    if (bStartInMainMenu || CurrentScreen == EBLA_UIScreen::MainMenu)
     {
         return;
+    }
+    if (const UBLAGameInstance* GameInstance = GetBLAGameInstance())
+    {
+        if (GameInstance->bTravelInProgress)
+        {
+            return;
+        }
     }
     BindPlayerEvents();
     RefreshHUD();
@@ -165,10 +173,18 @@ void ABLAUIManager::SelectMatchMode(EBLA_MatchMode Mode)
 
 void ABLAUIManager::SelectTeamSize(int32 TeamSize)
 {
-    if (UBLAGameInstance* GameInstance = GetBLAGameInstance())
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance)
     {
-        GameInstance->ApplyTeamSize(TeamSize);
+        LastErrorText = TEXT("FLOW_NO_GAME_INSTANCE");
+        return;
     }
+    if (!GameInstance->ApplyTeamSize(TeamSize))
+    {
+        CopyFlowError(GameInstance);
+        return;
+    }
+    LastErrorText.Empty();
 }
 
 void ABLAUIManager::SelectDifficulty(EBLA_DifficultyLevel Level)
@@ -179,30 +195,89 @@ void ABLAUIManager::SelectDifficulty(EBLA_DifficultyLevel Level)
     }
 }
 
-void ABLAUIManager::StartMatch()
+bool ABLAUIManager::StartMatch()
 {
-    if (UBLAGameInstance* GameInstance = GetBLAGameInstance())
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance)
     {
-        GameInstance->RequestStartMatch();
+        LastErrorText = TEXT("FLOW_NO_GAME_INSTANCE");
+        if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+        {
+            Debug->ReportEvent(TEXT("FLOW_NO_GAME_INSTANCE"), TEXT("start_match"));
+        }
+        return false;
     }
+    if (!GameInstance->RequestStartMatch())
+    {
+        CopyFlowError(GameInstance);
+        return false;
+    }
+    LastErrorText.Empty();
+    return true;
 }
 
-void ABLAUIManager::RestartMatch()
+bool ABLAUIManager::RestartMatch()
 {
-    if (MatchGameMode)
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (GameInstance && GameInstance->bTravelInProgress)
     {
-        MatchGameMode->RestartMatch();
+        GameInstance->ReportFlowFailure(TEXT("FLOW_DUPLICATE_TRAVEL"), TEXT("restart during travel"));
+        CopyFlowError(GameInstance);
+        return false;
     }
+    if (!MatchGameMode || !MatchGameMode->RestartMatch())
+    {
+        LastErrorText = TEXT("FLOW_RESTART_FAILED");
+        if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+        {
+            Debug->ReportEvent(TEXT("FLOW_RESTART_FAILED"), TEXT("match_game_mode_missing"));
+        }
+        return false;
+    }
+    LastErrorText.Empty();
     ShowScreen(EBLA_UIScreen::MatchHUD);
+    return true;
 }
 
-void ABLAUIManager::ReturnToMenu()
+bool ABLAUIManager::ReturnToMenu()
 {
-    ShowScreen(EBLA_UIScreen::MainMenu);
-    if (UBLAGameInstance* GameInstance = GetBLAGameInstance())
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance)
     {
-        GameInstance->RequestReturnToMenu();
+        LastErrorText = TEXT("FLOW_NO_GAME_INSTANCE");
+        if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+        {
+            Debug->ReportEvent(TEXT("FLOW_NO_GAME_INSTANCE"), TEXT("return_to_menu"));
+        }
+        return false;
     }
+    if (!GameInstance->RequestReturnToMenu())
+    {
+        CopyFlowError(GameInstance);
+        return false;
+    }
+    ClearMatchReferences();
+    ShowScreen(EBLA_UIScreen::MainMenu);
+    LastErrorText.Empty();
+    return true;
+}
+
+void ABLAUIManager::ClearMatchReferences()
+{
+    MatchGameMode = nullptr;
+    RoundManager = nullptr;
+    ObjectiveManager = nullptr;
+    TeamOrderManager = nullptr;
+    BoundFeedbackOwner = nullptr;
+    LastResultWinner = EBLA_Team::Neutral;
+    LastResultReason = NAME_None;
+}
+
+void ABLAUIManager::CopyFlowError(UBLAGameInstance* GameInstance)
+{
+    LastErrorText = GameInstance && !GameInstance->LastFlowError.IsEmpty()
+        ? GameInstance->LastFlowError
+        : TEXT("FLOW_UNKNOWN");
 }
 
 void ABLAUIManager::ApplySettings(float MouseSensitivity, float FieldOfView, int32 ResolutionWidth,
