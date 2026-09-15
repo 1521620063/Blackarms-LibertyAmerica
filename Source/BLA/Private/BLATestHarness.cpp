@@ -9,7 +9,7 @@
 
 namespace
 {
-    void DecodeConfiguration(int32 Index, EBLA_MatchMode& OutMode, int32& OutTeamSize, EBLA_DifficultyLevel& OutDifficulty)
+    void DecodeHarnessConfiguration(int32 Index, EBLA_MatchMode& OutMode, int32& OutTeamSize, EBLA_DifficultyLevel& OutDifficulty)
     {
         OutMode = (Index / 9) == 0 ? EBLA_MatchMode::TeamElimination : EBLA_MatchMode::DataCoreAttackDefense;
         OutTeamSize = ((Index / 3) % 3) + 1;
@@ -25,7 +25,11 @@ ABLATestHarness::ABLATestHarness()
 void ABLATestHarness::BeginPlay()
 {
     Super::BeginPlay();
-    if (FParse::Param(FCommandLine::Get(), TEXT("BLASmokeTest")))
+    // Only the first menu-map load starts the run: travel reloads this map for every result.
+    const UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
+    const bool bFirstEntry = GameInstance && !GameInstance->bHarnessRunAll
+        && GameInstance->HarnessResults.Num() == 0 && !GameInstance->bHarnessRequested;
+    if (bFirstEntry && FParse::Param(FCommandLine::Get(), TEXT("BLASmokeTest")))
     {
         RunAllConfigurations();
     }
@@ -59,7 +63,7 @@ void ABLATestHarness::RunAllConfigurations()
     GameInstance->HarnessConfigIndex = 0;
     GameInstance->HarnessResult.Reset();
     GameInstance->HarnessResults.Reset();
-    DecodeConfiguration(0, GameInstance->HarnessMode, GameInstance->HarnessTeamSize, GameInstance->HarnessDifficulty);
+    DecodeHarnessConfiguration(0, GameInstance->HarnessMode, GameInstance->HarnessTeamSize, GameInstance->HarnessDifficulty);
     GameInstance->bHarnessRequested = true;
     StartRequestedConfiguration();
 }
@@ -119,6 +123,7 @@ void ABLATestHarness::Tick(float DeltaSeconds)
         if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
         {
             FlowsEventCount = Debug->GetEventCount(TEXT("ALL_MVP_FLOWS_OK"));
+            Debug->ReportEvent(TEXT("HARNESS_CONFIGURATION_RESULT"), LastResult);
         }
         ContinueOrPublish();
     }
@@ -152,7 +157,7 @@ void ABLATestHarness::ContinueOrPublish()
         }
         return;
     }
-    DecodeConfiguration(GameInstance->HarnessConfigIndex, GameInstance->HarnessMode,
+    DecodeHarnessConfiguration(GameInstance->HarnessConfigIndex, GameInstance->HarnessMode,
         GameInstance->HarnessTeamSize, GameInstance->HarnessDifficulty);
     GameInstance->HarnessResult.Reset();
     GameInstance->bHarnessRequested = true;

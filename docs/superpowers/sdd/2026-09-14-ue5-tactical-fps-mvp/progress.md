@@ -227,3 +227,35 @@ Verification: `Build.bat` succeeded; `verify_task11_contracts` reported
 `zones=8 spawns=6 tactical=7 cover=21 config=1 objective=1 nav_test=1 modes=2 sizes=3`;
 `verify_task11_pie` reported `BLA_TASK11_PIE_DRIVER_OK navigation=1 moved=1331.8`; the six-configuration soak
 (30 matches) ran to `BLA_TASK11_SOAK_OK` for every configuration with the metrics recorded in `README.md`.
+
+## Task 12: regression, recovery diagnostics and Windows packaging (2026-09-15)
+
+Runtime and tooling:
+
+- `UBLADebugSubsystem` (game-instance subsystem) collects recovery events; the plan's `BP_BLADebugSubsystem`
+  asset is not creatable (UHT rejects UCLASS inside `#if !UE_BUILD_SHIPPING` for a subsystem Blueprint), so the
+  deliverable stays a C++ class - recorded in the plan file.
+- Recovery diagnostics: `AI_STUCK_RECOVERED` (nearest reachable point, then the team-spawn fallback after two
+  recoveries in one round), `OBJECTIVE_CORE_RESET` and `OBJECTIVE_INVALID_STATE` (ends the round with
+  `ObjectiveInvalidState` and the map name), `ROUND_WATCHDOG_EXPIRED` (phase watchdog, duplicate scoring still
+  guarded by `bIsRoundEnding`), `SPAWN_FALLBACK_USED` (spawn/rejection reason).
+- `ABLATestHarness` (menu map) + `ABLAAllMVPFlowsTest` (Zero Facility map): the harness selects
+  mode/scale/difficulty, starts a real match, the flows test asserts HUD read-back, forced damage, forced
+  pickup/plant, round result, match result and restart, then travels back; `-BLASmokeTest` makes the harness
+  walk all 18 configurations and exit. Bodies are compiled out of Shipping builds.
+- `docs/testing/mvp-test-matrix.md` documents the 25-check matrix, the generators, the soak/harness commands and
+  the recovery events; `docs/builds/windows-mvp-smoke-test.md` records the packaged build and smoke run.
+
+Verification: the full matrix passed again (`MATRIX_DONE checks=25 failed=0`, tag `task12`) and the Task 12 PIE
+driver passes repeatedly (`BLA_TASK12_PIE_DRIVER_OK mode=data_core size=3 difficulty=hard result=OK`).
+
+Packaging: `RunUAT BuildCookRun` produces `D:\dev\BLA-Packaged\Windows\BlackarmsLibertyAmerica.exe`
+(`BUILD SUCCESSFUL`, Development). Two packaging defects were fixed on the way: string-path assets were missing
+from the cook (`+DirectoriesToAlwaysCook=(Path="/Game/BLA")` in `Config/DefaultGame.ini`) and only the first
+`-map=` argument reached the cooker (single `-map=+A+B+C` form now).
+
+Packaged smoke: the harness runs all 18 configurations; Team Elimination passes at every scale and difficulty,
+Data Core fails in the scripted plant step (`forced_plant_complete`) although the same configuration passes in
+PIE. The harness now logs `HARNESS_CONFIGURATION_RESULT` with the objective state, cancel reason and actor
+locations so the packaged-only path can be fixed. The plan's `release: package Windows FPS MVP` commit is
+deliberately **not** made until that run is green.

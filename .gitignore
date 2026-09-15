@@ -1,5 +1,6 @@
 # Unreal generated directories
 Binaries/
+Build/
 DerivedDataCache/
 Intermediate/
 Saved/

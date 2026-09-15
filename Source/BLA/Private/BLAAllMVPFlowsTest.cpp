@@ -13,11 +13,12 @@
 #include "BLARoundManager.h"
 #include "BLATeamManager.h"
 #include "BLAUIManager.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
 {
-    constexpr int32 FlowTimeoutTicks = 1200;
+    constexpr int32 AllMVPFlowTimeoutTicks = 1200;
 }
 
 ABLAAllMVPFlowsTest::ABLAAllMVPFlowsTest()
@@ -33,6 +34,7 @@ bool ABLAAllMVPFlowsTest::Require(bool bCondition, const FString& Reason)
     }
     bTestFailed = true;
     FailureReason = Reason;
+    UE_LOG(LogTemp, Error, TEXT("BLA_ALL_MVP_FLOWS_FAILED reason=%s"), *Reason);
     return false;
 }
 
@@ -56,13 +58,18 @@ void ABLAAllMVPFlowsTest::Tick(float DeltaSeconds)
         UGameplayStatics::GetActorOfClass(this, ABLAUIManager::StaticClass()));
     if (!GameInstance || !GameInstance->bHarnessRequested || !UIManager || !UIManager->GetRoundManager())
     {
-        if (++Ticks >= FlowTimeoutTicks)
+        if (++Ticks >= AllMVPFlowTimeoutTicks)
         {
             Require(false, TEXT("match_not_ready"));
             if (GameInstance)
             {
                 GameInstance->HarnessResult = TEXT("FAILED match_not_ready");
                 GameInstance->bHarnessRequested = false;
+            }
+            if (ABLAUIManager* TimeoutUIManager = Cast<ABLAUIManager>(
+                UGameplayStatics::GetActorOfClass(this, ABLAUIManager::StaticClass())))
+            {
+                TimeoutUIManager->ReturnToMenu();
             }
         }
         return;
@@ -82,10 +89,15 @@ void ABLAAllMVPFlowsTest::Run()
     const FString Context = FString::Printf(TEXT("mode=%d size=%d difficulty=%d"),
         static_cast<int32>(GameInstance->HarnessMode), GameInstance->HarnessTeamSize,
         static_cast<int32>(GameInstance->HarnessDifficulty));
-    const auto Finish = [this, GameInstance](const FString& Result)
+    const auto Finish = [this, GameInstance, UIManager](const FString& Result)
     {
         GameInstance->HarnessResult = Result;
         GameInstance->bHarnessRequested = false;
+        // Always travel back so the harness can read the result and continue.
+        if (UIManager)
+        {
+            UIManager->ReturnToMenu();
+        }
     };
 
     if (!Require(GameInstance->SelectedMode == GameInstance->HarnessMode
@@ -136,6 +148,13 @@ void ABLAAllMVPFlowsTest::Run()
             Finish(FString::Printf(TEXT("FAILED objective_missing %s"), *Context));
             return;
         }
+        // Freeze the pawn for the forced interaction: the objective manager cancels on
+        // movement, and a teleported character would otherwise fall out of tolerance.
+        UCharacterMovementComponent* Movement = Player->GetCharacterMovement();
+        if (Movement)
+        {
+            Movement->DisableMovement();
+        }
         Player->SetActorLocation(Objective->DataCore->GetActorLocation() + FVector(100.0f, 0.0f, 0.0f));
         if (!Require(Objective->BeginPickup(Player) && Objective->ObjectiveState == EBLA_ObjectiveState::Carried,
             TEXT("forced_pickup")))
@@ -154,11 +173,19 @@ void ABLAAllMVPFlowsTest::Run()
         Objective->Tick(0.1f);
         if (!Require(Objective->IsPlanted(), TEXT("forced_plant_complete")))
         {
-            Finish(FString::Printf(TEXT("FAILED forced_plant_complete %s"), *Context));
+            Finish(FString::Printf(TEXT("FAILED forced_plant_complete state=%d cancel=%s remaining=%.2f player=%s zone=%s core=%s %s"),
+                static_cast<int32>(Objective->ObjectiveState), *Objective->LastCancelReason.ToString(),
+                Objective->InteractionRemaining, *Player->GetActorLocation().ToCompactString(),
+                *Objective->ObjectiveZone->GetActorLocation().ToCompactString(),
+                *Objective->DataCore->GetActorLocation().ToCompactString(), *Context));
             return;
         }
         Report(TEXT("FORCED_OBJECTIVE_ACTION"), FString::Printf(TEXT("pickup=1 plant=1 %s"), *Context));
         Objective->ResetObjective();
+        if (Movement)
+        {
+            Movement->SetMovementMode(MOVE_Walking);
+        }
     }
 
     // Round result, match result, restart and the return-to-menu request.
@@ -194,8 +221,6 @@ void ABLAAllMVPFlowsTest::Run()
     bTestSucceeded = true;
     Finish(FString::Printf(TEXT("OK %s"), *Context));
     Report(TEXT("ALL_MVP_FLOWS_OK"), Context);
-    // Travel back so the harness on the menu map can read the result and continue.
-    UIManager->ReturnToMenu();
 }
 
 #else
