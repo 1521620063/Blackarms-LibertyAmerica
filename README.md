@@ -24,16 +24,18 @@ Editor-only Python scripts live in `Scripts/Editor`. They create and validate Un
 
 ## Verification
 
-`Scripts/run_verification.ps1` runs the full verification matrix (Task 2-9 contract scripts, the bootstrap/PIE drivers, the team-size 1/2/3 runs and the Data Core driver) through `UnrealEditor-Cmd.exe` and enforces the marker contract: each run must emit its `BLA_*_OK` marker, and any `_FAILED` marker, missing marker, or timeout fails the matrix with a non-zero exit code.
+`Scripts/run_verification.ps1` runs the full 25-check matrix (Task 2-12 contract scripts, bootstrap/PIE drivers, team-size 1/2/3 runs, Data Core, UI flow, Zero Facility navigation, and the all-flows harness) through `UnrealEditor-Cmd.exe` and enforces the marker contract: each run must emit its `BLA_*_OK` marker, and any `_FAILED` marker, missing marker, or timeout fails the matrix with a non-zero exit code.
 
 ```powershell
 pwsh -File Scripts/run_verification.ps1
-pwsh -File Scripts/run_verification.ps1 -Only verify_task9_pie
+pwsh -File Scripts/run_verification.ps1 -Only verify_task12_pie
 ```
 
-Run it with no other `UnrealEditor-Cmd.exe` process active: a second instance silently loses the project lock and produces an empty log. Logs are written to `Saved/Logs/V_<check>_<tag>.log`.
+Do not pass `-Soak` for the release matrix: soak adds two 3v3 Zero Facility runs and reports 27 checks. Run it with no other `UnrealEditor-Cmd.exe` process active: a second instance silently loses the project lock and produces an empty log. Logs are written to `Saved/Logs/V_<check>_<tag>.log`.
 
-Content generators must be run in order (`bootstrap_project.py` then `build_task2_assets.py` … `build_task10_assets.py`). Each generator now destroys only the actors it owns, so re-running one generator no longer deletes another task's level content.
+Content generators must be run in order (`bootstrap_project.py` then `build_task2_assets.py` … `build_task12_assets.py`). Each generator now destroys only the actors it owns, so re-running one generator no longer deletes another task's level content.
+
+The 2026-09-15 offline single-player release evidence is in `docs/builds/single-player-release-2026-09-15.md`.
 
 ## Zero Facility Map (Task 11)
 
@@ -49,31 +51,51 @@ is set to dynamic runtime generation so PIE and packaged builds rebuild navigati
 
 `Scripts/Editor/verify_task11_soak.py` runs five matches for one mode/scale pair (select it with
 `BLA_TASK11_SOAK_MODE=elimination|data_core` and `BLA_TASK11_SOAK_SIZE=1|2|3`) and reports first contact,
-bot travel, stuck ticks, route usage and the objective states it observed. Results of the 2026-09-15 run
-(six configurations, 30 matches, 15 s observation per match):
+bot travel, stuck ticks, route usage and the objective states it observed.
 
-| Mode | Scale | First contact (ticks) | Min bot travel | Stuck ticks | Routes seen | Objective states |
-|------|-------|----------------------|----------------|-------------|-------------|------------------|
-| Team Elimination | Solo | none | 1342.9 | 0 | MidCombatZone, ObjectiveZone, DefenseSpawn | AVAILABLE |
-| Team Elimination | 2v2 | 78, 1, 1, 1, 1 | 1271.1 | 934 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn | AVAILABLE |
-| Team Elimination | 3v3 | 29, 1, 1, 1, 1 | 1342.9 | 21 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn | AVAILABLE |
-| Data Core | Solo | none | 1342.9 | 0 | MidCombatZone, ObjectiveZone, DefenseSpawn | AVAILABLE |
-| Data Core | 2v2 | 94, 1, 1, 1, 1 | 1342.9 | 2391 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn | AVAILABLE |
-| Data Core | 3v3 | 94, 1, 1, 1, 1 | 1342.9 | 6756 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn, RightRoute | AVAILABLE |
+Current 3v3 evidence is the Task 2 run (`tag=singleplayer-routes`) after tactical points received real
+transforms and per-lane scoring. Solo/2v2 rows below are the morning baseline from before that fix.
+
+| Mode | Scale | First contact (ticks) | Min bot travel | Stuck ticks | Routes seen | Notes |
+|------|-------|----------------------|----------------|-------------|-------------|-------|
+| Team Elimination | Solo | none | 1342.9 | 0 | MidCombatZone, ObjectiveZone, DefenseSpawn | unattended human attacker does not move |
+| Team Elimination | 2v2 | 78, 1, 1, 1, 1 | 1271.1 | 934 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn | pre-fix baseline; not re-soaked in Task 2-5 |
+| Team Elimination | 3v3 | 137, 1, 1, 1, 1 | 908.1 | 832 | AttackSpawn, CenterRoute, DefenseSpawn, FlankZone, LeftRoute, MidCombatZone, ObjectiveZone, RightRoute | post-fix; 30 recoveries |
+| Data Core | Solo | none | 1342.9 | 0 | MidCombatZone, ObjectiveZone, DefenseSpawn | unattended human attacker does not move |
+| Data Core | 2v2 | 94, 1, 1, 1, 1 | 1342.9 | 2391 | AttackSpawn, CenterRoute, MidCombatZone, ObjectiveZone, DefenseSpawn | pre-fix baseline; not re-soaked in Task 2-5 |
+| Data Core | 3v3 | 56, 1, 1, 1, 1 | 1661.4 | 1783 | AttackSpawn, CenterRoute, DefenseSpawn, LeftRoute, MidCombatZone, ObjectiveZone | post-fix; 40 recoveries; previous stuck=6756 |
 
 Reading of these results (2026-09-15):
 
-- Contact happens in every multi-bot configuration, and bots travel 1200+ units per match, so routing and
-  combat work on the new map. Solo stays quiet because the human player is the only attacker and does not move
-  in an unattended run.
-- Bots only use the center and right routes; the left route was never entered in 30 matches. It is reachable
-  (the navigation test checks it), it is simply not preferred by the current tactical points, so the left
-  corridor needs either a tactical point of its own or an AI weighting change.
-- Stuck ticks grow with team size (up to 6756 in 3v3 Data Core, i.e. several bots waiting at chokepoints). The
-  corridors and objective entries pass the navigation test, but the AI still jams when several bots share one
-  entry; widen or stagger the objective entries before human playtesting.
-- The objective stayed `AVAILABLE` in all 30 matches: attacker bots walk towards the core but do not reach and
-  pick it up inside the 15 s window. Longer matches and/or stronger objective weighting are needed before the
-  Data Core mode can be called complete from a gameplay point of view.
+- Contact happens in every multi-bot configuration that was soaked. Solo stays quiet because the human
+  player is the only attacker and does not move in an unattended run.
+- After the Task 2 route fix, both 3v3 modes select LeftRoute. Elimination also covers RightRoute and FlankZone.
+- 3v3 still records stuck ticks, but Data Core dropped from 6756 to 1783 and both modes stay under the 2000
+  recovery cap. Recoveries include bot and point.
+- Unattended 15 s Data Core soak may not finish upload. The scripted PIE flow and the packaged 18-configuration
+  harness do reach plant/upload/round result.
 - No spawn overlap, no unrecoverable corner and no direct spawn-to-spawn sight were reported by
-  `FT_BLA_MapNavigation` in any run.
+  `FT_BLA_MapNavigation` in the navigation PIE driver.
+
+## Windows package
+
+Development Win64 package path: `D:\dev\BLA-Packaged\Windows\BlackarmsLibertyAmerica.exe` (outside the repository).
+
+```powershell
+& "D:\dev\BLA-Packaged\Windows\BlackarmsLibertyAmerica.exe" -BLASmokeTest -nullrhi -nosound -unattended
+```
+
+The 2026-09-15 offline milestone recorded `HARNESS_RUN_COMPLETE configurations=18 failures=0`. Details are in
+`docs/builds/single-player-release-2026-09-15.md`. The earlier morning MVP package record remains in
+`docs/builds/windows-mvp-smoke-test.md`.
+
+## LAN Extension Roadmap
+
+This repository's current milestone is offline single-player only. LAN work is deferred and limited to:
+
+- Listen Server on the local network
+- Server-authoritative match truth (damage, objective, score, spawn)
+- AI fill for empty slots
+- Disconnect returns remaining players to the menu
+
+No public matchmaking, accounts, dedicated server, or replication code is in this release.

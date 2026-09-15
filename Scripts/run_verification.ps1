@@ -1,6 +1,10 @@
 <#
 Runs the Blackarms-LibertyAmerica verification matrix without a human in the loop.
 
+The default matrix is 25 checks covering Task 2-12 contracts and PIE drivers.
+-Soak adds the two 3v3 Zero Facility soaks (27 checks) and is not part of the
+offline single-player release gate.
+
 Contract: every script below must emit exactly one of its OK/FAILED markers in the
 run log. A missing marker, a FAILED marker, or a timeout fails the matrix and the
 process exits non-zero. Contract scripts do not quit the editor themselves, so the

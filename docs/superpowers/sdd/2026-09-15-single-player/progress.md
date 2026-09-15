@@ -141,6 +141,21 @@
 - 18 套配置冒烟属于 Task 5 的 `-BLASmokeTest`，本任务未跑。
 - 提交：`fix: harden offline player flow`。
 
+## Task 5：发布回归与打包（已完成）
+
+- 全矩阵：`pwsh -File Scripts/run_verification.ps1 -Tag singleplayer-release`
+  - `MATRIX_DONE checks=25 failed=0` / `MATRIX_OK`
+  - stdout：`Saved/Logs/verify_matrix_singleplayer-release_stdout.txt`
+- Development Win64 打包：`RunUAT.bat BuildCookRun ... -archivedirectory=D:\dev\BLA-Packaged -nocompileeditor`
+  - `BUILD SUCCESSFUL`，AutomationTool `ExitCode=0`，`BuildCookRun time: 111.22 s`
+  - 包路径：`D:\dev\BLA-Packaged\Windows\BlackarmsLibertyAmerica.exe`（17:15:24）
+- 打包冒烟：`-BLASmokeTest -nullrhi -nosound -unattended`
+  - `HARNESS_RUN_COMPLETE configurations=18 failures=0`
+  - 日志：`Saved/Logs/SmokePackaged-singleplayer-release.log`
+- 发布文档：`docs/builds/single-player-release-2026-09-15.md`
+- MVP `Deferred Online Roadmap` 已改名为 `LAN Extension Roadmap`，范围收窄到 Listen Server、服务端权威、AI fill、断线回菜单。
+- 提交：`release: complete offline single player milestone`，并 `git push origin main`。
+
 ## 待办
 
-- Task 5：全矩阵回归、Windows 打包冒烟、发布文档与 LAN 路线改写。
+- 无。后续局域网工作另开 `docs/superpowers/plans/2026-09-15-lan-listen-server.md`。

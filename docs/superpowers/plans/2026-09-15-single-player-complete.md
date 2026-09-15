@@ -52,11 +52,11 @@ Files: `Source/BLA/Private/BLAUIManager.cpp`, `Source/BLA/Public/BLAUIManager.h`
 
 Files: `Scripts/run_verification.ps1`, `README.md`, `docs/builds/windows-mvp-smoke-test.md`, create `docs/builds/single-player-release-2026-09-15.md`.
 
-- [ ] Run the full matrix and require `MATRIX_DONE checks=25 failed=0`.
-- [ ] Build the Development Windows package and run `-BLASmokeTest`; require `HARNESS_RUN_COMPLETE configurations=18 failures=0`.
-- [ ] Record date, UE version, commit, package path, results, known limitations, and LAN invariants in the release document.
-- [ ] Rename the MVP `Online Roadmap` section to `LAN Extension Roadmap`, limited to Listen Server, server-authoritative match truth, AI fill, and disconnect-to-menu.
-- [ ] Commit `release: complete offline single player milestone` and push `origin main`.
+- [x] Run the full matrix and require `MATRIX_DONE checks=25 failed=0`.
+- [x] Build the Development Windows package and run `-BLASmokeTest`; require `HARNESS_RUN_COMPLETE configurations=18 failures=0`.
+- [x] Record date, UE version, commit, package path, results, known limitations, and LAN invariants in the release document.
+- [x] Rename the MVP `Online Roadmap` section to `LAN Extension Roadmap`, limited to Listen Server, server-authoritative match truth, AI fill, and disconnect-to-menu.
+- [x] Commit `release: complete offline single player milestone` and push `origin main`.
 
 ## Later LAN Extension
 

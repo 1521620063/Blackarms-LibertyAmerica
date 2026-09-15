@@ -75,10 +75,14 @@ The managers report into `BLADebugSubsystem` (game-instance subsystem, C++) and 
 
 ## Known gaps
 
-- Five-match soaks showed the left Zero Facility route is never chosen by the AI, 3v3 traffic jams at
-  chokepoints and the Data Core objective is not completed inside a 15 s window (recorded in `README.md`).
+- Solo unattended soaks have no first contact because the human attacker does not move.
+- 3v3 still records stuck ticks after the route fix (Team Elimination 832, Data Core 1783) but both stay
+  under the 2000 recovery cap, and Data Core is below the origin-collapse baseline of 6756. Recoveries
+  include bot and point. See `README.md` and `docs/builds/single-player-release-2026-09-15.md`.
+- Unattended 15 s Data Core soaks may not finish upload; the scripted PIE flow and packaged harness do.
 - Sight acquisition is a deterministic C++ scan; the AIPerception component still owns hearing/damage stimuli.
 - Placeholders stay in place until graybox playtests pass (walls/floors, cover, weapons, bots, lights, VFX/audio).
+- This milestone is offline only: no replication, Listen Server, dedicated server, accounts, or matchmaking.
 
 ## Single-player milestone acceptance (2026-09-15)
 

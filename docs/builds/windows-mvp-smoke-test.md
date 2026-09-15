@@ -1,5 +1,7 @@
 # Windows MVP smoke test
 
+The offline single-player milestone re-packaged this path on 2026-09-15 afternoon and recorded `HARNESS_RUN_COMPLETE configurations=18 failures=0` in `docs/builds/single-player-release-2026-09-15.md`. The tables below are the morning MVP package record.
+
 ## Build
 
 | Field | Value |

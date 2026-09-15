@@ -263,9 +263,9 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 - [x] Package a Development Windows build; launch it, start both modes, run all scales, complete a round, restart, and return to menu. Record date, UE5 version, output path, scenarios, and result in the smoke-test file.
 - [x] Commit `test: add MVP regression and recovery diagnostics`, then `release: package Windows FPS MVP` after the packaged smoke test passes.
 
-## Deferred Online Roadmap
+## LAN Extension Roadmap
 
-Do not execute in the MVP. After Task 12 passes: replicate GameState/PlayerState/weapon/objective state, move damage/objective/score/spawn decisions to server authority, add sessions and AI replacement, create a dedicated server target, handle disconnects and synchronized spectator mode, then rerun the same functional matrix with one real client and AI fill.
+Do not execute in this offline milestone. After the single-player release passes, add a LAN Listen Server only: keep match truth server-authoritative (damage, objective, score, spawn), fill empty slots with AI, and return remaining players to the menu on disconnect. Do not add public matchmaking, accounts, or a dedicated server target in that follow-up.
 
 ## Execution Rules
 
