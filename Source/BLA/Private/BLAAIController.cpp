@@ -4,10 +4,12 @@
 #include "BLABotPerception.h"
 #include "BLACharacterBase.h"
 #include "BLADataCore.h"
+#include "BLADebugSubsystem.h"
 #include "BLAGameState.h"
 #include "BLAHealthComponent.h"
 #include "BLAObjectiveManager.h"
 #include "BLAObjectiveZone.h"
+#include "BLASpawnPoint.h"
 #include "BLATacticalManager.h"
 #include "BLATacticalPoint.h"
 #include "BLATeamManager.h"
@@ -377,6 +379,10 @@ void ABLAAIController::TickCombat()
     const ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
     if (State && State->RoundPhase != EBLA_RoundPhase::Combat)
     {
+        if (State->RoundPhase == EBLA_RoundPhase::Preparation)
+        {
+            StuckRecoveryCount = 0;
+        }
         // Bots hold fire outside combat; movement and directives keep running.
         return;
     }
@@ -440,9 +446,59 @@ bool ABLAAIController::RecoverFromStuck(ABLATacticalManager* Manager)
     {
         return false;
     }
-    ABLATacticalPoint* Recovery = Manager->FindNearestReachablePoint(Bot, Bot->Team);
     bIsStuck = false;
-    return Recovery && MoveToTacticalPoint(Recovery);
+    ++StuckRecoveryCount;
+    ABLASpawnPoint* SafeSpawn = nullptr;
+    ABLATacticalPoint* Recovery = nullptr;
+    if (StuckRecoveryCount > 2)
+    {
+        // Two failed recoveries in one round: fall back to the team's own spawn area.
+        SafeSpawn = FindNearestTeamSpawn(Bot);
+    }
+    if (SafeSpawn)
+    {
+        IssueDirectiveMove(SafeSpawn->GetActorLocation(), 50.0f);
+    }
+    else
+    {
+        Recovery = Manager->FindNearestReachablePoint(Bot, Bot->Team);
+        if (Recovery)
+        {
+            MoveToTacticalPoint(Recovery);
+        }
+    }
+    if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+    {
+        Debug->ReportEvent(TEXT("AI_STUCK_RECOVERED"),
+            FString::Printf(TEXT("bot=%s point=%s attempts=%d fallback=%s"), *Bot->GetName(),
+                SafeSpawn ? *SafeSpawn->GetName() : Recovery ? *Recovery->GetName() : TEXT("none"),
+                StuckRecoveryCount, SafeSpawn ? TEXT("team_spawn") : TEXT("tactical_point")));
+    }
+    return SafeSpawn != nullptr || Recovery != nullptr;
+}
+
+ABLASpawnPoint* ABLAAIController::FindNearestTeamSpawn(const ABLACharacterBase* Bot) const
+{
+    if (!Bot || !GetWorld())
+    {
+        return nullptr;
+    }
+    ABLASpawnPoint* Best = nullptr;
+    float BestDistance = TNumericLimits<float>::Max();
+    for (TActorIterator<ABLASpawnPoint> It(GetWorld()); It; ++It)
+    {
+        if (It->Team != Bot->Team)
+        {
+            continue;
+        }
+        const float Distance = FVector::DistSquared2D(Bot->GetActorLocation(), It->GetActorLocation());
+        if (Distance < BestDistance)
+        {
+            BestDistance = Distance;
+            Best = *It;
+        }
+    }
+    return Best;
 }
 
 bool ABLAAIController::ResolveRoleDirective(ABLATacticalManager* Manager, ABLATeamManager* TeamManager, AActor* PlayerActor)

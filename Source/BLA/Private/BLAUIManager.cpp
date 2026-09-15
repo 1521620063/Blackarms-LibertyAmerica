@@ -86,6 +86,11 @@ ABLARoundManager* ABLAUIManager::GetRoundManager() const
     return RoundManager;
 }
 
+ABLAObjectiveManager* ABLAUIManager::GetObjectiveManager() const
+{
+    return ObjectiveManager;
+}
+
 UUserWidget* ABLAUIManager::CreateScreenWidget(EBLA_UIScreen Screen)
 {
     if (!bCreateWidgets)

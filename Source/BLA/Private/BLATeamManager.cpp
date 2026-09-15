@@ -1,6 +1,7 @@
 #include "BLATeamManager.h"
 
 #include "BLACharacterBase.h"
+#include "BLADebugSubsystem.h"
 #include "BLAHealthComponent.h"
 #include "BLASpawnPoint.h"
 #include "EngineUtils.h"
@@ -93,6 +94,23 @@ ABLASpawnPoint* ABLATeamManager::SelectSpawnPoint(EBLA_Team Team, FName Preferre
     if (Result)
     {
         Result->bReserved = true;
+        if (Result->Team != Team)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SPAWN_FALLBACK_USED team=%d spawn=%s reason=no_team_spawn"),
+                static_cast<int32>(Team), *Result->GetName());
+            if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+            {
+                Debug->ReportEvent(TEXT("SPAWN_FALLBACK_USED"),
+                    FString::Printf(TEXT("team=%d spawn=%s reason=no_team_spawn"),
+                        static_cast<int32>(Team), *Result->GetName()));
+            }
+        }
+    }
+    else if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SPAWN_FALLBACK_USED team=%d reason=no_spawn_points"), static_cast<int32>(Team));
+        Debug->ReportEvent(TEXT("SPAWN_FALLBACK_USED"),
+            FString::Printf(TEXT("team=%d reason=no_spawn_points"), static_cast<int32>(Team)));
     }
     return Result;
 }

@@ -66,6 +66,9 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Round")
     bool bIsRoundEnding = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Round")
+    float WatchdogSeconds = 240.0f;
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -78,4 +81,5 @@ private:
 
     FBLAMatchRules ActiveRules;
     bool bOvertimeUsed = false;
+    float PhaseElapsed = 0.0f;
 };

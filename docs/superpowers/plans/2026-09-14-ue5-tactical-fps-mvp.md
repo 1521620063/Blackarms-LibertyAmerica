@@ -249,7 +249,7 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 ### Task 12: Add regression, diagnostics, recovery, and Windows packaging
 
-**Files:** Create `FT_BLA_AllMVPFlows`, `BP_BLATestHarness`, `BP_BLADebugSubsystem`, `docs/testing/mvp-test-matrix.md`, `docs/builds/windows-mvp-smoke-test.md`; modify managers only to emit recovery diagnostics.
+**Files:** Create `FT_BLA_AllMVPFlows`, `BP_BLATestHarness`, `BLADebugSubsystem` (C++ game-instance subsystem: UHT rejects UCLASS on a `UActorComponent`-style subsystem Blueprint, so this deliverable stays a C++ class and no `BP_BLADebugSubsystem` asset exists), `docs/testing/mvp-test-matrix.md`, `docs/builds/windows-mvp-smoke-test.md`; modify managers only to emit recovery diagnostics.
 
 **Interfaces:** Consumes all MVP systems; produces repeatable regression coverage and safe recovery.
 

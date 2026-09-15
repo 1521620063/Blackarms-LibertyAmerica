@@ -2,6 +2,7 @@
 
 #include "BLACharacterBase.h"
 #include "BLADataCore.h"
+#include "BLADebugSubsystem.h"
 #include "BLAGameState.h"
 #include "BLAHealthComponent.h"
 #include "BLAObjectiveZone.h"
@@ -437,11 +438,34 @@ void ABLAObjectiveManager::RecoverCoreIfNeeded()
     {
         return;
     }
+    const bool bCanRecover = ObjectiveZone != nullptr || !DataCore->HomeLocation.IsNearlyZero();
+    if (!bCanRecover)
+    {
+        // No valid location exists at all: fail the round explicitly instead of stalling.
+        const FString MapName = GetWorld() ? GetWorld()->GetMapName() : TEXT("unknown");
+        UE_LOG(LogTemp, Error, TEXT("OBJECTIVE_INVALID_STATE map=%s"), *MapName);
+        if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+        {
+            Debug->ReportEvent(TEXT("OBJECTIVE_INVALID_STATE"), FString::Printf(TEXT("map=%s"), *MapName));
+        }
+        SetObjectiveState(EBLA_ObjectiveState::None);
+        if (RoundManager)
+        {
+            RoundManager->EndRound(EBLA_Team::Neutral, TEXT("ObjectiveInvalidState"));
+        }
+        return;
+    }
     DataCore->ResetToHome();
     SetObjectiveState(EBLA_ObjectiveState::Available);
     bCoreRecovered = true;
     LastRecoveryReason = TEXT("OutsideValidArea");
     UE_LOG(LogTemp, Warning, TEXT("BLA_OBJECTIVE_CORE_RELOCATED location=%s"), *DataCore->GetActorLocation().ToCompactString());
+    if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+    {
+        Debug->ReportEvent(TEXT("OBJECTIVE_CORE_RESET"),
+            FString::Printf(TEXT("core=%s home=%s reason=OutsideValidArea"),
+                *DataCore->GetName(), *DataCore->HomeLocation.ToCompactString()));
+    }
 }
 
 bool ABLAObjectiveManager::IsInteractorUsable(const ABLACharacterBase* Interactor) const

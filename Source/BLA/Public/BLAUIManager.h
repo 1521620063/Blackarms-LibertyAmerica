@@ -227,6 +227,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "BLA|UI")
     ABLARoundManager* GetRoundManager() const;
 
+    UFUNCTION(BlueprintPure, Category = "BLA|UI")
+    ABLAObjectiveManager* GetObjectiveManager() const;
+
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     void NotifyHitConfirmed(float AppliedDamage, bool bKilled);
 

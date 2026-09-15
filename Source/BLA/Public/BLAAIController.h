@@ -102,6 +102,7 @@ protected:
 
 private:
     void HandleTeamOrderChanged(EBLA_RoundPhase Phase);
+    class ABLASpawnPoint* FindNearestTeamSpawn(const class ABLACharacterBase* Bot) const;
     void UpdateTargetMemory();
     void ScanForTargets();
     bool HasClearShot(const AActor* Candidate) const;
@@ -118,6 +119,7 @@ private:
     double LastFireTime = -1.0;
     double TargetLostTime = -1.0;
     double LastTargetScanTime = -1.0;
+    int32 StuckRecoveryCount = 0;
     float DirectiveRefreshElapsed = 0.0f;
     bool bObjectiveOwnsMovement = false;
     bool bHasDirectiveMoveTarget = false;

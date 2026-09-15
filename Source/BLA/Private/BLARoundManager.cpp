@@ -1,6 +1,7 @@
 #include "BLARoundManager.h"
 
 #include "BLACharacterBase.h"
+#include "BLADebugSubsystem.h"
 #include "BLAGameState.h"
 #include "BLAHealthComponent.h"
 #include "BLASpawnPoint.h"
@@ -44,6 +45,7 @@ void ABLARoundManager::Tick(float DeltaSeconds)
         return;
     }
     BLAGameState->RoundTimeRemaining = FMath::Max(0.0f, BLAGameState->RoundTimeRemaining - DeltaSeconds);
+    PhaseElapsed += DeltaSeconds;
     if (BLAGameState->RoundTimeRemaining <= 0.0f)
     {
         if (BLAGameState->RoundPhase == EBLA_RoundPhase::Preparation)
@@ -54,6 +56,20 @@ void ABLARoundManager::Tick(float DeltaSeconds)
         {
             EvaluateTimeout();
         }
+    }
+    if (!bIsRoundEnding && PhaseElapsed >= WatchdogSeconds)
+    {
+        // Watchdog: a phase that outlives every rule timer would otherwise stall the match.
+        UE_LOG(LogTemp, Warning, TEXT("ROUND_WATCHDOG_EXPIRED phase=%d elapsed=%.1f round=%d"),
+            static_cast<int32>(BLAGameState->RoundPhase), PhaseElapsed, BLAGameState->CurrentRound);
+        if (UBLADebugSubsystem* Debug = UBLADebugSubsystem::Get(this))
+        {
+            Debug->ReportEvent(TEXT("ROUND_WATCHDOG_EXPIRED"),
+                FString::Printf(TEXT("phase=%d round=%d elapsed=%.1f"),
+                    static_cast<int32>(BLAGameState->RoundPhase), BLAGameState->CurrentRound, PhaseElapsed));
+        }
+        // EndRound already guards duplicate scoring through bIsRoundEnding.
+        EndRound(EBLA_Team::Neutral, TEXT("RoundWatchdogExpired"));
     }
 }
 
@@ -78,6 +94,7 @@ void ABLARoundManager::StartPreparationPhase()
 {
     bIsRoundEnding = false;
     bOvertimeUsed = false;
+    PhaseElapsed = 0.0f;
     ResetCombatantPositions();
     BLAGameState->RoundPhase = EBLA_RoundPhase::Preparation;
     BLAGameState->RoundTimeRemaining = ActiveRules.PreparationSeconds;
@@ -111,6 +128,7 @@ void ABLARoundManager::ResetCombatantPositions()
 void ABLARoundManager::StartCombatPhase()
 {
     bIsRoundEnding = false;
+    PhaseElapsed = 0.0f;
     BLAGameState->RoundPhase = EBLA_RoundPhase::Combat;
     BLAGameState->RoundTimeRemaining = ActiveRules.CombatSeconds;
 }

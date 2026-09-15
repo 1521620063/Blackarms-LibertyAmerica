@@ -73,4 +73,29 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
     void RequestReturnToMenu();
+
+    /** Test-harness configuration carried across the menu -> match -> menu travel (inert in Shipping). */
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    bool bHarnessRequested = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    bool bHarnessRunAll = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    int32 HarnessConfigIndex = 0;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    EBLA_MatchMode HarnessMode = EBLA_MatchMode::TeamElimination;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    int32 HarnessTeamSize = 1;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    EBLA_DifficultyLevel HarnessDifficulty = EBLA_DifficultyLevel::Normal;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    FString HarnessResult;
+
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Test")
+    TArray<FString> HarnessResults;
 };

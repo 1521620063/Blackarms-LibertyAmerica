@@ -49,6 +49,7 @@ $matrix = @(
     @{ Script = "verify_task9_contracts"; Marker = "BLA_TASK9_CONTRACTS_(OK|FAILED)"; FailPattern = "TASK9_CONTRACT_FAILURE" }
     @{ Script = "verify_task10_contracts"; Marker = "BLA_TASK10_CONTRACTS_(OK|FAILED)"; FailPattern = "TASK10_CONTRACT_FAILURE" }
     @{ Script = "verify_task11_contracts"; Marker = "BLA_TASK11_CONTRACTS_(OK|FAILED)"; FailPattern = "TASK11_CONTRACT_FAILURE" }
+    @{ Script = "verify_task12_contracts"; Marker = "BLA_TASK12_CONTRACTS_(OK|FAILED)"; FailPattern = "TASK12_CONTRACT_FAILURE" }
     @{ Script = "verify_bootstrap_pie"; Marker = "BLA_PIE_VERIFY_(OK|FAILED)" }
     @{ Script = "verify_task2_pie"; Marker = "BLA_TASK2_PIE_DRIVER_(OK|FAILED)" }
     @{ Script = "verify_task3_pie"; Marker = "BLA_TASK3_PIE_DRIVER_(OK|FAILED)" }
@@ -62,6 +63,7 @@ $matrix = @(
     @{ Script = "verify_task9_pie"; Marker = "BLA_TASK9_PIE_DRIVER_(OK|FAILED)" }
     @{ Script = "verify_task10_pie"; Marker = "BLA_TASK10_PIE_DRIVER_(OK|FAILED)" }
     @{ Script = "verify_task11_pie"; Marker = "BLA_TASK11_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_MAP_NAVIGATION_OK", "BLA_ELIMINATION_MATCH_READY") }
+    @{ Script = "verify_task12_pie"; Marker = "BLA_TASK12_PIE_DRIVER_(OK|FAILED)"; Require = @("ALL_MVP_FLOWS_OK", "HARNESS_CONFIGURATION_STARTED") }
 )
 
 $results = @()
