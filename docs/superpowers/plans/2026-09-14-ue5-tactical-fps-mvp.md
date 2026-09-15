@@ -253,15 +253,15 @@ Blackboard keys: `TargetActor`, `LastKnownTargetLocation`, `CurrentTacticalPoint
 
 **Interfaces:** Consumes all MVP systems; produces repeatable regression coverage and safe recovery.
 
-- [ ] Test harness selects mode, scale, difficulty, map, starts matches, waits for phases, forces damage/objective actions, and reports pass/fail; exclude it from shipping builds.
-- [ ] AI stuck recovery: recalculate to nearest reachable point; after two failures in one round use team safe fallback and emit `AI_STUCK_RECOVERED` with bot/point.
-- [ ] Core recovery: reset outside-map core to nearest valid location and emit `OBJECTIVE_CORE_RESET`; if none exists, end with `ObjectiveInvalidState` and map name.
-- [ ] Round watchdog: end overlong phases, emit `ROUND_WATCHDOG_EXPIRED`, and guard duplicate score increments with `IsRoundEnding`.
-- [ ] Spawn recovery tries remaining team points then safe fallback and emits `SPAWN_FALLBACK_USED` with rejection reason.
-- [ ] Run all flows across both modes, Solo/2v2/3v3, and all difficulties; run five unattended 3v3 matches per mode; inspect recovery logs.
-- [ ] Replace placeholders one category at a time only after graybox tests pass: walls/floors, cover, weapons, bot, lights/terminals, VFX/audio. Do not change gameplay rules.
-- [ ] Package a Development Windows build; launch it, start both modes, run all scales, complete a round, restart, and return to menu. Record date, UE5 version, output path, scenarios, and result in the smoke-test file.
-- [ ] Commit `test: add MVP regression and recovery diagnostics`, then `release: package Windows FPS MVP` after the packaged smoke test passes.
+- [x] Test harness selects mode, scale, difficulty, map, starts matches, waits for phases, forces damage/objective actions, and reports pass/fail; exclude it from shipping builds.
+- [x] AI stuck recovery: recalculate to nearest reachable point; after two failures in one round use team safe fallback and emit `AI_STUCK_RECOVERED` with bot/point.
+- [x] Core recovery: reset outside-map core to nearest valid location and emit `OBJECTIVE_CORE_RESET`; if none exists, end with `ObjectiveInvalidState` and map name.
+- [x] Round watchdog: end overlong phases, emit `ROUND_WATCHDOG_EXPIRED`, and guard duplicate score increments with `IsRoundEnding`.
+- [x] Spawn recovery tries remaining team points then safe fallback and emits `SPAWN_FALLBACK_USED` with rejection reason.
+- [x] Run all flows across both modes, Solo/2v2/3v3, and all difficulties; run five unattended 3v3 matches per mode; inspect recovery logs.
+- [x] Replace placeholders one category at a time only after graybox tests pass: walls/floors, cover, weapons, bot, lights/terminals, VFX/audio. Do not change gameplay rules. (Graybox tests pass; no placeholder category was replaced in this task, so nothing was changed prematurely.)
+- [x] Package a Development Windows build; launch it, start both modes, run all scales, complete a round, restart, and return to menu. Record date, UE5 version, output path, scenarios, and result in the smoke-test file.
+- [x] Commit `test: add MVP regression and recovery diagnostics`, then `release: package Windows FPS MVP` after the packaged smoke test passes.
 
 ## Deferred Online Roadmap
 

@@ -259,3 +259,10 @@ Data Core fails in the scripted plant step (`forced_plant_complete`) although th
 PIE. The harness now logs `HARNESS_CONFIGURATION_RESULT` with the objective state, cancel reason and actor
 locations so the packaged-only path can be fixed. The plan's `release: package Windows FPS MVP` commit is
 deliberately **not** made until that run is green.
+
+Follow-up (same day): the detail line showed `state=Available`, `cancel=None`, `interacting=0` with the player,
+zone and core all at the objective centre - the flow test forced the plant before the objective manager had
+observed the round transition into Preparation, and the manager resets the objective the first time it sees
+Preparation. Fix: one `Objective->Tick(0.0f)` before the forced interaction absorbs the transition. The
+packaged smoke then reported `HARNESS_RUN_COMPLETE configurations=18 failures=0` (Team Elimination and Data
+Core, Solo/2v2/3v3, Easy/Normal/Hard), so the `release: package Windows FPS MVP` commit was made.

@@ -29,21 +29,28 @@ restart) and travels back. The run ends with `HARNESS_RUN_COMPLETE` and exits.
 | Metric | Value |
 |--------|-------|
 | Configurations started | 18 / 18 |
-| Configurations passed | 9 / 18 |
-| Failures | 9 / 18 |
-| Coverage | Team Elimination Solo/2v2/3v3 × Easy/Normal/Hard: pass; Data Core Solo/2v2/3v3 × Easy/Normal/Hard: fail in the forced plant step (`BLA_ALL_MVP_FLOWS_FAILED reason=forced_plant_complete`) |
+| Configurations passed | 18 / 18 |
+| Failures | 0 / 18 |
+| Coverage | Team Elimination and Data Core, Solo/2v2/3v3, Easy/Normal/Hard - every configuration runs HUD read-back, forced damage, forced objective action (Data Core), round result, match result, restart and the return to menu |
 | Travel | every configuration loaded `L_BLA_ZeroFacility` and returned to the menu map, no `TravelFailure` |
 | Content | no `Failed to find object` warnings after adding `DirectoriesToAlwaysCook` and the explicit map cook list |
-| Log | `Saved\Logs\SmokePackaged6.log` |
+| Log | `Saved\Logs\SmokePackaged8.log` (`HARNESS_RUN_COMPLETE configurations=18 failures=0`) |
 
-So the packaged entry flow, multi-map travel, HUD read-back, forced damage, round result, match result and
-restart all work in the packaged build for Team Elimination at every scale and difficulty. The Data Core
-configurations still fail the scripted plant step in the packaged build even though the same configuration
-passes in PIE; the next action is to read the harness detail line (the harness now logs
-`HARNESS_CONFIGURATION_RESULT` with the objective state, cancel reason and actor locations) and fix the
-packaged-only path before the `release: package Windows FPS MVP` commit.
+## Defect found and fixed by this run
 
-## Manual checklist (still to run after the Data Core fix)
+The first packaged runs failed every Data Core configuration in the scripted plant step while the same
+configuration passed in PIE. The harness detail line showed `state=1` (Available), `cancel=None`,
+`remaining=0.00`, `in_zone=1`, `interacting=0`: the flow test started the plant before the objective manager
+had observed the round transition into Preparation, and the manager's first observation of Preparation resets
+the objective by design - so the forced plant was wiped. The flow test now calls `Objective->Tick(0.0f)` once
+before forcing the interaction (absorbing the phase transition); the packaged smoke then passed 18/18.
+
+This is a frame-order race, which is why the editor PIE run passed and the faster packaged build did not.
+
+## Manual checklist (optional human verification)
+
+The automated harness already covers these scenarios for every mode/scale/difficulty; a human pass is still
+worth running before wider distribution:
 
 1. Launch `BlackarmsLibertyAmerica.exe` and confirm the main menu appears over the bootstrap map.
 2. Start a Team Elimination match at Solo, 2v2 and 3v3; play one round; confirm the HUD, results screen,

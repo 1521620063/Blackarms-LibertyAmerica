@@ -148,6 +148,10 @@ void ABLAAllMVPFlowsTest::Run()
             Finish(FString::Printf(TEXT("FAILED objective_missing %s"), *Context));
             return;
         }
+        // Let the manager observe any pending round-phase transition first: it resets the
+        // objective when it first sees Preparation, which would wipe a plant started before
+        // that first observation (frame-order race, seen in the packaged build).
+        Objective->Tick(0.0f);
         // Freeze the pawn for the forced interaction: the objective manager cancels on
         // movement, and a teleported character would otherwise fall out of tolerance.
         UCharacterMovementComponent* Movement = Player->GetCharacterMovement();
@@ -173,9 +177,18 @@ void ABLAAllMVPFlowsTest::Run()
         Objective->Tick(0.1f);
         if (!Require(Objective->IsPlanted(), TEXT("forced_plant_complete")))
         {
-            Finish(FString::Printf(TEXT("FAILED forced_plant_complete state=%d cancel=%s remaining=%.2f player=%s zone=%s core=%s %s"),
+            const float PlantSeconds = RoundManager ? RoundManager->GetActiveRules().PlantSeconds : -1.0f;
+            Finish(FString::Printf(
+                TEXT("FAILED forced_plant_complete state=%d cancel=%s remaining=%.2f plant_seconds=%.2f ")
+                TEXT("alive=%d in_zone=%d core_in_zone=%d interacting=%d health=%.1f player=%s zone=%s core=%s %s"),
                 static_cast<int32>(Objective->ObjectiveState), *Objective->LastCancelReason.ToString(),
-                Objective->InteractionRemaining, *Player->GetActorLocation().ToCompactString(),
+                Objective->InteractionRemaining, PlantSeconds,
+                Player->GetIsAlive() ? 1 : 0,
+                Objective->ObjectiveZone->ContainsActor(Player) ? 1 : 0,
+                Objective->ObjectiveZone->ContainsLocation(Objective->DataCore->GetActorLocation()) ? 1 : 0,
+                Objective->IsInteractionActive() ? 1 : 0,
+                Player->HealthComponent ? Player->HealthComponent->CurrentHealth : -1.0f,
+                *Player->GetActorLocation().ToCompactString(),
                 *Objective->ObjectiveZone->GetActorLocation().ToCompactString(),
                 *Objective->DataCore->GetActorLocation().ToCompactString(), *Context));
             return;
