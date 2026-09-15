@@ -33,11 +33,11 @@ Files: `Source/BLA/Private/BLAAIController.cpp`, `Source/BLA/Public/BLAAIControl
 
 Files: `Source/BLA/Private/BLAObjectiveManager.cpp`, `Source/BLA/Public/BLAObjectiveManager.h`, `Source/BLA/Private/BLARoundManager.cpp`, `Source/BLA/Public/BLARoundManager.h`, and `Source/BLA/Private/BLAAllMVPFlowsTest.cpp`.
 
-- [ ] Record Preparation, Carried, Planting, Planted, Uploading, and Completed ticks plus cancellation reasons.
-- [ ] Ensure Preparation reset occurs once, upload timing starts only after Planted, and the configured 30-second upload rule is used without test-only rewriting.
-- [ ] Preserve cancellation on movement, damage, death, leaving the zone, and round transition.
-- [ ] Run `verify_task9_pie` and `verify_task12_pie`; require pickup -> plant -> upload/defuse -> round result without duplicate scoring or invalid state.
-- [ ] Commit `fix: stabilize offline data core pacing`.
+- [x] Record Preparation, Carried, Planting, Planted, Uploading, and Completed ticks plus cancellation reasons.
+- [x] Ensure Preparation reset occurs once, upload timing starts only after Planted, and the configured 30-second upload rule is used without test-only rewriting.
+- [x] Preserve cancellation on movement, damage, death, leaving the zone, and round transition.
+- [x] Run `verify_task9_pie` and `verify_task12_pie`; require pickup -> plant -> upload/defuse -> round result without duplicate scoring or invalid state.
+- [x] Commit `fix: stabilize offline data core pacing`.
 
 ## Task 4: Harden the offline player flow
 

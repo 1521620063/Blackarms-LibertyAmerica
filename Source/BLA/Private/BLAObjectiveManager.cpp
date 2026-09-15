@@ -76,6 +76,10 @@ void ABLAObjectiveManager::BeginPlay()
         TeamManager->OnCombatantDeath.RemoveAll(this);
         TeamManager->OnCombatantDeath.AddUObject(this, &ABLAObjectiveManager::HandleCombatantDeath);
     }
+    if (RoundManager)
+    {
+        RoundManager->ObjectiveManager = this;
+    }
     LastObservedPhase = BLAGameState ? BLAGameState->RoundPhase : EBLA_RoundPhase::Loading;
     SetObjectiveState(DataCore ? DataCore->State : EBLA_ObjectiveState::None);
 }
@@ -107,6 +111,10 @@ void ABLAObjectiveManager::Configure(ABLAGameState* InGameState, ABLARoundManage
     {
         TeamManager->OnCombatantDeath.AddUObject(this, &ABLAObjectiveManager::HandleCombatantDeath);
     }
+    if (RoundManager)
+    {
+        RoundManager->ObjectiveManager = this;
+    }
     LastObservedPhase = BLAGameState ? BLAGameState->RoundPhase : EBLA_RoundPhase::Loading;
     SetObjectiveState(DataCore ? DataCore->State : EBLA_ObjectiveState::None);
 }
@@ -123,6 +131,7 @@ void ABLAObjectiveManager::Tick(float DeltaSeconds)
         if (!IsInteractorUsable(Interactor))
         {
             CancelInteraction(Interactor, TEXT("Death"));
+            RecordPacingDiagnostics();
             return;
         }
         if (ObjectiveState == EBLA_ObjectiveState::Planting || ObjectiveState == EBLA_ObjectiveState::Defusing)
@@ -130,17 +139,20 @@ void ABLAObjectiveManager::Tick(float DeltaSeconds)
             if (ObjectiveZone && !ObjectiveZone->ContainsActor(Interactor))
             {
                 CancelInteraction(Interactor, TEXT("LeftZone"));
+                RecordPacingDiagnostics();
                 return;
             }
             if (FVector::DistSquared2D(InteractionStartLocation, Interactor->GetActorLocation())
                 > FMath::Square(MovementCancelTolerance))
             {
                 CancelInteraction(Interactor, TEXT("Movement"));
+                RecordPacingDiagnostics();
                 return;
             }
             InteractionRemaining = FMath::Max(0.0f, InteractionRemaining - Step);
             if (InteractionRemaining > 0.0f)
             {
+                RecordPacingDiagnostics();
                 return;
             }
             if (ObjectiveState == EBLA_ObjectiveState::Planting)
@@ -151,6 +163,7 @@ void ABLAObjectiveManager::Tick(float DeltaSeconds)
             {
                 CompleteDefuse();
             }
+            RecordPacingDiagnostics();
             return;
         }
     }
@@ -158,16 +171,22 @@ void ABLAObjectiveManager::Tick(float DeltaSeconds)
     if (ObjectiveState == EBLA_ObjectiveState::Planted)
     {
         SetObjectiveState(EBLA_ObjectiveState::Uploading);
+        RecordPacingDiagnostics();
         return;
     }
     if (ObjectiveState == EBLA_ObjectiveState::Uploading)
     {
-        UploadRemaining = FMath::Max(0.0f, UploadRemaining - Step);
-        if (UploadRemaining <= 0.0f)
+        const bool bCombatActive = BLAGameState && BLAGameState->RoundPhase == EBLA_RoundPhase::Combat;
+        if (bCombatActive)
         {
-            CompleteUpload();
+            UploadRemaining = FMath::Max(0.0f, UploadRemaining - Step);
+            if (UploadRemaining <= 0.0f)
+            {
+                CompleteUpload();
+            }
         }
     }
+    RecordPacingDiagnostics();
 }
 
 bool ABLAObjectiveManager::BeginPickup(ABLACharacterBase* Interactor)
@@ -252,6 +271,7 @@ void ABLAObjectiveManager::CancelInteraction(AActor* Interactor, FName Reason)
     ClearActiveInteractor();
     InteractionRemaining = 0.0f;
     LastCancelReason = Reason;
+    CancelReasons.Add(Reason);
     SetObjectiveState(StateBeforeInteraction);
 }
 
@@ -275,6 +295,7 @@ void ABLAObjectiveManager::ResetObjective()
     InteractionRemaining = 0.0f;
     UploadRemaining = 0.0f;
     LastCancelReason = NAME_None;
+    ++ResetCount;
     if (DataCore)
     {
         DataCore->ResetToHome();
@@ -283,6 +304,56 @@ void ABLAObjectiveManager::ResetObjective()
     else
     {
         SetObjectiveState(EBLA_ObjectiveState::None);
+    }
+}
+
+void ABLAObjectiveManager::HandlePreparationStart()
+{
+    ResetObjective();
+    LastObservedPhase = EBLA_RoundPhase::Preparation;
+}
+
+void ABLAObjectiveManager::HandleRoundEnding()
+{
+    CancelInteraction(nullptr, TEXT("RoundTransition"));
+    if (BLAGameState)
+    {
+        LastObservedPhase = BLAGameState->RoundPhase;
+    }
+}
+
+bool ABLAObjectiveManager::IsUploadInProgress() const
+{
+    return ObjectiveState == EBLA_ObjectiveState::Planted
+        || ObjectiveState == EBLA_ObjectiveState::Uploading
+        || ObjectiveState == EBLA_ObjectiveState::Defusing;
+}
+
+void ABLAObjectiveManager::RecordPacingDiagnostics()
+{
+    if (BLAGameState && BLAGameState->RoundPhase == EBLA_RoundPhase::Preparation)
+    {
+        ++PreparationTicks;
+    }
+    switch (ObjectiveState)
+    {
+    case EBLA_ObjectiveState::Carried:
+        ++CarriedTicks;
+        break;
+    case EBLA_ObjectiveState::Planting:
+        ++PlantingTicks;
+        break;
+    case EBLA_ObjectiveState::Planted:
+        ++PlantedTicks;
+        break;
+    case EBLA_ObjectiveState::Uploading:
+        ++UploadingTicks;
+        break;
+    case EBLA_ObjectiveState::Completed:
+        ++CompletedTicks;
+        break;
+    default:
+        break;
     }
 }
 
@@ -435,6 +506,14 @@ void ABLAObjectiveManager::ObserveRoundPhase()
 void ABLAObjectiveManager::RecoverCoreIfNeeded()
 {
     if (!DataCore || DataCore->State == EBLA_ObjectiveState::Carried || IsObjectiveInValidArea())
+    {
+        return;
+    }
+    if (ObjectiveState == EBLA_ObjectiveState::Planted
+        || ObjectiveState == EBLA_ObjectiveState::Uploading
+        || ObjectiveState == EBLA_ObjectiveState::Defusing
+        || ObjectiveState == EBLA_ObjectiveState::Defused
+        || ObjectiveState == EBLA_ObjectiveState::Completed)
     {
         return;
     }

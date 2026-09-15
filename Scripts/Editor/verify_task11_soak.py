@@ -52,6 +52,14 @@ def start_match_metrics():
         "recovery_count": 0,
         "last_positions": {},
         "last_recovery_by_bot": {},
+        "reset_count": 0,
+        "preparation_ticks": 0,
+        "carried_ticks": 0,
+        "planting_ticks": 0,
+        "planted_ticks": 0,
+        "uploading_ticks": 0,
+        "completed_ticks": 0,
+        "cancel_reasons": set(),
     }
 
 
@@ -96,6 +104,17 @@ def collect(game_world, metrics, tick):
                 metrics["first_contact"] = tick
     for manager in unreal.GameplayStatics.get_all_actors_of_class(game_world, unreal.BLAObjectiveManager):
         metrics["objective_states"].add(str(manager.get_editor_property("objective_state")))
+        metrics["reset_count"] = int(manager.get_editor_property("reset_count") or 0)
+        metrics["preparation_ticks"] = int(manager.get_editor_property("preparation_ticks") or 0)
+        metrics["carried_ticks"] = int(manager.get_editor_property("carried_ticks") or 0)
+        metrics["planting_ticks"] = int(manager.get_editor_property("planting_ticks") or 0)
+        metrics["planted_ticks"] = int(manager.get_editor_property("planted_ticks") or 0)
+        metrics["uploading_ticks"] = int(manager.get_editor_property("uploading_ticks") or 0)
+        metrics["completed_ticks"] = int(manager.get_editor_property("completed_ticks") or 0)
+        for reason in manager.get_editor_property("cancel_reasons") or []:
+            name = str(reason)
+            if name:
+                metrics["cancel_reasons"].add(name)
 
 
 def finish_match(game_world, metrics):
@@ -128,6 +147,14 @@ def finish_match(game_world, metrics):
         "latest_tactical_point": metrics["latest_tactical_point"],
         "no_displacement_ticks": metrics["no_displacement_ticks"],
         "recovery_count": metrics["recovery_count"],
+        "reset_count": metrics["reset_count"],
+        "preparation_ticks": metrics["preparation_ticks"],
+        "carried_ticks": metrics["carried_ticks"],
+        "planting_ticks": metrics["planting_ticks"],
+        "planted_ticks": metrics["planted_ticks"],
+        "uploading_ticks": metrics["uploading_ticks"],
+        "completed_ticks": metrics["completed_ticks"],
+        "cancel_reasons": sorted(metrics["cancel_reasons"]),
     }
 
 
@@ -179,7 +206,11 @@ def tick_impl():
         f"routes={','.join(result['routes'])} targets={','.join(result['directive_targets'])} "
         f"recoveries={','.join(result['recovery_points'])} recovery_count={result['recovery_count']} "
         f"latest_zone={result['latest_zone']} latest_point={result['latest_tactical_point']} "
-        f"no_displacement={result['no_displacement_ticks']} objective={','.join(result['objective_states'])}")
+        f"no_displacement={result['no_displacement_ticks']} objective={','.join(result['objective_states'])} "
+        f"reset={result['reset_count']} prep_ticks={result['preparation_ticks']} "
+        f"carried_ticks={result['carried_ticks']} planting_ticks={result['planting_ticks']} "
+        f"planted_ticks={result['planted_ticks']} uploading_ticks={result['uploading_ticks']} "
+        f"completed_ticks={result['completed_ticks']} cancel_reasons={','.join(result['cancel_reasons']) or 'none'}")
 
     state["match"] = None
     state["match_index"] += 1
@@ -214,7 +245,12 @@ def tick_impl():
         f"routes={','.join(routes)} targets={','.join(targets)} recoveries={','.join(recoveries)} "
         f"recovery_count={sum(item['recovery_count'] for item in state['results'])} "
         f"no_displacement={sum(item['no_displacement_ticks'] for item in state['results'])} "
-        f"objective_states={','.join(objectives)}")
+        f"objective_states={','.join(objectives)} "
+        f"reset={state['results'][-1]['reset_count']} prep_ticks={state['results'][-1]['preparation_ticks']} "
+        f"carried_ticks={state['results'][-1]['carried_ticks']} planting_ticks={state['results'][-1]['planting_ticks']} "
+        f"planted_ticks={state['results'][-1]['planted_ticks']} uploading_ticks={state['results'][-1]['uploading_ticks']} "
+        f"completed_ticks={state['results'][-1]['completed_ticks']} "
+        f"cancel_reasons={','.join(sorted({reason for item in state['results'] for reason in item['cancel_reasons']})) or 'none'}")
     state["finished"] = True
     level.editor_request_end_play()
     unreal.unregister_slate_post_tick_callback(handle)

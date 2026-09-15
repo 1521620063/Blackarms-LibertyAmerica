@@ -30,4 +30,5 @@ protected:
 
 private:
     bool Require(bool bCondition, const TCHAR* Reason);
+    bool RunPacingChecks();
 };

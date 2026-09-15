@@ -6,6 +6,7 @@
 
 class ABLACharacterBase;
 class ABLAGameState;
+class ABLAObjectiveManager;
 class ABLATeamManager;
 class ABLATeamOrderManager;
 
@@ -61,6 +62,8 @@ public:
     TObjectPtr<ABLATeamManager> TeamManager;
     UPROPERTY(BlueprintReadWrite, Category = "BLA|Round")
     TObjectPtr<ABLATeamOrderManager> TeamOrderManager;
+    UPROPERTY(BlueprintReadWrite, Category = "BLA|Round")
+    TObjectPtr<ABLAObjectiveManager> ObjectiveManager;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Round")
     TObjectPtr<UBLARoundResultData> LastResult;
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Round")

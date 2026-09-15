@@ -47,9 +47,148 @@ bool ABLADataCoreTest::Require(bool bCondition, const TCHAR* Reason)
     return false;
 }
 
+
+bool ABLADataCoreTest::RunPacingChecks()
+{
+    ABLAGameState* State = GetWorld()->SpawnActor<ABLAGameState>();
+    ABLATeamManager* Teams = GetWorld()->SpawnActor<ABLATeamManager>();
+    ABLARoundManager* Rounds = GetWorld()->SpawnActor<ABLARoundManager>();
+    ABLAObjectiveManager* Manager = GetWorld()->SpawnActor<ABLAObjectiveManager>();
+    ABLADataCore* Core = GetWorld()->SpawnActor<ABLADataCore>(TestCoreHome, FRotator::ZeroRotator);
+    ABLAObjectiveZone* Zone = GetWorld()->SpawnActor<ABLAObjectiveZone>(TestZoneCenter, FRotator::ZeroRotator);
+    ABLAPlayerCharacter* Attacker = GetWorld()->SpawnActor<ABLAPlayerCharacter>(TestAttackerStart, FRotator::ZeroRotator);
+    ABLABotCharacter* Defender = GetWorld()->SpawnActor<ABLABotCharacter>(TestDefenderStart, FRotator::ZeroRotator);
+    if (!State || !Teams || !Rounds || !Manager || !Core || !Zone || !Attacker || !Defender)
+    {
+        return Require(false, TEXT("pacing_spawn"));
+    }
+
+    State->MatchMode = EBLA_MatchMode::DataCoreAttackDefense;
+    Attacker->Team = EBLA_Team::Attackers;
+    Defender->Team = EBLA_Team::Defenders;
+    Rounds->ConfigureManagers(State, Teams);
+    if (!Require(Teams->RegisterCombatant(Attacker) && Teams->RegisterCombatant(Defender), TEXT("pacing_registration")))
+    {
+        return false;
+    }
+
+    FBLAMatchRules Rules;
+    Rules.TeamSize = 1;
+    Rules.PreparationSeconds = 0.0f;
+    Rules.CombatSeconds = 1.0f;
+    Rules.PlantSeconds = PlantSeconds;
+    Rules.DefuseSeconds = DefuseSeconds;
+    Rules.UploadSeconds = UploadSeconds;
+    Rules.RoundsToWin = 3;
+    Rules.SwitchSidesAfterRound = 100;
+
+    // Production GameMode order: Configure, then StartMatch.
+    Manager->Configure(State, Rounds, Core, Zone, Teams);
+    Rounds->StartMatch(Rules);
+    if (!Require(Manager->ResetCount == 1 && Manager->ObjectiveState == EBLA_ObjectiveState::Available,
+        TEXT("pacing_reset_on_startmatch")))
+    {
+        return false;
+    }
+
+    Attacker->SetActorLocation(TestCoreHome + FVector(80.0f, 0.0f, 0.0f));
+    if (!Require(Manager->BeginPickup(Attacker) && Manager->ObjectiveState == EBLA_ObjectiveState::Carried,
+        TEXT("pacing_pickup_before_tick")))
+    {
+        return false;
+    }
+    Attacker->SetActorLocation(TestZoneCenter);
+    if (!Require(Manager->BeginPlant(Attacker) && Manager->ObjectiveState == EBLA_ObjectiveState::Planting,
+        TEXT("pacing_plant_before_tick")))
+    {
+        return false;
+    }
+
+    Manager->Tick(PlantSeconds + UploadSeconds);
+    if (!Require(Manager->ObjectiveState == EBLA_ObjectiveState::Planted
+        && FMath::IsNearlyEqual(Manager->UploadRemaining, UploadSeconds, 0.01f)
+        && Manager->ResetCount == 1, TEXT("pacing_plant_survives_first_tick")))
+    {
+        return false;
+    }
+
+    Manager->Tick(0.0f);
+    if (!Require(Manager->ResetCount == 1, TEXT("pacing_reset_once")))
+    {
+        return false;
+    }
+
+    Rounds->StartCombatPhase();
+    Manager->Tick(0.1f);
+    if (!Require(Manager->ObjectiveState == EBLA_ObjectiveState::Uploading, TEXT("pacing_upload_starts_after_planted")))
+    {
+        return false;
+    }
+
+    Rounds->Tick(2.0f);
+    if (!Require(State->RoundPhase == EBLA_RoundPhase::Combat
+        && !(Rounds->LastResult && Rounds->LastResult->Reason.ToString().StartsWith(TEXT("Timeout"))),
+        TEXT("pacing_combat_timeout_skipped_during_upload")))
+    {
+        return false;
+    }
+
+    Manager->Tick(UploadSeconds + 0.5f);
+    if (!Require(Manager->ObjectiveState == EBLA_ObjectiveState::Completed
+        && Rounds->LastResult && Rounds->LastResult->Reason == FName(TEXT("ObjectiveUploaded")),
+        TEXT("pacing_upload_uses_configured_seconds")))
+    {
+        return false;
+    }
+    if (!Require(Rounds->EndRound(EBLA_Team::Attackers, TEXT("Duplicate")) == false, TEXT("pacing_no_duplicate_score")))
+    {
+        return false;
+    }
+
+    Rounds->StartNextRound();
+    Rounds->StartCombatPhase();
+    Attacker->ResetCombatant();
+    Attacker->SetActorLocation(TestCoreHome + FVector(80.0f, 0.0f, 0.0f));
+    if (!Require(Manager->BeginPickup(Attacker), TEXT("pacing_cancel_pickup")))
+    {
+        return false;
+    }
+    Attacker->SetActorLocation(TestZoneCenter);
+    if (!Require(Manager->BeginPlant(Attacker), TEXT("pacing_cancel_plant")))
+    {
+        return false;
+    }
+    if (!Require(Rounds->EndRound(EBLA_Team::Defenders, TEXT("PacingCancel")), TEXT("pacing_end_round")))
+    {
+        return false;
+    }
+    if (!Require(Manager->LastCancelReason == FName(TEXT("RoundTransition"))
+        && Manager->CancelReasons.Contains(FName(TEXT("RoundTransition"))),
+        TEXT("pacing_round_transition_cancels_immediately")))
+    {
+        return false;
+    }
+
+    Rounds->SetActorTickEnabled(false);
+    Manager->SetActorTickEnabled(false);
+    Attacker->Destroy();
+    Defender->Destroy();
+    Core->Destroy();
+    Zone->Destroy();
+    Teams->Destroy();
+    Rounds->Destroy();
+    Manager->Destroy();
+    State->Destroy();
+    return true;
+}
+
 void ABLADataCoreTest::BeginPlay()
 {
     Super::BeginPlay();
+    if (!RunPacingChecks())
+    {
+        return;
+    }
 
     ABLAGameState* State = GetWorld()->SpawnActor<ABLAGameState>();
     ABLATeamManager* Teams = GetWorld()->SpawnActor<ABLATeamManager>();
@@ -620,5 +759,5 @@ void ABLADataCoreTest::BeginPlay()
     }
 
     bTestSucceeded = true;
-    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 defuse_hold=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area approach_lane=1 stuck_recover=1 authority=manager"));
+    UE_LOG(LogTemp, Display, TEXT("BLA_DATACORE_OK pickup=attacker_only drop=carrier_death repickup=1 plant_interrupt=movement_zone_damage plant=1 defuse_interrupt=zone_damage defuse=1 defuse_hold=1 upload=1 timeout=1 elimination=1 reset=idempotent recovery=outside_area approach_lane=1 stuck_recover=1 pacing=1 authority=manager"));
 }

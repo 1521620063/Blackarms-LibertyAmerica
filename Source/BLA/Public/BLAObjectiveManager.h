@@ -48,11 +48,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Objective")
     void ResetObjective();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|Objective")
+    void HandlePreparationStart();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|Objective")
+    void HandleRoundEnding();
+
     UFUNCTION(BlueprintPure, Category = "BLA|Objective")
     bool IsObjectiveInValidArea() const;
 
     UFUNCTION(BlueprintPure, Category = "BLA|Objective")
     bool IsPlanted() const;
+
+    UFUNCTION(BlueprintPure, Category = "BLA|Objective")
+    bool IsUploadInProgress() const;
 
     UFUNCTION(BlueprintPure, Category = "BLA|Objective")
     bool IsInteractionActive() const;
@@ -74,6 +83,30 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
     FName LastCancelReason;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    TArray<FName> CancelReasons;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 ResetCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 PreparationTicks = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 CarriedTicks = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 PlantingTicks = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 PlantedTicks = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 UploadingTicks = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
+    int32 CompletedTicks = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Objective")
     bool bCoreRecovered = false;
@@ -115,6 +148,7 @@ private:
     void CompleteUpload();
     void ObserveRoundPhase();
     void RecoverCoreIfNeeded();
+    void RecordPacingDiagnostics();
     bool IsInteractorUsable(const ABLACharacterBase* Interactor) const;
     FBLAMatchRules ResolveRules() const;
 

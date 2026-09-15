@@ -4,6 +4,7 @@
 #include "BLADebugSubsystem.h"
 #include "BLAGameState.h"
 #include "BLAHealthComponent.h"
+#include "BLAObjectiveManager.h"
 #include "BLASpawnPoint.h"
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
@@ -52,7 +53,7 @@ void ABLARoundManager::Tick(float DeltaSeconds)
         {
             StartCombatPhase();
         }
-        else
+        else if (!(ObjectiveManager && ObjectiveManager->IsUploadInProgress()))
         {
             EvaluateTimeout();
         }
@@ -98,6 +99,10 @@ void ABLARoundManager::StartPreparationPhase()
     ResetCombatantPositions();
     BLAGameState->RoundPhase = EBLA_RoundPhase::Preparation;
     BLAGameState->RoundTimeRemaining = ActiveRules.PreparationSeconds;
+    if (ObjectiveManager)
+    {
+        ObjectiveManager->HandlePreparationStart();
+    }
 }
 
 void ABLARoundManager::ResetCombatantPositions()
@@ -159,6 +164,10 @@ bool ABLARoundManager::EndRound(EBLA_Team Winner, FName Reason)
     {
         BLAGameState->RoundPhase = EBLA_RoundPhase::RoundResult;
     }
+    if (ObjectiveManager)
+    {
+        ObjectiveManager->HandleRoundEnding();
+    }
     return true;
 }
 
@@ -196,6 +205,10 @@ void ABLARoundManager::EndMatch(EBLA_Team Winner)
 {
     BLAGameState->RoundPhase = EBLA_RoundPhase::MatchResult;
     BLAGameState->RoundTimeRemaining = 0.0f;
+    if (ObjectiveManager)
+    {
+        ObjectiveManager->HandleRoundEnding();
+    }
 }
 
 void ABLARoundManager::ResetAllCombatants()

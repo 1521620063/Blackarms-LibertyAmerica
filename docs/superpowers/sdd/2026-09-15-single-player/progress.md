@@ -90,8 +90,34 @@
 - 脚本化测试：BLA_DATACORE_OK（approach_lane=1 stuck_recover=1）、BLA_MAP_NAVIGATION_OK tactical=9、BLA_TASK11_CONTRACTS_OK attack_points=3。
 - 提交：`fix: balance offline bot routes and recovery`。
 
+## Task 3：Data Core 节奏（已完成）
+
+根因是目标状态跟着下一帧走，而不是跟着回合阶段走：
+
+- `StartMatch`/`StartPreparationPhase` 只改 `RoundPhase`，`ResetObjective()` 要等到下一 tick 的 `ObserveRoundPhase()` 才发生。测试如果在同一帧 pickup/plant，Preparation 的延迟 reset 会把已种下的核心清掉。
+- `EndRound`/`EndMatch` 同样要等下一 tick 才 `CancelInteraction(RoundTransition)`，交互能跨过结算帧。
+- `Planted` 当帧就开始扣 `UploadRemaining`；非 Combat 阶段也继续倒数，配置的 30 秒上传规则会被测试 workaround（`Tick(0.0f)` / `ResetObjective()` / 改写秒数）掩盖。
+- 回合超时只看 `IsPlanted()`，`Uploading`/`Defusing` 时仍可能超时结束。
+
+修复：
+
+- `Configure`/`BeginPlay` 回写 `RoundManager->ObjectiveManager`。
+- `StartPreparationPhase` 立刻 `HandlePreparationStart()`（Reset + `LastObservedPhase=Preparation`），保证 reset 一次且发生在 pickup 之前。
+- `EndRound`/`EndMatch` 立刻 `HandleRoundEnding()` → `CancelInteraction(RoundTransition)`。
+- `Planted` 当帧只切到 `Uploading` 并 return；`Uploading` 仅在 `RoundPhase==Combat` 时倒数。
+- `IsUploadInProgress()` = Planted || Uploading || Defusing，超时跳过上传中的回合。
+- `ResetObjective` 不清 tick 计数、`++ResetCount`，`CancelReasons` 不被 reset 清掉。
+- soak 记录 reset/prep/carried/planting/planted/uploading/completed ticks 与 cancel reasons。
+- Data Core 测试独立 `RunPacingChecks()`；AllMVPFlows 在 `StartCombatPhase()` 后 pickup/plant，使用真实 `PlantSeconds`/`UploadSeconds`，结果必须是 `ObjectiveUploaded`，重复 `EndRound` 必须失败。
+
+证据（tag=`singleplayer-pacing-rebuild`，新编译 `UnrealEditor-BLA.dll` 16:14:26）：
+
+- `verify_task9_pie`：`BLA_DATACORE_OK ... pacing=1 authority=manager`，`BLA_TASK9_PIE_DRIVER_OK ticks=300 datacore=ok`
+- `verify_task12_pie`：`ALL_MVP_FLOWS_OK mode=1 size=3 difficulty=2`，`BLA_TASK12_PIE_DRIVER_OK`，`HARNESS_CONFIGURATION_STARTED`
+- 本任务未重跑 3v3 soak。
+- 提交：`fix: stabilize offline data core pacing`。
+
 ## 待办
 
-- Task 3：Data Core 节奏与阶段竞态。
 - Task 4：单机流程幂等与失败提示。
 - Task 5：全矩阵回归、Windows 打包冒烟、发布文档与 LAN 路线改写。

@@ -158,10 +158,7 @@ void ABLAAllMVPFlowsTest::Run()
             Finish(FString::Printf(TEXT("FAILED objective_missing %s"), *Context));
             return;
         }
-        // Let the manager observe any pending round-phase transition first: it resets the
-        // objective when it first sees Preparation, which would wipe a plant started before
-        // that first observation (frame-order race, seen in the packaged build).
-        Objective->Tick(0.0f);
+        RoundManager->StartCombatPhase();
         // Freeze the pawn for the forced interaction: the objective manager cancels on
         // movement, and a teleported character would otherwise fall out of tolerance.
         UCharacterMovementComponent* Movement = Player->GetCharacterMovement();
@@ -183,16 +180,15 @@ void ABLAAllMVPFlowsTest::Run()
             Finish(FString::Printf(TEXT("FAILED forced_plant %s"), *Context));
             return;
         }
-        Objective->Tick(6.0f);
-        Objective->Tick(0.1f);
-        if (!Require(Objective->IsPlanted(), TEXT("forced_plant_complete")))
+        const FBLAMatchRules ActiveRules = RoundManager->GetActiveRules();
+        Objective->Tick(ActiveRules.PlantSeconds + 0.5f);
+        if (!Require(Objective->ObjectiveState == EBLA_ObjectiveState::Planted, TEXT("forced_plant_complete")))
         {
-            const float PlantSeconds = RoundManager ? RoundManager->GetActiveRules().PlantSeconds : -1.0f;
             Finish(FString::Printf(
                 TEXT("FAILED forced_plant_complete state=%d cancel=%s remaining=%.2f plant_seconds=%.2f ")
                 TEXT("alive=%d in_zone=%d core_in_zone=%d interacting=%d health=%.1f player=%s zone=%s core=%s %s"),
                 static_cast<int32>(Objective->ObjectiveState), *Objective->LastCancelReason.ToString(),
-                Objective->InteractionRemaining, PlantSeconds,
+                Objective->InteractionRemaining, ActiveRules.PlantSeconds,
                 Player->GetIsAlive() ? 1 : 0,
                 Objective->ObjectiveZone->ContainsActor(Player) ? 1 : 0,
                 Objective->ObjectiveZone->ContainsLocation(Objective->DataCore->GetActorLocation()) ? 1 : 0,
@@ -203,8 +199,32 @@ void ABLAAllMVPFlowsTest::Run()
                 *Objective->DataCore->GetActorLocation().ToCompactString(), *Context));
             return;
         }
-        Report(TEXT("FORCED_OBJECTIVE_ACTION"), FString::Printf(TEXT("pickup=1 plant=1 %s"), *Context));
-        Objective->ResetObjective();
+        Objective->Tick(0.1f);
+        if (!Require(Objective->ObjectiveState == EBLA_ObjectiveState::Uploading, TEXT("forced_upload_started")))
+        {
+            Finish(FString::Printf(TEXT("FAILED forced_upload_started state=%d remaining=%.2f %s"),
+                static_cast<int32>(Objective->ObjectiveState), Objective->UploadRemaining, *Context));
+            return;
+        }
+        Objective->Tick(ActiveRules.UploadSeconds + 1.0f);
+        if (!Require(Objective->ObjectiveState == EBLA_ObjectiveState::Completed
+            && RoundManager->LastResult
+            && RoundManager->LastResult->Reason == FName(TEXT("ObjectiveUploaded")),
+            TEXT("forced_upload_complete")))
+        {
+            Finish(FString::Printf(TEXT("FAILED forced_upload_complete state=%d reason=%s remaining=%.2f upload_seconds=%.2f %s"),
+                static_cast<int32>(Objective->ObjectiveState),
+                RoundManager->LastResult ? *RoundManager->LastResult->Reason.ToString() : TEXT("none"),
+                Objective->UploadRemaining, ActiveRules.UploadSeconds, *Context));
+            return;
+        }
+        if (!Require(RoundManager->EndRound(EBLA_Team::Attackers, TEXT("AllMVPFlows")) == false,
+            TEXT("forced_no_duplicate_score")))
+        {
+            Finish(FString::Printf(TEXT("FAILED forced_no_duplicate_score %s"), *Context));
+            return;
+        }
+        Report(TEXT("FORCED_OBJECTIVE_ACTION"), FString::Printf(TEXT("pickup=1 plant=1 upload=1 %s"), *Context));
         if (Movement)
         {
             Movement->SetMovementMode(MOVE_Walking);
@@ -212,16 +232,23 @@ void ABLAAllMVPFlowsTest::Run()
     }
 
     // Round result, match result, restart and the return-to-menu request.
-    if (!Require(RoundManager->EndRound(EBLA_Team::Attackers, TEXT("AllMVPFlows")), TEXT("round_end")))
+    const FName ExpectedRoundReason = GameInstance->HarnessMode == EBLA_MatchMode::DataCoreAttackDefense
+        ? FName(TEXT("ObjectiveUploaded"))
+        : FName(TEXT("AllMVPFlows"));
+    if (GameInstance->HarnessMode != EBLA_MatchMode::DataCoreAttackDefense)
     {
-        Finish(FString::Printf(TEXT("FAILED round_end %s"), *Context));
-        return;
+        if (!Require(RoundManager->EndRound(EBLA_Team::Attackers, TEXT("AllMVPFlows")), TEXT("round_end")))
+        {
+            Finish(FString::Printf(TEXT("FAILED round_end %s"), *Context));
+            return;
+        }
     }
     UIManager->EvaluateMatchScreens();
     if (!Require(UIManager->GetCurrentScreen() == EBLA_UIScreen::RoundResult
-        && UIManager->LastResultReason == FName(TEXT("AllMVPFlows")), TEXT("round_result_screen")))
+        && UIManager->LastResultReason == ExpectedRoundReason, TEXT("round_result_screen")))
     {
-        Finish(FString::Printf(TEXT("FAILED round_result_screen %s"), *Context));
+        Finish(FString::Printf(TEXT("FAILED round_result_screen reason=%s expected=%s %s"),
+            *UIManager->LastResultReason.ToString(), *ExpectedRoundReason.ToString(), *Context));
         return;
     }
     RoundManager->EndMatch(EBLA_Team::Attackers);
