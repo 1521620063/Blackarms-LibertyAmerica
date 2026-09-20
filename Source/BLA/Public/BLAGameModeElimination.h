@@ -31,8 +31,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
     void RefreshLANRoster();
 
+    UFUNCTION(BlueprintPure, Category = "BLA|LAN")
+    bool CanAcceptLANJoin() const;
+
+    UFUNCTION(BlueprintPure, Category = "BLA|LAN")
+    int32 CountHumans() const;
+
+    UFUNCTION(BlueprintPure, Category = "BLA|LAN")
+    int32 CountHumansOnTeam(EBLA_Team Team) const;
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool SetLANTeam(APlayerController* PlayerController, EBLA_Team Team);
+
 protected:
     virtual void BeginPlay() override;
+    virtual void PostLogin(APlayerController* NewPlayer) override;
+    virtual void Logout(AController* Exiting) override;
     virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
     virtual APawn* SpawnDefaultPawnAtTransform_Implementation(
         AController* NewPlayer, const FTransform& SpawnTransform) override;

@@ -17,6 +17,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Test")
     void RunWaitingContracts();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|Test")
+    void RunJoinAndTeamContracts();
+
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
     bool bTestSucceeded = false;
 

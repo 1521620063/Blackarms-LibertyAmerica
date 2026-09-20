@@ -19,6 +19,7 @@
 #include "BLAWeaponComponent.h"
 #include "BLAWeaponTypes.h"
 #include "EngineUtils.h"
+#include "GameFramework/GameSession.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
@@ -120,6 +121,141 @@ APawn* ABLAGameModeElimination::SpawnDefaultPawnAtTransform_Implementation(
         return nullptr;
     }
     return Super::SpawnDefaultPawnAtTransform_Implementation(NewPlayer, SpawnTransform);
+}
+
+
+bool ABLAGameModeElimination::CanAcceptLANJoin() const
+{
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    return State && State->RoundPhase == EBLA_RoundPhase::Waiting
+        && CountHumans() < State->AttackersTeamSize * 2;
+}
+
+int32 ABLAGameModeElimination::CountHumans() const
+{
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    int32 Count = 0;
+    if (State)
+    {
+        for (APlayerState* BaseState : State->PlayerArray)
+        {
+            if (const ABLAPlayerState* PlayerState = Cast<ABLAPlayerState>(BaseState); PlayerState && !PlayerState->IsABot())
+            {
+                ++Count;
+            }
+        }
+    }
+    return Count;
+}
+
+int32 ABLAGameModeElimination::CountHumansOnTeam(EBLA_Team Team) const
+{
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    int32 Count = 0;
+    if (State)
+    {
+        for (APlayerState* BaseState : State->PlayerArray)
+        {
+            if (const ABLAPlayerState* PlayerState = Cast<ABLAPlayerState>(BaseState);
+                PlayerState && !PlayerState->IsABot() && PlayerState->Team == Team)
+            {
+                ++Count;
+            }
+        }
+    }
+    return Count;
+}
+
+void ABLAGameModeElimination::PostLogin(APlayerController* NewPlayer)
+{
+    Super::PostLogin(NewPlayer);
+    if (!IsLANListenMatch())
+    {
+        return;
+    }
+
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (State && State->RoundPhase == EBLA_RoundPhase::Loading && CountHumans() == 1)
+    {
+        return;
+    }
+
+    FString RejectCode;
+    if (!State || State->RoundPhase != EBLA_RoundPhase::Waiting)
+    {
+        RejectCode = TEXT("FLOW_LAN_JOIN_REJECTED_STARTED");
+    }
+    else if (CountHumans() > State->AttackersTeamSize * 2)
+    {
+        RejectCode = TEXT("FLOW_LAN_JOIN_REJECTED_FULL");
+    }
+    if (!RejectCode.IsEmpty())
+    {
+        if (ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(NewPlayer))
+        {
+            PlayerController->ClientNotifyFlowError(RejectCode);
+        }
+        if (GameSession)
+        {
+            GameSession->KickPlayer(NewPlayer, FText::FromString(RejectCode));
+        }
+        return;
+    }
+
+    if (ABLAPlayerState* PlayerState = NewPlayer->GetPlayerState<ABLAPlayerState>(); PlayerState && !PlayerState->bIsLANHost)
+    {
+        PlayerState->Team = EBLA_Team::Neutral;
+    }
+    NewPlayer->UnPossess();
+    RefreshLANRoster();
+}
+
+void ABLAGameModeElimination::Logout(AController* Exiting)
+{
+    const ABLAPlayerState* LeavingState = Exiting ? Exiting->GetPlayerState<ABLAPlayerState>() : nullptr;
+    const bool bHostLeft = LeavingState && LeavingState->bIsLANHost;
+    Super::Logout(Exiting);
+    if (!IsLANListenMatch())
+    {
+        return;
+    }
+    RefreshLANRoster();
+    if (bHostLeft)
+    {
+        for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+        {
+            if (ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(It->Get()))
+            {
+                PlayerController->ClientNotifyFlowError(TEXT("FLOW_LAN_HOST_LEFT"));
+            }
+        }
+    }
+}
+
+bool ABLAGameModeElimination::SetLANTeam(APlayerController* PlayerController, EBLA_Team Team)
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    ABLAPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<ABLAPlayerState>() : nullptr;
+    if (!State || !PlayerState || State->RoundPhase != EBLA_RoundPhase::Waiting
+        || (Team != EBLA_Team::Attackers && Team != EBLA_Team::Defenders))
+    {
+        return false;
+    }
+    if (PlayerState->Team != Team && CountHumansOnTeam(Team) >= State->AttackersTeamSize)
+    {
+        if (UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>())
+        {
+            GameInstance->ReportFlowFailure(TEXT("FLOW_LAN_TEAM_FULL"));
+        }
+        if (ABLAPlayerController* BLAController = Cast<ABLAPlayerController>(PlayerController))
+        {
+            BLAController->ClientNotifyFlowError(TEXT("FLOW_LAN_TEAM_FULL"));
+        }
+        return false;
+    }
+    PlayerState->Team = Team;
+    RefreshLANRoster();
+    return true;
 }
 
 void ABLAGameModeElimination::InitializeMatch()

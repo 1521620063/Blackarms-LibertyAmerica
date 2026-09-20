@@ -5,6 +5,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "BLACharacterBase.h"
 #include "BLAGameState.h"
+#include "BLAGameInstance.h"
+#include "BLAGameModeElimination.h"
 #include "BLAHealthComponent.h"
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
@@ -311,4 +313,28 @@ void ABLAPlayerController::SelectSpectatorTarget(AActor* Target)
 void ABLAPlayerController::HandleControlledPawnDeath(AActor* InstigatorActor)
 {
     EnterTeamSpectatorMode();
+}
+
+void ABLAPlayerController::ServerSetTeam_Implementation(EBLA_Team Team)
+{
+    if (ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr)
+    {
+        GameMode->SetLANTeam(this, Team);
+    }
+}
+
+void ABLAPlayerController::ClientNotifyFlowError_Implementation(const FString& Code)
+{
+    if (UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr)
+    {
+        GameInstance->ReportFlowFailure(Code);
+        if (Code.Contains(TEXT("FLOW_LAN_HOST_LEFT"))
+            || Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_FULL"))
+            || Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_STARTED"))
+            || Code.Contains(TEXT("FLOW_LAN_CONNECT_FAILED"))
+            || Code.Contains(TEXT("FLOW_LAN_LISTEN_FAILED")))
+        {
+            GameInstance->RequestLeaveLAN();
+        }
+    }
 }

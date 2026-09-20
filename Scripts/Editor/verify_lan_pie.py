@@ -50,6 +50,7 @@ def tick_impl():
         if game_instance is None:
             return
         game_instance.set_editor_property("match_map_path", MATCH_MAP)
+        game_instance.set_editor_property("selected_team_size", 1)
         if not game_instance.request_host_lan_match():
             finish(False, "RequestHostLANMatch rejected")
             return
@@ -68,11 +69,26 @@ def tick_impl():
     phase = game_state.get_editor_property("round_phase")
     bots = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAAIController)
     if phase == unreal.BLA_RoundPhase.WAITING and len(bots) == 0:
-        tests = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLALanFlowTest)
-        if tests:
-            tests[0].run_waiting_contracts()
+        game_mode = unreal.GameplayStatics.get_game_mode(world)
+        host = unreal.GameplayStatics.get_player_controller(world, 0)
+        if game_mode is None or host is None:
+            finish(False, "join/team missing game mode or host")
+            return
+        host_defenders = game_mode.set_lan_team(host, unreal.BLA_Team.DEFENDERS)
+        host_attackers = game_mode.set_lan_team(host, unreal.BLA_Team.ATTACKERS)
+        open_before_join = game_mode.can_accept_lan_join()
+        extra = unreal.GameplayStatics.create_player(world, 1, True)
+        extra_state = extra.get_editor_property("player_state") if extra else None
+        join_neutral = extra_state is not None and extra_state.get_editor_property("team") == unreal.BLA_Team.NEUTRAL
+        picked = extra is not None and game_mode.set_lan_team(extra, unreal.BLA_Team.DEFENDERS)
+        team_full = not game_mode.set_lan_team(host, unreal.BLA_Team.DEFENDERS)
+        roster = game_state.get_editor_property("lan_roster")
+        if not (host_defenders and host_attackers and open_before_join and extra and join_neutral and picked and team_full and len(roster) == 2):
+            finish(False, f"join/team contracts failed host_def={host_defenders} host_atk={host_attackers} open={open_before_join} extra={bool(extra)} neutral={join_neutral} picked={picked} full={team_full} roster={len(roster)}")
+            return
         unreal.log("BLA_LAN_WAITING_OK net=listen phase=6 bots=0")
-        finish(True, "waiting=1 bots=0 production_host_path=1")
+        unreal.log("BLA_LAN_JOIN_OK accepted=1 team_pick=1 team_full=1 started_reject=0")
+        finish(True, "waiting=1 join=1 team_full=1 production_host_path=1")
         return
     if phase != unreal.BLA_RoundPhase.LOADING or bots:
         finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")

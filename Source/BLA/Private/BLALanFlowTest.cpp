@@ -4,6 +4,10 @@
 #include "BLAGameState.h"
 #include "BLALanStatics.h"
 #include "BLAAIController.h"
+#include "BLAGameModeElimination.h"
+#include "BLAPlayerController.h"
+#include "BLAPlayerState.h"
+#include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -11,6 +15,42 @@
 ABLALanFlowTest::ABLALanFlowTest()
 {
     PrimaryActorTick.bCanEverTick = false;
+}
+
+
+void ABLALanFlowTest::RunJoinAndTeamContracts()
+{
+    ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr;
+    ABLAPlayerController* Host = GetWorld() ? Cast<ABLAPlayerController>(GetWorld()->GetFirstPlayerController()) : nullptr;
+    if (!GameMode || !Host)
+    {
+        bTestFailed = true;
+        UE_LOG(LogTemp, Error, TEXT("BLA_LAN_JOIN_FAILED reason=missing_host"));
+        return;
+    }
+
+    const bool bHostDefenders = GameMode->SetLANTeam(Host, EBLA_Team::Defenders);
+    const bool bHostAttackers = GameMode->SetLANTeam(Host, EBLA_Team::Attackers);
+    const bool bOpenBeforeJoin = GameMode->CanAcceptLANJoin();
+    APlayerController* ExtraBase = UGameplayStatics::CreatePlayer(GetWorld(), 1, true);
+    ABLAPlayerController* Extra = Cast<ABLAPlayerController>(ExtraBase);
+    ABLAPlayerState* ExtraState = Extra ? Extra->GetPlayerState<ABLAPlayerState>() : nullptr;
+    const bool bJoinNeutral = ExtraState && ExtraState->Team == EBLA_Team::Neutral;
+    const bool bPicked = Extra && GameMode->SetLANTeam(Extra, EBLA_Team::Defenders);
+    const bool bTeamFull = !GameMode->SetLANTeam(Host, EBLA_Team::Defenders);
+    const ABLAGameState* State = GetWorld()->GetGameState<ABLAGameState>();
+    const bool bRoster = State && State->LANRoster.Num() == 2;
+
+    if (bHostDefenders && bHostAttackers && bOpenBeforeJoin && Extra && bJoinNeutral && bPicked && bTeamFull && bRoster)
+    {
+        bTestSucceeded = true;
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_JOIN_OK accepted=1 team_pick=1 team_full=1 started_reject=0"));
+        return;
+    }
+
+    bTestFailed = true;
+    UE_LOG(LogTemp, Error, TEXT("BLA_LAN_JOIN_FAILED host_def=%d host_atk=%d open=%d extra=%d neutral=%d picked=%d full=%d roster=%d"),
+        bHostDefenders, bHostAttackers, bOpenBeforeJoin, Extra != nullptr, bJoinNeutral, bPicked, bTeamFull, bRoster);
 }
 
 void ABLALanFlowTest::RunWaitingContracts()

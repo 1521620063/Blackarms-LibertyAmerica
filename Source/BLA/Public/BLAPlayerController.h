@@ -36,6 +36,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "BLA|Spectator")
     AActor* GetSpectatorTarget() const { return SpectatorTarget; }
 
+    UFUNCTION(Server, Reliable, BlueprintCallable, Category = "BLA|LAN")
+    void ServerSetTeam(EBLA_Team Team);
+
+    UFUNCTION(Client, Reliable)
+    void ClientNotifyFlowError(const FString& Code);
+
 protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
