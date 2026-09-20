@@ -8,10 +8,12 @@
 #include "BLAWeaponBase.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Net/UnrealNetwork.h"
 
 UBLAWeaponComponent::UBLAWeaponComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
+    SetIsReplicatedByDefault(true);
 }
 
 bool UBLAWeaponComponent::EquipWeapon(TSubclassOf<ABLAWeaponBase> WeaponClass, UBLAWeaponDataAsset* DataAsset, int32 Slot)
@@ -44,6 +46,7 @@ bool UBLAWeaponComponent::EquipWeapon(TSubclassOf<ABLAWeaponBase> WeaponClass, U
     {
         CurrentSlot = Slot;
     }
+    PushReplicatedAmmo();
     OnAmmoChanged.Broadcast();
     return true;
 }
@@ -59,6 +62,11 @@ bool UBLAWeaponComponent::CanFire() const
 
 bool UBLAWeaponComponent::FireWeapon(FVector TraceStart, FVector AimDirection)
 {
+    if (!GetOwner() || !GetOwner()->HasAuthority())
+    {
+        return false;
+    }
+
     FWeaponSlotState* State = CurrentState();
     if (!State || !CanFire() || AimDirection.IsNearlyZero())
     {
@@ -85,6 +93,7 @@ bool UBLAWeaponComponent::FireWeapon(FVector TraceStart, FVector AimDirection)
         TraceShot(TraceStart, Direction, Data);
     }
 
+    PushReplicatedAmmo();
     OnAmmoChanged.Broadcast();
     OnWeaponFired.Broadcast(TraceStart, TraceStart + Direction * Data.MaxRange);
     return true;
@@ -119,18 +128,27 @@ bool UBLAWeaponComponent::SwitchWeapon(int32 Slot)
     bIsReloading = false;
     CurrentSlot = Slot;
     NextFireTime = 0.0;
+    PushReplicatedAmmo();
     OnAmmoChanged.Broadcast();
     return true;
 }
 
 int32 UBLAWeaponComponent::GetCurrentAmmo() const
 {
+    if (GetOwner() && !GetOwner()->HasAuthority())
+    {
+        return ReplicatedMagazineAmmo;
+    }
     const FWeaponSlotState* State = CurrentState();
     return State ? State->MagazineAmmo : 0;
 }
 
 int32 UBLAWeaponComponent::GetReserveAmmo() const
 {
+    if (GetOwner() && !GetOwner()->HasAuthority())
+    {
+        return ReplicatedReserveAmmo;
+    }
     const FWeaponSlotState* State = CurrentState();
     return State ? State->ReserveAmmo : 0;
 }
@@ -159,6 +177,7 @@ void UBLAWeaponComponent::ResetWeapons()
             State.ReserveAmmo = State.DataAsset->WeaponData.ReserveAmmo;
         }
     }
+    PushReplicatedAmmo();
     OnAmmoChanged.Broadcast();
 }
 
@@ -185,8 +204,32 @@ void UBLAWeaponComponent::CompleteReload()
     State->MagazineAmmo += Loaded;
     State->ReserveAmmo -= Loaded;
     bIsReloading = false;
+    PushReplicatedAmmo();
     OnAmmoChanged.Broadcast();
     OnReloadCompleted.Broadcast();
+}
+
+void UBLAWeaponComponent::PushReplicatedAmmo()
+{
+    if (!GetOwner() || !GetOwner()->HasAuthority())
+    {
+        return;
+    }
+    const FWeaponSlotState* State = CurrentState();
+    ReplicatedMagazineAmmo = State ? State->MagazineAmmo : 0;
+    ReplicatedReserveAmmo = State ? State->ReserveAmmo : 0;
+}
+
+void UBLAWeaponComponent::OnRep_Ammo()
+{
+    OnAmmoChanged.Broadcast();
+}
+
+void UBLAWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(UBLAWeaponComponent, ReplicatedMagazineAmmo);
+    DOREPLIFETIME(UBLAWeaponComponent, ReplicatedReserveAmmo);
 }
 
 bool UBLAWeaponComponent::TraceShot(const FVector& Start, const FVector& Direction, const FBLAWeaponData& Data, float DamageScale)

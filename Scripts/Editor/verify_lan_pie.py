@@ -121,7 +121,30 @@ def tick_impl():
             return
         unreal.log("BLA_LAN_NEUTRAL_OK host=0 extra=1")
         unreal.log(f"BLA_LAN_START_OK not_host=1 bots={len(bot_pawns)} total={len(combatants)} started_reject=1")
-        finish(True, "waiting=1 join=1 team_full=1 start=1 neutral=1 production_host_path=1")
+
+        victim = bot_pawns[0] if bot_pawns else None
+        server_damage = bool(victim and victim.apply_combat_damage(15.0, "Body", None))
+        health_component = victim.get_editor_property("health_component") if victim else None
+        health_after_server = health_component.get_editor_property("current_health") if health_component else -1.0
+        humans_before = game_mode.count_humans()
+        bots_before = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
+        unreal.GameplayStatics.remove_player(extra, True)
+        humans_after_leave = game_mode.count_humans()
+        bots_after_leave = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
+        game_mode.fill_vacant_lan_slots_with_bots()
+        bots_after_fill = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
+        authority_ok = (
+            server_damage
+            and health_after_server < 100.0
+            and humans_after_leave == humans_before - 1
+            and bots_after_leave == bots_before
+            and bots_after_fill == bots_before + 1
+        )
+        if not authority_ok:
+            finish(False, f"BLA_LAN_AUTHORITY_FAILED dmg={server_damage} health={health_after_server} humans={humans_before}/{humans_after_leave} bots={bots_before}/{bots_after_leave}/{bots_after_fill}")
+            return
+        unreal.log("BLA_LAN_AUTHORITY_OK damage_server=1 leave_empty_slot=1 next_round_fill=1")
+        finish(True, "waiting=1 join=1 team_full=1 start=1 neutral=1 authority=1 production_host_path=1")
         return
     if phase != unreal.BLA_RoundPhase.LOADING or bots:
         finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")

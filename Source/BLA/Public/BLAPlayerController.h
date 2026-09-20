@@ -42,6 +42,12 @@ public:
     UFUNCTION(Server, Reliable, BlueprintCallable, Category = "BLA|LAN")
     void ServerStartLANMatch();
 
+    UFUNCTION(Server, Reliable)
+    void ServerFireWeapon(FVector TraceStart, FVector AimDirection);
+
+    UFUNCTION(Server, Reliable)
+    void ServerReloadWeapon();
+
     UFUNCTION(Client, Reliable)
     void ClientNotifyFlowError(const FString& Code);
 

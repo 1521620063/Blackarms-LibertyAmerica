@@ -38,7 +38,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BLA")
     TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionSource;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     EBLA_Team Team = EBLA_Team::Neutral;
 
     UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "BLA|Combatant")
@@ -62,6 +62,7 @@ public:
 
     virtual FGenericTeamId GetGenericTeamId() const override;
     virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
     virtual void BeginPlay() override;

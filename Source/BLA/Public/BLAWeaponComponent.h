@@ -60,6 +60,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Round")
     void ResetWeapons();
 
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 private:
     struct FWeaponSlotState
     {
@@ -72,10 +74,22 @@ private:
     FWeaponSlotState* CurrentState();
     const FWeaponSlotState* CurrentState() const;
     void CompleteReload();
+    void PushReplicatedAmmo();
+
+    UFUNCTION()
+    void OnRep_Ammo();
+
     bool TraceShot(const FVector& Start, const FVector& Direction, const FBLAWeaponData& Data, float DamageScale = 1.0f);
     static FVector ApplySpread(const FVector& Direction, float YawDegrees, float PitchDegrees);
 
     TArray<FWeaponSlotState> Slots;
+
+    UPROPERTY(ReplicatedUsing = OnRep_Ammo)
+    int32 ReplicatedMagazineAmmo = 0;
+
+    UPROPERTY(Replicated)
+    int32 ReplicatedReserveAmmo = 0;
+
     int32 CurrentSlot = INDEX_NONE;
     double NextFireTime = 0.0;
     bool bIsReloading = false;

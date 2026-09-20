@@ -1,13 +1,16 @@
 #include "BLAHealthComponent.h"
 
+#include "Net/UnrealNetwork.h"
+
 UBLAHealthComponent::UBLAHealthComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
+    SetIsReplicatedByDefault(true);
 }
 
 bool UBLAHealthComponent::ApplyDamage(float Amount, FName DamageLocation, AActor* InstigatorActor)
 {
-    if (bIsDead || Amount <= 0.0f)
+    if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead || Amount <= 0.0f)
     {
         return false;
     }
@@ -51,4 +54,11 @@ void UBLAHealthComponent::HandleDeath(AActor* InstigatorActor)
     OnDeath.Broadcast(InstigatorActor);
     OnDeathNative.Broadcast(InstigatorActor);
     OnCombatantDeathNative.Broadcast(GetOwner(), InstigatorActor);
+}
+
+void UBLAHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(UBLAHealthComponent, CurrentHealth);
+    DOREPLIFETIME(UBLAHealthComponent, bIsDead);
 }

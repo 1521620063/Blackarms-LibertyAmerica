@@ -3,6 +3,7 @@
 #include "BLACharacterBase.h"
 #include "BLADebugSubsystem.h"
 #include "BLAGameState.h"
+#include "BLAGameModeElimination.h"
 #include "BLAHealthComponent.h"
 #include "BLAObjectiveManager.h"
 #include "BLASpawnPoint.h"
@@ -203,6 +204,10 @@ void ABLARoundManager::StartNextRound()
     SwitchSidesIfRequired();
     ++BLAGameState->CurrentRound;
     ResetAllCombatants();
+    if (ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr)
+    {
+        GameMode->FillVacantLANSlotsWithBots();
+    }
     StartPreparationPhase();
 }
 
@@ -244,6 +249,8 @@ void ABLARoundManager::HandleCombatantDeath(ABLACharacterBase* DeadCombatant, AA
     {
         return;
     }
+    BLAGameState->LivingAttackers = TeamManager->GetLivingCount(EBLA_Team::Attackers);
+    BLAGameState->LivingDefenders = TeamManager->GetLivingCount(EBLA_Team::Defenders);
     if (TeamManager->GetLivingCount(DeadCombatant->Team) == 0)
     {
         EndRound(ABLATeamManager::GetOpposingTeam(DeadCombatant->Team), TEXT("Elimination"));

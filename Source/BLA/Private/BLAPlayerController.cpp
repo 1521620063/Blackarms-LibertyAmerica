@@ -158,7 +158,16 @@ void ABLAPlayerController::OnFireRequested_Implementation()
 {
     if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->FirstPersonCamera && BLACharacter->WeaponComponent)
     {
-        BLACharacter->WeaponComponent->FireWeapon(BLACharacter->FirstPersonCamera->GetComponentLocation(), BLACharacter->FirstPersonCamera->GetForwardVector());
+        const FVector TraceStart = BLACharacter->FirstPersonCamera->GetComponentLocation();
+        const FVector AimDirection = BLACharacter->FirstPersonCamera->GetForwardVector();
+        if (HasAuthority())
+        {
+            BLACharacter->WeaponComponent->FireWeapon(TraceStart, AimDirection);
+        }
+        else
+        {
+            ServerFireWeapon(TraceStart, AimDirection);
+        }
     }
 }
 
@@ -166,7 +175,14 @@ void ABLAPlayerController::OnReloadRequested_Implementation()
 {
     if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
     {
-        BLACharacter->WeaponComponent->ReloadWeapon();
+        if (HasAuthority())
+        {
+            BLACharacter->WeaponComponent->ReloadWeapon();
+        }
+        else
+        {
+            ServerReloadWeapon();
+        }
     }
 }
 
@@ -328,6 +344,22 @@ void ABLAPlayerController::ServerStartLANMatch_Implementation()
     if (ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr)
     {
         GameMode->StartLANMatch(this);
+    }
+}
+
+void ABLAPlayerController::ServerFireWeapon_Implementation(FVector TraceStart, FVector AimDirection)
+{
+    if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
+    {
+        BLACharacter->WeaponComponent->FireWeapon(TraceStart, AimDirection);
+    }
+}
+
+void ABLAPlayerController::ServerReloadWeapon_Implementation()
+{
+    if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
+    {
+        BLACharacter->WeaponComponent->ReloadWeapon();
     }
 }
 

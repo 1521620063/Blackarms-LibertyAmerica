@@ -219,12 +219,19 @@ void ABLAGameModeElimination::Logout(AController* Exiting)
 {
     const ABLAPlayerState* LeavingState = Exiting ? Exiting->GetPlayerState<ABLAPlayerState>() : nullptr;
     const bool bHostLeft = LeavingState && LeavingState->bIsLANHost;
+    if (TeamManager && Exiting)
+    {
+        if (ABLACharacterBase* LeavingCombatant = Cast<ABLACharacterBase>(Exiting->GetPawn()))
+        {
+            TeamManager->UnregisterCombatant(LeavingCombatant);
+        }
+    }
+
     Super::Logout(Exiting);
     if (!IsLANListenMatch())
     {
         return;
     }
-    RefreshLANRoster();
     if (bHostLeft)
     {
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -234,6 +241,18 @@ void ABLAGameModeElimination::Logout(AController* Exiting)
                 PlayerController->ClientNotifyFlowError(TEXT("FLOW_LAN_HOST_LEFT"));
             }
         }
+        if (UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>())
+        {
+            GameInstance->RequestLeaveLAN();
+        }
+        return;
+    }
+
+    RefreshLANRoster();
+    if (ABLAGameState* State = GetGameState<ABLAGameState>())
+    {
+        State->LivingAttackers = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Attackers) : 0;
+        State->LivingDefenders = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Defenders) : 0;
     }
 }
 
@@ -396,23 +415,44 @@ bool ABLAGameModeElimination::PossessLANHumans()
     return HumanIndex > 0;
 }
 
+void ABLAGameModeElimination::FillVacantLANSlotsWithBots()
+{
+    if (!IsLANListenMatch() || !TeamManager)
+    {
+        return;
+    }
+
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    const int32 TeamSize = State ? State->AttackersTeamSize : 1;
+    TArray<ABLAAIController*> AttackerBots;
+    TArray<ABLAAIController*> DefenderBots;
+    FillLANBots(TeamSize, AttackerBots, DefenderBots);
+    if (RoleAssignment)
+    {
+        RoleAssignment->AssignRoles(AttackerBots);
+        RoleAssignment->AssignRoles(DefenderBots);
+    }
+}
+
 void ABLAGameModeElimination::FillLANBots(int32 TeamSize, TArray<ABLAAIController*>& OutAttackerBots,
     TArray<ABLAAIController*>& OutDefenderBots)
 {
-    const int32 AttackerHumans = CountHumansOnTeam(EBLA_Team::Attackers);
-    const int32 DefenderHumans = CountHumansOnTeam(EBLA_Team::Defenders);
-    const int32 AttackerBotsNeeded = FMath::Max(0, TeamSize - AttackerHumans);
-    const int32 DefenderBotsNeeded = FMath::Max(0, TeamSize - DefenderHumans);
+    const int32 AttackerMembers = TeamManager ? TeamManager->GetTeamMembers(EBLA_Team::Attackers).Num()
+        : CountHumansOnTeam(EBLA_Team::Attackers);
+    const int32 DefenderMembers = TeamManager ? TeamManager->GetTeamMembers(EBLA_Team::Defenders).Num()
+        : CountHumansOnTeam(EBLA_Team::Defenders);
+    const int32 AttackerBotsNeeded = FMath::Max(0, TeamSize - AttackerMembers);
+    const int32 DefenderBotsNeeded = FMath::Max(0, TeamSize - DefenderMembers);
     for (int32 Index = 0; Index < AttackerBotsNeeded; ++Index)
     {
-        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Attackers, Index + AttackerHumans, TEXT("AttackSpawn")))
+        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Attackers, Index + AttackerMembers, TEXT("AttackSpawn")))
         {
             OutAttackerBots.Add(AI);
         }
     }
     for (int32 Index = 0; Index < DefenderBotsNeeded; ++Index)
     {
-        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Defenders, Index + DefenderHumans, TEXT("DefenseSpawn")))
+        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Defenders, Index + DefenderMembers, TEXT("DefenseSpawn")))
         {
             OutDefenderBots.Add(AI);
         }

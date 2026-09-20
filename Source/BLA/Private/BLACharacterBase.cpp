@@ -11,10 +11,13 @@
 #include "Perception/AISense_Damage.h"
 #include "Perception/AISense_Hearing.h"
 #include "Perception/AISense_Sight.h"
+#include "Net/UnrealNetwork.h"
 
 ABLACharacterBase::ABLACharacterBase()
 {
     PrimaryActorTick.bCanEverTick = false;
+    bReplicates = true;
+    SetReplicateMovement(true);
     bUseControllerRotationYaw = true;
 
     FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
@@ -94,6 +97,12 @@ ETeamAttitude::Type ABLACharacterBase::GetTeamAttitudeTowards(const AActor& Othe
         return ETeamAttitude::Neutral;
     }
     return ETeamAttitude::Hostile;
+}
+
+void ABLACharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(ABLACharacterBase, Team);
 }
 
 void ABLACharacterBase::HandleHealthDeath(AActor* InstigatorActor)

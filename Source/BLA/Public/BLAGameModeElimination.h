@@ -48,6 +48,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
     bool StartLANMatch(APlayerController* Requestor);
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
     void FillVacantLANSlotsWithBots();
 
 protected:

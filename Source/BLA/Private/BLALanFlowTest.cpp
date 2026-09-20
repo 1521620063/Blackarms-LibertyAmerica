@@ -5,6 +5,7 @@
 #include "BLALanStatics.h"
 #include "BLAAIController.h"
 #include "BLACharacterBase.h"
+#include "BLAHealthComponent.h"
 #include "BLAGameModeElimination.h"
 #include "BLAPlayerController.h"
 #include "BLAPlayerState.h"
@@ -119,6 +120,59 @@ void ABLALanFlowTest::RunStartContracts()
     UE_LOG(LogTemp, Error, TEXT("BLA_LAN_START_FAILED not_host=%d started=%d phase=%d bots=%d total=%d reject=%d"),
         bStillWaitingAfterClientStart && bNotHostReported, bHostStarted,
         static_cast<int32>(State->RoundPhase), BotCount, CombatantCount, bRejectAfterStart);
+}
+
+
+void ABLALanFlowTest::RunAuthorityAndDisconnectContracts()
+{
+    ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr;
+    ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
+    if (!GameMode || !State || State->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BLA_LAN_AUTHORITY_FAILED reason=not_started"));
+        return;
+    }
+
+    ABLABotCharacter* Victim = nullptr;
+    for (TActorIterator<ABLABotCharacter> It(GetWorld()); It; ++It)
+    {
+        Victim = *It;
+        break;
+    }
+    const bool bServerDamage = Victim && Victim->ApplyCombatDamage(15.0f, TEXT("Body"), nullptr);
+    const float HealthAfterServer = Victim && Victim->HealthComponent ? Victim->HealthComponent->CurrentHealth : -1.0f;
+    const int32 HumansBefore = GameMode->CountHumans();
+    int32 BotsBefore = 0;
+    for (TActorIterator<ABLABotCharacter> It(GetWorld()); It; ++It) { ++BotsBefore; }
+
+    APlayerController* Extra = nullptr;
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (It->Get() && It->Get() != GetWorld()->GetFirstPlayerController())
+        {
+            Extra = It->Get();
+            break;
+        }
+    }
+    if (Extra)
+    {
+        UGameplayStatics::RemovePlayer(Extra, true);
+    }
+    const int32 HumansAfterLeave = GameMode->CountHumans();
+    int32 BotsAfterLeave = 0;
+    for (TActorIterator<ABLABotCharacter> It(GetWorld()); It; ++It) { ++BotsAfterLeave; }
+
+    GameMode->FillVacantLANSlotsWithBots();
+    int32 BotsAfterFill = 0;
+    for (TActorIterator<ABLABotCharacter> It(GetWorld()); It; ++It) { ++BotsAfterFill; }
+    if (bServerDamage && HealthAfterServer < 100.0f && HumansAfterLeave == HumansBefore - 1
+        && BotsAfterLeave == BotsBefore && BotsAfterFill == BotsBefore + 1)
+    {
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_AUTHORITY_OK damage_server=1 leave_empty_slot=1 next_round_fill=1"));
+        return;
+    }
+    UE_LOG(LogTemp, Error, TEXT("BLA_LAN_AUTHORITY_FAILED dmg=%d health=%.1f humans=%d/%d bots=%d/%d/%d"),
+        bServerDamage, HealthAfterServer, HumansBefore, HumansAfterLeave, BotsBefore, BotsAfterLeave, BotsAfterFill);
 }
 
 void ABLALanFlowTest::RunWaitingContracts()

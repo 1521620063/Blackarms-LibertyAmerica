@@ -19,13 +19,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Health", meta = (ClampMin = "1.0"))
     float MaxHealth = 100.0f;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Health")
     float CurrentHealth = 100.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health", meta = (ClampMin = "0.0"))
     float ArmorValue = 0.0f;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Health")
     bool bIsDead = false;
 
     UPROPERTY(BlueprintAssignable, Category = "Health")
@@ -45,4 +45,6 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Health")
     void HandleDeath(AActor* InstigatorActor = nullptr);
+
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
