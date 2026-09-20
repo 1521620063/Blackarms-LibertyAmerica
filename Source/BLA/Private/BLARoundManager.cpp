@@ -41,6 +41,11 @@ void ABLARoundManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ABLARoundManager::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (BLAGameState && (BLAGameState->RoundPhase == EBLA_RoundPhase::Waiting
+        || BLAGameState->RoundPhase == EBLA_RoundPhase::Loading))
+    {
+        return;
+    }
     if (!BLAGameState || bIsRoundEnding || (BLAGameState->RoundPhase != EBLA_RoundPhase::Preparation && BLAGameState->RoundPhase != EBLA_RoundPhase::Combat))
     {
         return;

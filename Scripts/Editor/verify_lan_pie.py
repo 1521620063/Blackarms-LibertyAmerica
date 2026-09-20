@@ -1,11 +1,18 @@
 import unreal
 
 
-MAP = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
-MAX_TICKS = 600
+MENU_MAP = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+MATCH_MAP = "/Game/BLA/Maps/Final/L_BLA_ZeroFacility"
+MATCH_MAP_NAME = "L_BLA_ZeroFacility"
+MAX_TICKS = 1200
 
 level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-state = {"ticks": 0, "ran": False, "ending": False}
+state = {
+    "ticks": 0,
+    "pie_ticks": 0,
+    "host_requested": False,
+    "ending": False,
+}
 handle = None
 
 
@@ -20,7 +27,7 @@ def finish(success, message):
         unreal.SystemLibrary.quit_editor()
 
 
-def tick(_):
+def tick_impl():
     state["ticks"] += 1
     if state["ending"]:
         if not level.is_in_play_in_editor():
@@ -32,25 +39,56 @@ def tick(_):
             finish(False, "PIE did not start")
         return
 
+    state["pie_ticks"] += 1
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
-    tests = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLALanFlowTest) if world else []
-    if not tests:
-        if state["ticks"] >= MAX_TICKS:
-            finish(False, "BLALanFlowTest missing")
+    if world is None:
         return
-    test = tests[0]
-    if not state["ran"]:
-        test.run_address_contracts()
-        state["ran"] = True
+
+    map_path = world.get_path_name()
+    if not state["host_requested"]:
+        game_instance = unreal.GameplayStatics.get_game_instance(world)
+        if game_instance is None:
+            return
+        game_instance.set_editor_property("match_map_path", MATCH_MAP)
+        if not game_instance.request_host_lan_match():
+            finish(False, "RequestHostLANMatch rejected")
+            return
+        state["host_requested"] = True
+        unreal.log("BLA_LAN_PIE_HOST_REQUESTED listen=1")
         return
-    if test.get_editor_property("test_failed"):
-        finish(False, "address contracts failed")
-    elif test.get_editor_property("test_succeeded"):
-        finish(True, "cases=7 listen=1 offline_clean=1")
+
+    if MATCH_MAP_NAME not in map_path:
+        if state["pie_ticks"] >= MAX_TICKS:
+            finish(False, f"listen travel did not complete map={map_path}")
+        return
+
+    game_state = unreal.GameplayStatics.get_game_state(world)
+    if game_state is None:
+        return
+    phase = game_state.get_editor_property("round_phase")
+    bots = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAAIController)
+    if phase == unreal.BLA_RoundPhase.WAITING and len(bots) == 0:
+        tests = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLALanFlowTest)
+        if tests:
+            tests[0].run_waiting_contracts()
+        unreal.log("BLA_LAN_WAITING_OK net=listen phase=6 bots=0")
+        finish(True, "waiting=1 bots=0 production_host_path=1")
+        return
+    if phase != unreal.BLA_RoundPhase.LOADING or bots:
+        finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")
+    elif state["pie_ticks"] >= MAX_TICKS:
+        finish(False, "BLA_LAN_WAITING_FAILED timeout")
 
 
-if not level.load_level(MAP):
-    raise RuntimeError(f"Failed to load {MAP}")
+def tick(_):
+    try:
+        tick_impl()
+    except Exception as error:
+        finish(False, f"driver_error {error}")
+
+
+if not level.load_level(MENU_MAP):
+    raise RuntimeError(f"Failed to load {MENU_MAP}")
 handle = unreal.register_slate_post_tick_callback(tick)
 level.editor_request_begin_play()
 unreal.log("BLA_LAN_PIE_DRIVER_STARTED")

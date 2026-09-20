@@ -10,21 +10,28 @@ class BLA_API ABLAPlayerState : public APlayerState
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA")
+    ABLAPlayerState();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     EBLA_Team Team = EBLA_Team::Neutral;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category = "BLA|LAN")
+    bool bIsLANHost = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     EBLA_DeathState DeathState = EBLA_DeathState::Alive;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     int32 Kills = 0;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     int32 Deaths = 0;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     float DamageDealt = 0.0f;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "BLA")
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated, Category = "BLA")
     float ObjectiveContribution = 0.0f;
+
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

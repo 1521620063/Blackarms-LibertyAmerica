@@ -1,13 +1,46 @@
 #include "BLALanFlowTest.h"
 
 #include "BLAGameInstance.h"
+#include "BLAGameState.h"
 #include "BLALanStatics.h"
+#include "BLAAIController.h"
+#include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
 ABLALanFlowTest::ABLALanFlowTest()
 {
     PrimaryActorTick.bCanEverTick = false;
+}
+
+void ABLALanFlowTest::RunWaitingContracts()
+{
+    const ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
+    const ENetMode NetMode = GetWorld() ? GetWorld()->GetNetMode() : NM_MAX;
+    int32 BotCount = 0;
+    if (GetWorld())
+    {
+        for (TActorIterator<ABLAAIController> It(GetWorld()); It; ++It)
+        {
+            ++BotCount;
+        }
+    }
+    const bool bWaiting = State && State->RoundPhase == EBLA_RoundPhase::Waiting;
+    const bool bNoBots = BotCount == 0;
+    if (NetMode == NM_ListenServer && bWaiting && bNoBots)
+    {
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_OK net=listen phase=%d bots=%d"),
+            static_cast<int32>(State->RoundPhase), BotCount);
+    }
+    else if (NetMode == NM_Standalone)
+    {
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_SKIP standalone"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("BLA_LAN_WAITING_FAILED net=%d phase=%d bots=%d"),
+            static_cast<int32>(NetMode), State ? static_cast<int32>(State->RoundPhase) : -1, BotCount);
+    }
 }
 
 void ABLALanFlowTest::BeginPlay()

@@ -7,6 +7,7 @@
 #include "BLAMapConfig.h"
 #include "BLAObjectiveManager.h"
 #include "BLAPlayerController.h"
+#include "BLAPlayerState.h"
 #include "BLARoleAssignment.h"
 #include "BLARoundManager.h"
 #include "BLASpawnPoint.h"
@@ -34,7 +35,91 @@ void ABLAGameModeElimination::BeginPlay()
     TeamOrderManager = GetWorld()->SpawnActor<ABLATeamOrderManager>();
     RoleAssignment = GetWorld()->SpawnActor<ABLARoleAssignment>();
     TacticalManager = GetWorld()->SpawnActor<ABLATacticalManager>();
+    if (IsLANListenMatch())
+    {
+        EnterLANWaiting();
+        return;
+    }
     GetWorldTimerManager().SetTimer(InitializeMatchTimer, this, &ABLAGameModeElimination::InitializeMatch, 0.25f, false);
+}
+
+bool ABLAGameModeElimination::IsLANListenMatch() const
+{
+    return GetWorld() && GetWorld()->GetNetMode() == NM_ListenServer;
+}
+
+void ABLAGameModeElimination::EnterLANWaiting()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    const UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
+    if (State && GameInstance)
+    {
+        State->MatchMode = GameInstance->SelectedMode;
+        State->AttackersTeamSize = GameInstance->SelectedTeamSize;
+        State->DefendersTeamSize = GameInstance->SelectedTeamSize;
+        State->DifficultyLevel = GameInstance->SelectedDifficultyLevel;
+        State->RoundPhase = EBLA_RoundPhase::Waiting;
+    }
+    if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
+    {
+        if (ABLAPlayerState* PlayerState = PlayerController->GetPlayerState<ABLAPlayerState>())
+        {
+            PlayerState->Team = EBLA_Team::Attackers;
+            PlayerState->bIsLANHost = true;
+        }
+        PlayerController->UnPossess();
+    }
+    RefreshLANRoster();
+    if (UIManager)
+    {
+        UIManager->Configure(this, RoundManager, TeamOrderManager);
+    }
+    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_ENTERED team_size=%d"),
+        GameInstance ? GameInstance->SelectedTeamSize : 0);
+}
+
+void ABLAGameModeElimination::RefreshLANRoster()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (!State)
+    {
+        return;
+    }
+    State->LANRoster.Reset();
+    for (APlayerState* BasePlayerState : State->PlayerArray)
+    {
+        ABLAPlayerState* PlayerState = Cast<ABLAPlayerState>(BasePlayerState);
+        if (!PlayerState || PlayerState->IsABot())
+        {
+            continue;
+        }
+        FBLALanRosterEntry Entry;
+        Entry.DisplayName = PlayerState->GetPlayerName();
+        Entry.Team = PlayerState->Team;
+        Entry.bIsLANHost = PlayerState->bIsLANHost;
+        State->LANRoster.Add(Entry);
+    }
+}
+
+APawn* ABLAGameModeElimination::SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot)
+{
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (State && State->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        return nullptr;
+    }
+    return Super::SpawnDefaultPawnFor_Implementation(NewPlayer, StartSpot);
+}
+
+APawn* ABLAGameModeElimination::SpawnDefaultPawnAtTransform_Implementation(
+    AController* NewPlayer, const FTransform& SpawnTransform)
+{
+    const ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (State && State->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        return nullptr;
+    }
+    return Super::SpawnDefaultPawnAtTransform_Implementation(NewPlayer, SpawnTransform);
 }
 
 void ABLAGameModeElimination::InitializeMatch()

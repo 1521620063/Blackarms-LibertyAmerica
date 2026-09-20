@@ -14,6 +14,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Test")
     void RunAddressContracts();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|Test")
+    void RunWaitingContracts();
+
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
     bool bTestSucceeded = false;
 

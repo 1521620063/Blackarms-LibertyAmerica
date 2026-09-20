@@ -15,6 +15,7 @@ ENUMS = {
         "OBJECTIVE_UPLOAD",
         "ROUND_RESULT",
         "MATCH_RESULT",
+        "WAITING",
     ],
     "BLA_BotRole": ["ASSAULT", "SUPPORT", "DEFENDER"],
     "BLA_WeaponType": ["ENERGY_PISTOL", "PULSE_RIFLE", "SCATTER_GUN"],

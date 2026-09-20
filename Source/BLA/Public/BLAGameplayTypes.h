@@ -27,7 +27,8 @@ enum class EBLA_RoundPhase : uint8
     Combat,
     ObjectiveUpload,
     RoundResult,
-    MatchResult
+    MatchResult,
+    Waiting
 };
 
 UENUM(BlueprintType)
@@ -84,6 +85,21 @@ enum class EBLA_DifficultyLevel : uint8
     Easy,
     Normal,
     Hard
+};
+
+USTRUCT(BlueprintType)
+struct BLA_API FBLALanRosterEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN")
+    FString DisplayName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN")
+    EBLA_Team Team = EBLA_Team::Neutral;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN")
+    bool bIsLANHost = false;
 };
 
 USTRUCT(BlueprintType)
