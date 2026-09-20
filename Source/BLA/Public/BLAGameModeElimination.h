@@ -4,6 +4,8 @@
 #include "BLAGameModeElimination.generated.h"
 
 class ABLARoundManager;
+class ABLAMapConfig;
+class ABLAPlayerCharacter;
 class ABLATeamManager;
 class ABLACharacterBase;
 class ABLAAIController;
@@ -43,6 +45,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
     bool SetLANTeam(APlayerController* PlayerController, EBLA_Team Team);
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool StartLANMatch(APlayerController* Requestor);
+
+    void FillVacantLANSlotsWithBots();
+
 protected:
     virtual void BeginPlay() override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
@@ -53,6 +60,13 @@ protected:
     virtual bool ShouldStartInMainMenu() const override { return false; }
 private:
     void InitializeMatch();
+    void AssignNeutralHumansForLAN();
+    bool PossessLANHumans();
+    void FillLANBots(int32 TeamSize, TArray<ABLAAIController*>& OutAttackerBots, TArray<ABLAAIController*>& OutDefenderBots);
+    void LaunchPreparedMatch(int32 TeamSize, EBLA_MatchMode Mode, ABLAMapConfig* MapConfig,
+        const TArray<ABLAAIController*>& AttackerBots, const TArray<ABLAAIController*>& DefenderBots,
+        ABLAPlayerCharacter* OrderAnchor);
+    ABLAMapConfig* FindMapConfig() const;
     ABLAAIController* SpawnBot(EBLA_Team Team, int32 TeamIndex, FName PreferredZone);
     bool EquipLoadout(ABLACharacterBase* Combatant) const;
     FBLAMatchRules ResolveRules(int32 TeamSize) const;

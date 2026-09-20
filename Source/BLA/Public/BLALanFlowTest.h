@@ -20,6 +20,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Test")
     void RunJoinAndTeamContracts();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|Test")
+    void RunStartContracts();
+
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
     bool bTestSucceeded = false;
 

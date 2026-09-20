@@ -39,6 +39,9 @@ public:
     UFUNCTION(Server, Reliable, BlueprintCallable, Category = "BLA|LAN")
     void ServerSetTeam(EBLA_Team Team);
 
+    UFUNCTION(Server, Reliable, BlueprintCallable, Category = "BLA|LAN")
+    void ServerStartLANMatch();
+
     UFUNCTION(Client, Reliable)
     void ClientNotifyFlowError(const FString& Code);
 

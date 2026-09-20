@@ -323,6 +323,14 @@ void ABLAPlayerController::ServerSetTeam_Implementation(EBLA_Team Team)
     }
 }
 
+void ABLAPlayerController::ServerStartLANMatch_Implementation()
+{
+    if (ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr)
+    {
+        GameMode->StartLANMatch(this);
+    }
+}
+
 void ABLAPlayerController::ClientNotifyFlowError_Implementation(const FString& Code)
 {
     if (UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr)

@@ -68,7 +68,12 @@ void ABLAGameModeElimination::EnterLANWaiting()
             PlayerState->Team = EBLA_Team::Attackers;
             PlayerState->bIsLANHost = true;
         }
+        APawn* WaitingPawn = PlayerController->GetPawn();
         PlayerController->UnPossess();
+        if (Cast<ABLACharacterBase>(WaitingPawn))
+        {
+            WaitingPawn->Destroy();
+        }
     }
     RefreshLANRoster();
     if (UIManager)
@@ -258,6 +263,171 @@ bool ABLAGameModeElimination::SetLANTeam(APlayerController* PlayerController, EB
     return true;
 }
 
+
+bool ABLAGameModeElimination::StartLANMatch(APlayerController* Requestor)
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
+    ABLAPlayerState* RequestorState = Requestor ? Requestor->GetPlayerState<ABLAPlayerState>() : nullptr;
+    if (!IsLANListenMatch() || !State || State->RoundPhase != EBLA_RoundPhase::Waiting)
+    {
+        return false;
+    }
+    if (!RequestorState || !RequestorState->bIsLANHost)
+    {
+        if (GameInstance)
+        {
+            GameInstance->ReportFlowFailure(TEXT("FLOW_LAN_NOT_HOST"));
+        }
+        if (ABLAPlayerController* BLAController = Cast<ABLAPlayerController>(Requestor))
+        {
+            BLAController->ClientNotifyFlowError(TEXT("FLOW_LAN_NOT_HOST"));
+        }
+        return false;
+    }
+
+    const int32 TeamSize = FMath::Clamp(State->AttackersTeamSize, 1, 3);
+    AssignNeutralHumansForLAN();
+    if (!PossessLANHumans())
+    {
+        return false;
+    }
+
+    TArray<ABLAAIController*> AttackerBots;
+    TArray<ABLAAIController*> DefenderBots;
+    FillLANBots(TeamSize, AttackerBots, DefenderBots);
+    if (AttackerBots.Num() != TeamSize - CountHumansOnTeam(EBLA_Team::Attackers)
+        || DefenderBots.Num() != TeamSize - CountHumansOnTeam(EBLA_Team::Defenders))
+    {
+        return false;
+    }
+
+    ABLAPlayerCharacter* OrderAnchor = nullptr;
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (ABLAPlayerCharacter* Pawn = It->Get() ? Cast<ABLAPlayerCharacter>(It->Get()->GetPawn()) : nullptr)
+        {
+            OrderAnchor = Pawn;
+            break;
+        }
+    }
+    LaunchPreparedMatch(TeamSize, State->MatchMode, FindMapConfig(), AttackerBots, DefenderBots, OrderAnchor);
+    RefreshLANRoster();
+    if (State->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        State->RoundPhase = EBLA_RoundPhase::Preparation;
+    }
+    State->LivingAttackers = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Attackers) : TeamSize;
+    State->LivingDefenders = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Defenders) : TeamSize;
+    return State->RoundPhase == EBLA_RoundPhase::Preparation;
+}
+
+void ABLAGameModeElimination::AssignNeutralHumansForLAN()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (!State)
+    {
+        return;
+    }
+    const int32 TeamSize = State->AttackersTeamSize;
+    for (APlayerState* BaseState : State->PlayerArray)
+    {
+        ABLAPlayerState* PlayerState = Cast<ABLAPlayerState>(BaseState);
+        if (!PlayerState || PlayerState->IsABot() || PlayerState->Team != EBLA_Team::Neutral)
+        {
+            continue;
+        }
+        const int32 AttackerHumans = CountHumansOnTeam(EBLA_Team::Attackers);
+        const int32 DefenderHumans = CountHumansOnTeam(EBLA_Team::Defenders);
+        EBLA_Team Preferred = AttackerHumans <= DefenderHumans ? EBLA_Team::Attackers : EBLA_Team::Defenders;
+        if (CountHumansOnTeam(Preferred) >= TeamSize)
+        {
+            Preferred = Preferred == EBLA_Team::Attackers ? EBLA_Team::Defenders : EBLA_Team::Attackers;
+        }
+        PlayerState->Team = Preferred;
+    }
+}
+
+bool ABLAGameModeElimination::PossessLANHumans()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (!State || !TeamManager)
+    {
+        return false;
+    }
+    int32 HumanIndex = 0;
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PlayerController = It->Get();
+        ABLAPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<ABLAPlayerState>() : nullptr;
+        if (!PlayerController || !PlayerState || PlayerState->IsABot())
+        {
+            continue;
+        }
+        const EBLA_Team Team = PlayerState->Team;
+        if (Team != EBLA_Team::Attackers && Team != EBLA_Team::Defenders)
+        {
+            return false;
+        }
+        const FName Zone = Team == EBLA_Team::Defenders ? TEXT("DefenseSpawn") : TEXT("AttackSpawn");
+        ABLASpawnPoint* Spawn = TeamManager->SelectSpawnPoint(Team, Zone);
+        const FTransform Transform = Spawn ? Spawn->GetActorTransform()
+            : FTransform(FVector(0.0f, HumanIndex * 250.0f, 120.0f));
+        FActorSpawnParameters Parameters;
+        Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+        ABLAPlayerCharacter* Pawn = GetWorld()->SpawnActor<ABLAPlayerCharacter>(ABLAPlayerCharacter::StaticClass(), Transform, Parameters);
+        if (!Pawn)
+        {
+            return false;
+        }
+        Pawn->Team = Team;
+        PlayerController->Possess(Pawn);
+        if (!TeamManager->RegisterCombatant(Pawn) || !EquipLoadout(Pawn))
+        {
+            Pawn->Destroy();
+            return false;
+        }
+        if (ABLAPlayerController* BLAController = Cast<ABLAPlayerController>(PlayerController))
+        {
+            BLAController->ConfigureTeamSystems(TeamManager, TeamOrderManager);
+        }
+        ++HumanIndex;
+    }
+    return HumanIndex > 0;
+}
+
+void ABLAGameModeElimination::FillLANBots(int32 TeamSize, TArray<ABLAAIController*>& OutAttackerBots,
+    TArray<ABLAAIController*>& OutDefenderBots)
+{
+    const int32 AttackerHumans = CountHumansOnTeam(EBLA_Team::Attackers);
+    const int32 DefenderHumans = CountHumansOnTeam(EBLA_Team::Defenders);
+    const int32 AttackerBotsNeeded = FMath::Max(0, TeamSize - AttackerHumans);
+    const int32 DefenderBotsNeeded = FMath::Max(0, TeamSize - DefenderHumans);
+    for (int32 Index = 0; Index < AttackerBotsNeeded; ++Index)
+    {
+        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Attackers, Index + AttackerHumans, TEXT("AttackSpawn")))
+        {
+            OutAttackerBots.Add(AI);
+        }
+    }
+    for (int32 Index = 0; Index < DefenderBotsNeeded; ++Index)
+    {
+        if (ABLAAIController* AI = SpawnBot(EBLA_Team::Defenders, Index + DefenderHumans, TEXT("DefenseSpawn")))
+        {
+            OutDefenderBots.Add(AI);
+        }
+    }
+}
+
+ABLAMapConfig* ABLAGameModeElimination::FindMapConfig() const
+{
+    for (TActorIterator<ABLAMapConfig> It(GetWorld()); It; ++It)
+    {
+        return *It;
+    }
+    return nullptr;
+}
+
 void ABLAGameModeElimination::InitializeMatch()
 {
     ABLAPlayerCharacter* Player = Cast<ABLAPlayerCharacter>(GetWorld()->GetFirstPlayerController() ? GetWorld()->GetFirstPlayerController()->GetPawn() : nullptr);
@@ -271,12 +441,7 @@ void ABLAGameModeElimination::InitializeMatch()
 
     // The map config is the source of truth for what a level supports (Task 11); the
     // tag-based search below stays as the fallback for maps that predate it.
-    ABLAMapConfig* MapConfig = nullptr;
-    for (TActorIterator<ABLAMapConfig> It(GetWorld()); It; ++It)
-    {
-        MapConfig = *It;
-        break;
-    }
+    ABLAMapConfig* MapConfig = FindMapConfig();
     int32 TeamSize = RequestedTeamSize;
     if (MapConfig && MapConfig->Config)
     {
@@ -334,29 +499,36 @@ void ABLAGameModeElimination::InitializeMatch()
         return;
     }
 
+    LaunchPreparedMatch(TeamSize, Mode, MapConfig, AttackerBots, DefenderBots, Player);
+}
+
+void ABLAGameModeElimination::LaunchPreparedMatch(int32 TeamSize, EBLA_MatchMode Mode, ABLAMapConfig* MapConfig,
+    const TArray<ABLAAIController*>& AttackerBots, const TArray<ABLAAIController*>& DefenderBots,
+    ABLAPlayerCharacter* OrderAnchor)
+{
     RoleAssignment->AssignRoles(AttackerBots);
     RoleAssignment->AssignRoles(DefenderBots);
+    ABLAPlayerCharacter* AttackerAnchor = OrderAnchor && OrderAnchor->Team == EBLA_Team::Attackers ? OrderAnchor : nullptr;
     for (ABLAAIController* AI : AttackerBots)
     {
         AI->ConfigureTeamOrders(TeamOrderManager);
-        AI->ResolveRoleDirective(TacticalManager, TeamManager, Player);
+        AI->ResolveRoleDirective(TacticalManager, TeamManager, AttackerAnchor);
     }
     for (ABLAAIController* AI : DefenderBots)
     {
         AI->ConfigureTeamOrders(TeamOrderManager);
         AI->ResolveRoleDirective(TacticalManager, TeamManager, nullptr);
     }
-    if (ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(Player->GetController()))
+    if (OrderAnchor)
     {
-        PlayerController->ConfigureTeamSystems(TeamManager, TeamOrderManager);
+        if (ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(OrderAnchor->GetController()))
+        {
+            PlayerController->ConfigureTeamSystems(TeamManager, TeamOrderManager);
+        }
     }
-    // One state pointer for the whole match: the functional tests in these maps spawn their
-    // own AGameStateBase actors, so the world pointer is not a reliable match state.
+
     ABLAGameState* MatchState = GetGameState<ABLAGameState>();
     RoundManager->ConfigureManagers(MatchState, TeamManager, TeamOrderManager);
-
-    // Mode selection belongs to the player flow: TeamElimination leaves the map's objective
-    // actors inert, DataCoreAttackDefense hands them to the objective manager and the bots.
     if (MatchState)
     {
         MatchState->MatchMode = Mode;
@@ -376,8 +548,7 @@ void ABLAGameModeElimination::InitializeMatch()
     }
     if (!Objective)
     {
-        Objective = Cast<ABLAObjectiveManager>(
-            UGameplayStatics::GetActorOfClass(this, ABLAObjectiveManager::StaticClass()));
+        Objective = Cast<ABLAObjectiveManager>(UGameplayStatics::GetActorOfClass(this, ABLAObjectiveManager::StaticClass()));
     }
     if (Objective)
     {

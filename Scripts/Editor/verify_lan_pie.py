@@ -69,6 +69,11 @@ def tick_impl():
     phase = game_state.get_editor_property("round_phase")
     bots = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAAIController)
     if phase == unreal.BLA_RoundPhase.WAITING and len(bots) == 0:
+        waiting_combatants = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase)
+        if waiting_combatants:
+            names = ",".join(actor.get_name() for actor in waiting_combatants)
+            finish(False, f"waiting combat pawn leak count={len(waiting_combatants)} names={names}")
+            return
         game_mode = unreal.GameplayStatics.get_game_mode(world)
         host = unreal.GameplayStatics.get_player_controller(world, 0)
         if game_mode is None or host is None:
@@ -88,7 +93,35 @@ def tick_impl():
             return
         unreal.log("BLA_LAN_WAITING_OK net=listen phase=6 bots=0")
         unreal.log("BLA_LAN_JOIN_OK accepted=1 team_pick=1 team_full=1 started_reject=0")
-        finish(True, "waiting=1 join=1 team_full=1 production_host_path=1")
+
+        game_instance = unreal.GameplayStatics.get_game_instance(world)
+        host_state = host.get_editor_property("player_state")
+        if game_instance is None or host_state is None:
+            finish(False, "start contracts missing game instance or host state")
+            return
+        game_instance.set_editor_property("selected_team_size", 2)
+        game_state.set_editor_property("attackers_team_size", 2)
+        game_state.set_editor_property("defenders_team_size", 2)
+        host_state.set_editor_property("team", unreal.BLA_Team.NEUTRAL)
+        extra_state.set_editor_property("team", unreal.BLA_Team.NEUTRAL)
+
+        extra.server_start_lan_match()
+        still_waiting = game_state.get_editor_property("round_phase") == unreal.BLA_RoundPhase.WAITING
+        not_host = "FLOW_LAN_NOT_HOST" in game_instance.get_editor_property("last_flow_error")
+        host_started = game_mode.start_lan_match(host)
+        phase_prep = game_state.get_editor_property("round_phase") == unreal.BLA_RoundPhase.PREPARATION
+        bot_pawns = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter)
+        combatants = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase)
+        host_team = host_state.get_editor_property("team")
+        extra_team = extra_state.get_editor_property("team")
+        neutral_ok = host_team == unreal.BLA_Team.ATTACKERS and extra_team == unreal.BLA_Team.DEFENDERS
+        started_reject = not game_mode.can_accept_lan_join()
+        if not (still_waiting and not_host and host_started and phase_prep and len(bot_pawns) == 2 and len(combatants) == 4 and neutral_ok and started_reject):
+            finish(False, f"start contracts failed waiting={still_waiting} not_host={not_host} started={host_started} prep={phase_prep} bots={len(bot_pawns)} total={len(combatants)} neutral={neutral_ok} reject={started_reject}")
+            return
+        unreal.log("BLA_LAN_NEUTRAL_OK host=0 extra=1")
+        unreal.log(f"BLA_LAN_START_OK not_host=1 bots={len(bot_pawns)} total={len(combatants)} started_reject=1")
+        finish(True, "waiting=1 join=1 team_full=1 start=1 neutral=1 production_host_path=1")
         return
     if phase != unreal.BLA_RoundPhase.LOADING or bots:
         finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")

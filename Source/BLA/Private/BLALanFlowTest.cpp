@@ -4,6 +4,7 @@
 #include "BLAGameState.h"
 #include "BLALanStatics.h"
 #include "BLAAIController.h"
+#include "BLACharacterBase.h"
 #include "BLAGameModeElimination.h"
 #include "BLAPlayerController.h"
 #include "BLAPlayerState.h"
@@ -51,6 +52,73 @@ void ABLALanFlowTest::RunJoinAndTeamContracts()
     bTestFailed = true;
     UE_LOG(LogTemp, Error, TEXT("BLA_LAN_JOIN_FAILED host_def=%d host_atk=%d open=%d extra=%d neutral=%d picked=%d full=%d roster=%d"),
         bHostDefenders, bHostAttackers, bOpenBeforeJoin, Extra != nullptr, bJoinNeutral, bPicked, bTeamFull, bRoster);
+}
+
+
+void ABLALanFlowTest::RunStartContracts()
+{
+    ABLAGameModeElimination* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ABLAGameModeElimination>() : nullptr;
+    ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
+    ABLAPlayerController* Host = GetWorld() ? Cast<ABLAPlayerController>(GetWorld()->GetFirstPlayerController()) : nullptr;
+    UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
+    if (!GameMode || !State || !Host || !GameInstance)
+    {
+        bTestFailed = true;
+        UE_LOG(LogTemp, Error, TEXT("BLA_LAN_START_FAILED reason=missing_world"));
+        return;
+    }
+
+    GameInstance->ApplyTeamSize(2);
+    State->AttackersTeamSize = 2;
+    State->DefendersTeamSize = 2;
+    ABLAPlayerState* HostState = Host->GetPlayerState<ABLAPlayerState>();
+    ABLAPlayerController* Extra = Cast<ABLAPlayerController>(UGameplayStatics::CreatePlayer(GetWorld(), 1, true));
+    ABLAPlayerState* ExtraState = Extra ? Extra->GetPlayerState<ABLAPlayerState>() : nullptr;
+    if (HostState)
+    {
+        HostState->Team = EBLA_Team::Neutral;
+    }
+    if (ExtraState)
+    {
+        ExtraState->Team = EBLA_Team::Neutral;
+    }
+    if (Extra)
+    {
+        Extra->ServerStartLANMatch();
+    }
+    const bool bStillWaitingAfterClientStart = State->RoundPhase == EBLA_RoundPhase::Waiting;
+    const bool bNotHostReported = GameInstance->LastFlowError.Contains(TEXT("FLOW_LAN_NOT_HOST"));
+
+    const bool bHostStarted = GameMode->StartLANMatch(Host);
+    int32 BotCount = 0;
+    int32 CombatantCount = 0;
+    for (TActorIterator<ABLABotCharacter> It(GetWorld()); It; ++It) { ++BotCount; }
+    for (TActorIterator<ABLACharacterBase> It(GetWorld()); It; ++It) { ++CombatantCount; }
+
+    const bool bRejectAfterStart = !GameMode->CanAcceptLANJoin();
+    APlayerController* Late = UGameplayStatics::CreatePlayer(GetWorld(), 2, true);
+    const bool bLateRejected = Late == nullptr || !GameMode->CanAcceptLANJoin();
+    if (Late)
+    {
+        UGameplayStatics::RemovePlayer(Late, true);
+    }
+
+    const bool bPhasePreparation = State->RoundPhase == EBLA_RoundPhase::Preparation;
+    const bool bNeutralAssigned = HostState && ExtraState
+        && HostState->Team == EBLA_Team::Attackers && ExtraState->Team == EBLA_Team::Defenders;
+    if (bHostStarted && bStillWaitingAfterClientStart && bNotHostReported && bPhasePreparation
+        && BotCount == 2 && CombatantCount == 4 && bRejectAfterStart && bLateRejected && bNeutralAssigned)
+    {
+        bTestSucceeded = true;
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_NEUTRAL_OK host=0 extra=1"));
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_START_OK not_host=1 bots=%d total=%d started_reject=1"), BotCount, CombatantCount);
+        return;
+    }
+
+    bTestFailed = true;
+    UE_LOG(LogTemp, Error, TEXT("BLA_LAN_START_FAILED not_host=%d started=%d phase=%d bots=%d total=%d reject=%d"),
+        bStillWaitingAfterClientStart && bNotHostReported, bHostStarted,
+        static_cast<int32>(State->RoundPhase), BotCount, CombatantCount, bRejectAfterStart);
 }
 
 void ABLALanFlowTest::RunWaitingContracts()
