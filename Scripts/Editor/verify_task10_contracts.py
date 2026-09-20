@@ -16,6 +16,7 @@ WIDGETS = [
     "WBP_BLAObjectiveStatus",
     "WBP_BLARoundResult",
     "WBP_BLAMatchResult",
+    "WBP_BLALANWaiting",
     "WBP_BLAInteractionPrompt",
     "WBP_BLACommandSelector",
 ]
@@ -30,6 +31,7 @@ MANAGER_WIDGETS = [
     "objective_status_class",
     "round_result_class",
     "match_result_class",
+    "lan_waiting_class",
     "interaction_prompt_class",
     "command_selector_class",
 ]
@@ -111,8 +113,16 @@ def main():
             fail(f"BP_BLAUIManager did not wire {field}")
     if cdo.get_editor_property("spectator_class") is None:
         fail("BP_BLAUIManager did not wire spectator_class")
-    if not callable(getattr(cdo, "restart_match", None)) or not callable(getattr(cdo, "evaluate_match_screens", None)):
-        fail("BP_BLAUIManager is missing flow entry points")
+    for function in [
+        "restart_match",
+        "evaluate_match_screens",
+        "host_lan_match",
+        "join_lan_match",
+        "start_lan_match",
+        "leave_lan",
+    ]:
+        if not callable(getattr(cdo, function, None)):
+            fail(f"BP_BLAUIManager is missing {function}")
     try:
         cdo.get_editor_property("last_error_text")
     except Exception as error:
@@ -159,6 +169,9 @@ def main():
         "reset_settings",
         "travel_to",
         "request_start_match",
+        "request_host_lan_match",
+        "request_join_lan_match",
+        "request_leave_lan",
         "request_return_to_menu",
     ]:
         if not callable(getattr(game_instance, function, None)):
@@ -190,7 +203,7 @@ def main():
         matches[0].get_editor_property("test_succeeded")
         matches[0].get_editor_property("test_failed")
 
-    unreal.log("BLA_TASK10_CONTRACTS_OK widgets=11 managers=1 flow_tests=2 hud_fields=24 settings_fields=11 game_instance_api=9 flow_guards=1")
+    unreal.log("BLA_TASK10_CONTRACTS_OK widgets=12 managers=1 flow_tests=2 hud_fields=24 settings_fields=11 game_instance_api=12 flow_guards=1")
 
 
 main()

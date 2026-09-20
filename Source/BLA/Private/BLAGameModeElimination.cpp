@@ -4,6 +4,7 @@
 #include "BLACharacterBase.h"
 #include "BLAGameInstance.h"
 #include "BLAGameState.h"
+#include "BLALanStatics.h"
 #include "BLAMapConfig.h"
 #include "BLAObjectiveManager.h"
 #include "BLAPlayerController.h"
@@ -79,9 +80,28 @@ void ABLAGameModeElimination::EnterLANWaiting()
     if (UIManager)
     {
         UIManager->Configure(this, RoundManager, TeamOrderManager);
+        UIManager->ShowScreen(EBLA_UIScreen::LANWaiting);
     }
+#if !UE_BUILD_SHIPPING
+    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_HOST_WAITING ip=%s port=7777"),
+        *UBLALanStatics::GetAdvertiseIPv4());
+    if (GameInstance && GameInstance->LanAutoStartSeconds > 0.0f)
+    {
+        GetWorldTimerManager().SetTimer(LANAutoStartTimer, this,
+            &ABLAGameModeElimination::HandleLANAutoStart, GameInstance->LanAutoStartSeconds, false);
+    }
+#endif
     UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_ENTERED team_size=%d"),
         GameInstance ? GameInstance->SelectedTeamSize : 0);
+}
+
+void ABLAGameModeElimination::HandleLANAutoStart()
+{
+    ABLAGameState* State = GetGameState<ABLAGameState>();
+    if (IsLANListenMatch() && State && State->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        StartLANMatch(GetWorld()->GetFirstPlayerController());
+    }
 }
 
 void ABLAGameModeElimination::RefreshLANRoster()
@@ -279,6 +299,10 @@ bool ABLAGameModeElimination::SetLANTeam(APlayerController* PlayerController, EB
     }
     PlayerState->Team = Team;
     RefreshLANRoster();
+#if !UE_BUILD_SHIPPING
+    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_TEAM team=%s"),
+        *StaticEnum<EBLA_Team>()->GetNameStringByValue(static_cast<int64>(PlayerState->Team)));
+#endif
     return true;
 }
 
@@ -338,6 +362,16 @@ bool ABLAGameModeElimination::StartLANMatch(APlayerController* Requestor)
     }
     State->LivingAttackers = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Attackers) : TeamSize;
     State->LivingDefenders = TeamManager ? TeamManager->GetLivingCount(EBLA_Team::Defenders) : TeamSize;
+#if !UE_BUILD_SHIPPING
+    int32 BotCount = 0;
+    for (TActorIterator<ABLAAIController> It(GetWorld()); It; ++It)
+    {
+        ++BotCount;
+    }
+    const int32 HumanCount = CountHumans();
+    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_STARTED phase=%d humans=%d bots=%d total=%d"),
+        static_cast<int32>(State->RoundPhase), HumanCount, BotCount, HumanCount + BotCount);
+#endif
     return State->RoundPhase == EBLA_RoundPhase::Preparation;
 }
 

@@ -2,12 +2,18 @@
 
 #include "BLADebugSubsystem.h"
 #include "BLALanStatics.h"
+#include "BLAPlayerController.h"
+#include "BLAPlayerState.h"
+#include "BLAUIManager.h"
 #include "BLASettingsSaveGame.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/NetDriver.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -24,6 +30,37 @@ namespace
         TEXT("/Game/BLA/Data/Rules/DA_BLAMatchRules_2v2.DA_BLAMatchRules_2v2"),
         TEXT("/Game/BLA/Data/Rules/DA_BLAMatchRules_3v3.DA_BLAMatchRules_3v3")
     };
+}
+
+void UBLAGameInstance::Init()
+{
+    Super::Init();
+    if (GEngine)
+    {
+        GEngine->OnNetworkFailure().AddUObject(this, &UBLAGameInstance::HandleNetworkFailure);
+    }
+#if !UE_BUILD_SHIPPING
+    const TCHAR* CommandLine = FCommandLine::Get();
+    bLanHostRequested = FParse::Param(CommandLine, TEXT("BLALanHost"));
+    FParse::Value(CommandLine, TEXT("BLALanJoin="), LanJoinAddress);
+    FParse::Value(CommandLine, TEXT("BLALanTeam="), LanTeamName);
+    FParse::Value(CommandLine, TEXT("BLALanMode="), LanModeName);
+    FParse::Value(CommandLine, TEXT("BLALanTeamSize="), LanTeamSizeOverride);
+    FParse::Value(CommandLine, TEXT("BLALanAutoStart="), LanAutoStartSeconds);
+    if (bLanHostRequested || !LanJoinAddress.IsEmpty())
+    {
+        MatchMapPath = TEXT("/Game/BLA/Maps/Final/L_BLA_ZeroFacility");
+    }
+#endif
+}
+
+void UBLAGameInstance::Shutdown()
+{
+    if (GEngine)
+    {
+        GEngine->OnNetworkFailure().RemoveAll(this);
+    }
+    Super::Shutdown();
 }
 
 void UBLAGameInstance::ApplyModeSelection(EBLA_MatchMode Mode)
@@ -105,10 +142,132 @@ bool UBLAGameInstance::IsCurrentMap(const FString& MapPath) const
 void UBLAGameInstance::OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld)
 {
     Super::OnWorldChanged(OldWorld, NewWorld);
-    if (NewWorld)
+    if (!NewWorld)
     {
-        bTravelInProgress = false;
+        return;
     }
+
+    bTravelInProgress = false;
+    LanWorldTicks = 0;
+    NewWorld->GetTimerManager().ClearTimer(LanCommandLineTimer);
+    NewWorld->GetTimerManager().SetTimer(LanCommandLineTimer, this,
+        &UBLAGameInstance::TickCommandLineLAN, 0.1f, true, 0.1f);
+
+#if !UE_BUILD_SHIPPING
+    if (bLanLeaveRequested && IsCurrentMap(MenuMapPath))
+    {
+        bLanLeaveRequested = false;
+        if (!bPackagedMenuLogged)
+        {
+            bPackagedMenuLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_MENU"));
+        }
+    }
+#endif
+}
+
+void UBLAGameInstance::TickCommandLineLAN()
+{
+#if !UE_BUILD_SHIPPING
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+    ++LanWorldTicks;
+
+    if (World->GetNetMode() == NM_Client)
+    {
+        EnsureClientUIManager();
+    }
+
+    if (!bLanLaunchHandled && IsCurrentMap(MenuMapPath) && (bLanHostRequested || !LanJoinAddress.IsEmpty()))
+    {
+        if (!bLanHostRequested && !GetFirstLocalPlayerController())
+        {
+            return;
+        }
+        bLanLaunchHandled = true;
+        ApplyModeSelection(LanModeName.Equals(TEXT("DataCore"), ESearchCase::IgnoreCase)
+            ? EBLA_MatchMode::DataCoreAttackDefense : EBLA_MatchMode::TeamElimination);
+        if (LanTeamSizeOverride > 0)
+        {
+            ApplyTeamSize(FMath::Clamp(LanTeamSizeOverride, 1, 3));
+        }
+        if (bLanHostRequested)
+        {
+            RequestHostLANMatch();
+        }
+        else
+        {
+            RequestJoinLANMatch(LanJoinAddress);
+        }
+        return;
+    }
+
+    if (bLanHostRequested && bLanLaunchHandled && IsCurrentMap(MatchMapPath)
+        && LanWorldTicks >= 3 && World->GetNetMode() != NM_ListenServer)
+    {
+        ReportFlowFailure(TEXT("FLOW_LAN_LISTEN_FAILED"));
+        bLanHostRequested = false;
+        RequestLeaveLAN();
+        return;
+    }
+
+    if (!bLanTeamApplied && World->GetNetMode() == NM_Client && !LanTeamName.IsEmpty())
+    {
+        ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(GetFirstLocalPlayerController());
+        ABLAPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<ABLAPlayerState>() : nullptr;
+        if (PlayerController && PlayerState)
+        {
+            const EBLA_Team RequestedTeam = LanTeamName.Equals(TEXT("Defenders"), ESearchCase::IgnoreCase)
+                ? EBLA_Team::Defenders : EBLA_Team::Attackers;
+            bLanTeamApplied = true;
+            PlayerController->ServerSetTeam(RequestedTeam);
+        }
+    }
+#endif
+    return;
+}
+
+void UBLAGameInstance::EnsureClientUIManager()
+{
+    UWorld* World = GetWorld();
+    if (!World || UGameplayStatics::GetActorOfClass(World, ABLAUIManager::StaticClass()))
+    {
+        return;
+    }
+    UClass* ManagerClass = LoadClass<ABLAUIManager>(
+        nullptr, TEXT("/Game/BLA/Blueprints/UI/BP_BLAUIManager.BP_BLAUIManager_C"));
+    if (!ManagerClass)
+    {
+        ManagerClass = ABLAUIManager::StaticClass();
+    }
+    ABLAUIManager* Manager = World->SpawnActorDeferred<ABLAUIManager>(
+        ManagerClass, FTransform::Identity, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (Manager)
+    {
+        Manager->bStartInMainMenu = false;
+        Manager->FinishSpawning(FTransform::Identity);
+    }
+}
+
+void UBLAGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver,
+    ENetworkFailure::Type FailureType, const FString& ErrorString)
+{
+    const bool bWasConnectedClient = World && World->GetNetMode() == NM_Client
+        && World->GetGameState() != nullptr;
+    if (bWasConnectedClient
+        && (FailureType == ENetworkFailure::ConnectionLost
+            || FailureType == ENetworkFailure::FailureReceived))
+    {
+        ReportFlowFailure(TEXT("FLOW_LAN_HOST_LEFT"), ErrorString);
+    }
+    else
+    {
+        ReportFlowFailure(TEXT("FLOW_LAN_CONNECT_FAILED"), ErrorString);
+    }
+    RequestLeaveLAN();
 }
 
 bool UBLAGameInstance::TravelTo(const FString& MapPath)
@@ -195,6 +354,8 @@ bool UBLAGameInstance::RequestJoinLANMatch(const FString& Address)
 
 bool UBLAGameInstance::RequestLeaveLAN()
 {
+    bLanLeaveRequested = true;
+    bTravelInProgress = false;
     if (UWorld* World = GetWorld())
     {
         if (World->GetNetDriver() && GEngine)

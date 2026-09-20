@@ -61,6 +61,7 @@ protected:
     virtual bool ShouldStartInMainMenu() const override { return false; }
 private:
     void InitializeMatch();
+    void HandleLANAutoStart();
     void AssignNeutralHumansForLAN();
     bool PossessLANHumans();
     void FillLANBots(int32 TeamSize, TArray<ABLAAIController*>& OutAttackerBots, TArray<ABLAAIController*>& OutDefenderBots);
@@ -77,4 +78,5 @@ private:
     UPROPERTY() TObjectPtr<ABLARoleAssignment> RoleAssignment;
     UPROPERTY() TObjectPtr<ABLATacticalManager> TacticalManager;
     FTimerHandle InitializeMatchTimer;
+    FTimerHandle LANAutoStartTimer;
 };

@@ -16,6 +16,7 @@ WIDGETS = [
     "WBP_BLAObjectiveStatus",
     "WBP_BLARoundResult",
     "WBP_BLAMatchResult",
+    "WBP_BLALANWaiting",
     "WBP_BLAInteractionPrompt",
     "WBP_BLACommandSelector",
 ]
@@ -31,6 +32,7 @@ MANAGER_WIDGETS = {
     "objective_status_class": "WBP_BLAObjectiveStatus",
     "round_result_class": "WBP_BLARoundResult",
     "match_result_class": "WBP_BLAMatchResult",
+    "lan_waiting_class": "WBP_BLALANWaiting",
     "interaction_prompt_class": "WBP_BLAInteractionPrompt",
     "command_selector_class": "WBP_BLACommandSelector",
 }
@@ -118,7 +120,7 @@ def main():
     if lan_only:
         unreal.log("BLA_LAN_TASK1_ASSETS_BUILT flow_tests=1")
         return
-    unreal.log("BLA_TASK10_ASSETS_BUILT widgets=11 managers=1 flow_tests=2 settings_wired=11 flow_guards=1")
+    unreal.log("BLA_TASK10_ASSETS_BUILT widgets=12 managers=1 flow_tests=2 settings_wired=12 flow_guards=1")
 
 
 main()

@@ -74,6 +74,22 @@ def tick_impl():
             names = ",".join(actor.get_name() for actor in waiting_combatants)
             finish(False, f"waiting combat pawn leak count={len(waiting_combatants)} names={names}")
             return
+        ui_managers = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAUIManager)
+        ui_manager = ui_managers[0] if ui_managers else None
+        ui_state = ui_manager.get_match_state() if ui_manager else None
+        advertised = ui_manager.get_lan_advertise_address() if ui_manager else ""
+        ui_ok = (
+            ui_manager is not None
+            and ui_manager.get_current_screen() == unreal.BLA_UIScreen.LAN_WAITING
+            and ui_state == game_state
+            and "." in advertised
+        )
+        if not ui_ok:
+            finish(False, f"BLA_LAN_UI_FAILED screen={ui_manager.get_current_screen() if ui_manager else None} same_gs={ui_state == game_state} ip={advertised}")
+            return
+        ui_manager.run_ui_and_command_line_contracts() if hasattr(ui_manager, "run_ui_and_command_line_contracts") else None
+        unreal.log(f"BLA_LAN_UI_OK screen=lan_waiting ip={advertised} world_gs=1")
+
         game_mode = unreal.GameplayStatics.get_game_mode(world)
         host = unreal.GameplayStatics.get_player_controller(world, 0)
         if game_mode is None or host is None:
@@ -144,7 +160,7 @@ def tick_impl():
             finish(False, f"BLA_LAN_AUTHORITY_FAILED dmg={server_damage} health={health_after_server} humans={humans_before}/{humans_after_leave} bots={bots_before}/{bots_after_leave}/{bots_after_fill}")
             return
         unreal.log("BLA_LAN_AUTHORITY_OK damage_server=1 leave_empty_slot=1 next_round_fill=1")
-        finish(True, "waiting=1 join=1 team_full=1 start=1 neutral=1 authority=1 production_host_path=1")
+        finish(True, "waiting=1 ui=1 join=1 team_full=1 start=1 neutral=1 authority=1 production_host_path=1")
         return
     if phase != unreal.BLA_RoundPhase.LOADING or bots:
         finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")

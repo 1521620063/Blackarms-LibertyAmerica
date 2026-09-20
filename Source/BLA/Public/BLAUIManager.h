@@ -19,7 +19,8 @@ enum class EBLA_UIScreen : uint8
     Settings,
     MatchHUD,
     RoundResult,
-    MatchResult
+    MatchResult,
+    LANWaiting
 };
 
 /** Everything the HUD is allowed to show. Built only from GameState/PlayerState/components. */
@@ -135,6 +136,8 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BLA|UI")
     TSubclassOf<UUserWidget> MatchResultClass;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BLA|UI")
+    TSubclassOf<UUserWidget> LANWaitingClass;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BLA|UI")
     TSubclassOf<UUserWidget> InteractionPromptClass;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BLA|UI")
     TSubclassOf<UUserWidget> CommandSelectorClass;
@@ -204,6 +207,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     bool StartMatch();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool HostLANMatch();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool JoinLANMatch(const FString& Address);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool StartLANMatch();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool LeaveLAN();
+
+    UFUNCTION(BlueprintPure, Category = "BLA|LAN")
+    FString GetLANAdvertiseAddress() const;
+
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     bool RestartMatch();
 
@@ -233,6 +251,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "BLA|UI")
     ABLAObjectiveManager* GetObjectiveManager() const;
 
+    UFUNCTION(BlueprintPure, Category = "BLA|UI")
+    class ABLAGameState* GetMatchState() const;
+
     UFUNCTION(BlueprintCallable, Category = "BLA|UI")
     void NotifyHitConfirmed(float AppliedDamage, bool bKilled);
 
@@ -248,7 +269,6 @@ private:
     void ClearMatchReferences();
     void CopyFlowError(class UBLAGameInstance* GameInstance);
     class UBLAGameInstance* GetBLAGameInstance() const;
-    class ABLAGameState* GetMatchState() const;
 
     UPROPERTY()
     TObjectPtr<UUserWidget> ActiveWidget;
@@ -267,4 +287,7 @@ private:
 
     UPROPERTY()
     TObjectPtr<AActor> BoundFeedbackOwner;
+
+    bool bPackagedClientJoinedLogged = false;
+    bool bPackagedStateLogged = false;
 };

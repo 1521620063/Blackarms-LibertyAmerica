@@ -2,6 +2,8 @@
 
 #include "BLAGameplayTypes.h"
 #include "Engine/GameInstance.h"
+#include "Engine/EngineBaseTypes.h"
+#include "TimerManager.h"
 #include "BLAGameInstance.generated.h"
 
 class UBLABotDifficultyDataAsset;
@@ -52,6 +54,24 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BLA|Settings")
     FString SettingsSlotName = TEXT("BLAPlayerSettings");
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    bool bLanHostRequested = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    FString LanJoinAddress;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    FString LanTeamName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    FString LanModeName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    int32 LanTeamSizeOverride = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "BLA|LAN|CommandLine")
+    float LanAutoStartSeconds = 0.0f;
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Selection")
     void ApplyModeSelection(EBLA_MatchMode Mode);
@@ -124,8 +144,20 @@ public:
     TArray<FString> HarnessResults;
 
 protected:
+    virtual void Init() override;
+    virtual void Shutdown() override;
     virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) override;
 
 private:
     bool IsCurrentMap(const FString& MapPath) const;
+    void TickCommandLineLAN();
+    void EnsureClientUIManager();
+    void HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);
+
+    FTimerHandle LanCommandLineTimer;
+    bool bLanLaunchHandled = false;
+    bool bLanTeamApplied = false;
+    bool bLanLeaveRequested = false;
+    bool bPackagedMenuLogged = false;
+    int32 LanWorldTicks = 0;
 };

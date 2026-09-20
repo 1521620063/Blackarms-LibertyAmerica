@@ -26,6 +26,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Test")
     void RunAuthorityAndDisconnectContracts();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|Test")
+    void RunUIAndCommandLineContracts();
+
     UPROPERTY(BlueprintReadOnly, Category = "BLA|Test")
     bool bTestSucceeded = false;
 

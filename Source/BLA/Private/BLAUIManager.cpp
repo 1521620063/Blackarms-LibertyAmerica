@@ -5,6 +5,8 @@
 #include "BLAGameInstance.h"
 #include "BLAGameModeElimination.h"
 #include "BLAGameState.h"
+#include "BLALanStatics.h"
+#include "BLAPlayerController.h"
 #include "BLAHealthComponent.h"
 #include "BLAHitFeedbackComponent.h"
 #include "BLAObjectiveManager.h"
@@ -50,6 +52,29 @@ void ABLAUIManager::Tick(float DeltaSeconds)
     BindPlayerEvents();
     RefreshHUD();
     EvaluateMatchScreens();
+#if !UE_BUILD_SHIPPING
+    if (!bPackagedClientJoinedLogged && GetWorld() && GetWorld()->GetNetMode() == NM_Client)
+    {
+        const ABLAGameState* State = GetMatchState();
+        const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+        if (State && State->RoundPhase == EBLA_RoundPhase::Waiting && PC && PC->PlayerState)
+        {
+            bPackagedClientJoinedLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_CLIENT_JOINED"));
+        }
+    }
+    if (!bPackagedStateLogged)
+    {
+        const ABLAGameState* State = GetMatchState();
+        if (State && State->RoundPhase != EBLA_RoundPhase::Loading && State->RoundPhase != EBLA_RoundPhase::Waiting)
+        {
+            bPackagedStateLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_STATE net=%d phase=%d attack_score=%d defend_score=%d living_a=%d living_d=%d"),
+                static_cast<int32>(GetWorld()->GetNetMode()), static_cast<int32>(State->RoundPhase),
+                State->AttackersScore, State->DefendersScore, State->LivingAttackers, State->LivingDefenders);
+        }
+    }
+#endif
 }
 
 void ABLAUIManager::Configure(ABLAGameModeElimination* InGameMode, ABLARoundManager* InRoundManager,
@@ -72,9 +97,12 @@ UBLAGameInstance* ABLAUIManager::GetBLAGameInstance() const
 
 ABLAGameState* ABLAUIManager::GetMatchState() const
 {
-    if (RoundManager && RoundManager->BLAGameState)
+    if (GetWorld() && GetWorld()->GetNetMode() != NM_Client)
     {
-        return RoundManager->BLAGameState;
+        if (RoundManager && RoundManager->BLAGameState)
+        {
+            return RoundManager->BLAGameState;
+        }
     }
     return GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
 }
@@ -115,6 +143,7 @@ UUserWidget* ABLAUIManager::CreateScreenWidget(EBLA_UIScreen Screen)
     case EBLA_UIScreen::MatchHUD: WidgetClass = MatchHUDClass; break;
     case EBLA_UIScreen::RoundResult: WidgetClass = RoundResultClass; break;
     case EBLA_UIScreen::MatchResult: WidgetClass = MatchResultClass; break;
+    case EBLA_UIScreen::LANWaiting: WidgetClass = LANWaitingClass; break;
     default: break;
     }
     if (!Controller || !WidgetClass)
@@ -193,6 +222,61 @@ void ABLAUIManager::SelectDifficulty(EBLA_DifficultyLevel Level)
     {
         GameInstance->ApplyDifficultyLevel(Level);
     }
+}
+
+bool ABLAUIManager::HostLANMatch()
+{
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance || !GameInstance->RequestHostLANMatch())
+    {
+        CopyFlowError(GameInstance);
+        return false;
+    }
+    LastErrorText.Empty();
+    return true;
+}
+
+bool ABLAUIManager::JoinLANMatch(const FString& Address)
+{
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance || !GameInstance->RequestJoinLANMatch(Address))
+    {
+        CopyFlowError(GameInstance);
+        return false;
+    }
+    LastErrorText.Empty();
+    return true;
+}
+
+bool ABLAUIManager::StartLANMatch()
+{
+    ABLAPlayerController* PlayerController = Cast<ABLAPlayerController>(
+        GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr);
+    if (!PlayerController)
+    {
+        LastErrorText = TEXT("FLOW_NO_PLAYER_CONTROLLER");
+        return false;
+    }
+    PlayerController->ServerStartLANMatch();
+    LastErrorText.Empty();
+    return true;
+}
+
+bool ABLAUIManager::LeaveLAN()
+{
+    UBLAGameInstance* GameInstance = GetBLAGameInstance();
+    if (!GameInstance || !GameInstance->RequestLeaveLAN())
+    {
+        CopyFlowError(GameInstance);
+        return false;
+    }
+    LastErrorText.Empty();
+    return true;
+}
+
+FString ABLAUIManager::GetLANAdvertiseAddress() const
+{
+    return UBLALanStatics::GetAdvertiseIPv4();
 }
 
 bool ABLAUIManager::StartMatch()
@@ -400,6 +484,15 @@ void ABLAUIManager::RefreshHUD()
         State.LivingTeammates = FMath::Max(0, OwnLiving - (State.bAlive ? 1 : 0));
         State.LivingEnemies = Teams->GetLivingCount(EnemyTeam);
     }
+    else if (const ABLAGameState* GameState = GetMatchState())
+    {
+        const int32 OwnLiving = State.Team == EBLA_Team::Defenders
+            ? GameState->LivingDefenders : GameState->LivingAttackers;
+        const int32 EnemyLiving = State.Team == EBLA_Team::Defenders
+            ? GameState->LivingAttackers : GameState->LivingDefenders;
+        State.LivingTeammates = FMath::Max(0, OwnLiving - (State.bAlive ? 1 : 0));
+        State.LivingEnemies = EnemyLiving;
+    }
     if (TeamOrderManager)
     {
         State.CurrentOrder = TeamOrderManager->CurrentOrder;
@@ -426,6 +519,14 @@ void ABLAUIManager::EvaluateMatchScreens()
     const ABLAGameState* GameState = GetMatchState();
     if (!GameState)
     {
+        return;
+    }
+    if (GameState->RoundPhase == EBLA_RoundPhase::Waiting)
+    {
+        if (CurrentScreen != EBLA_UIScreen::LANWaiting)
+        {
+            ShowScreen(EBLA_UIScreen::LANWaiting);
+        }
         return;
     }
     const bool bMatchResult = GameState->RoundPhase == EBLA_RoundPhase::MatchResult;

@@ -6,6 +6,8 @@
 #include "BLAGameInstance.h"
 #include "BLAUIManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -25,6 +27,12 @@ ABLATestHarness::ABLATestHarness()
 void ABLATestHarness::BeginPlay()
 {
     Super::BeginPlay();
+    FString LanJoin;
+    if (FParse::Param(FCommandLine::Get(), TEXT("BLALanHost"))
+        || FParse::Value(FCommandLine::Get(), TEXT("BLALanJoin="), LanJoin))
+    {
+        return;
+    }
     // Only the first menu-map load starts the run: travel reloads this map for every result.
     const UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
     const bool bFirstEntry = GameInstance && !GameInstance->bHarnessRunAll

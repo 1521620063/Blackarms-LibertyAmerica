@@ -9,6 +9,7 @@
 #include "BLAGameModeElimination.h"
 #include "BLAPlayerController.h"
 #include "BLAPlayerState.h"
+#include "BLAUIManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
@@ -175,6 +176,26 @@ void ABLALanFlowTest::RunAuthorityAndDisconnectContracts()
         bServerDamage, HealthAfterServer, HumansBefore, HumansAfterLeave, BotsBefore, BotsAfterLeave, BotsAfterFill);
 }
 
+void ABLALanFlowTest::RunUIAndCommandLineContracts()
+{
+    ABLAUIManager* UI = Cast<ABLAUIManager>(UGameplayStatics::GetActorOfClass(this, ABLAUIManager::StaticClass()));
+    const ABLAGameState* WorldState = GetWorld()->GetGameState<ABLAGameState>();
+    const ABLAGameState* UIState = UI ? UI->GetMatchState() : nullptr;
+    const bool bSameState = UI && WorldState && UIState == WorldState;
+    const bool bWaitingScreen = UI && UI->GetCurrentScreen() == EBLA_UIScreen::LANWaiting;
+    const FString Advertised = UBLALanStatics::GetAdvertiseIPv4();
+    const bool bHasIP = Advertised.Contains(TEXT("."));
+
+    if (bSameState && bWaitingScreen && bHasIP)
+    {
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_UI_OK screen=lan_waiting ip=%s world_gs=1"), *Advertised);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("BLA_LAN_UI_FAILED screen=%d same_gs=%d ip=%s"),
+            UI ? static_cast<int32>(UI->GetCurrentScreen()) : -1, bSameState ? 1 : 0, *Advertised);
+    }
+}
 void ABLALanFlowTest::RunWaitingContracts()
 {
     const ABLAGameState* State = GetWorld() ? GetWorld()->GetGameState<ABLAGameState>() : nullptr;
