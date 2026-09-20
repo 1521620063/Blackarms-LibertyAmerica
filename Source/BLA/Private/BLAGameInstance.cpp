@@ -1,8 +1,11 @@
 #include "BLAGameInstance.h"
 
 #include "BLADebugSubsystem.h"
+#include "BLALanStatics.h"
 #include "BLASettingsSaveGame.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 
@@ -133,6 +136,73 @@ bool UBLAGameInstance::TravelTo(const FString& MapPath)
 bool UBLAGameInstance::RequestStartMatch()
 {
     return TravelTo(MatchMapPath);
+}
+
+bool UBLAGameInstance::RequestHostLANMatch()
+{
+    if (MatchMapPath.IsEmpty())
+    {
+        ReportFlowFailure(TEXT("FLOW_EMPTY_MAP"), TEXT("path is empty"));
+        return false;
+    }
+
+    const FString URL = UBLALanStatics::BuildListenMapURL(MatchMapPath, 7777);
+    LastTravelRequest = URL;
+    if (bTravelInProgress || IsCurrentMap(MatchMapPath))
+    {
+        ReportFlowFailure(TEXT("FLOW_DUPLICATE_TRAVEL"), URL);
+        return false;
+    }
+
+    LastFlowError.Empty();
+    bTravelInProgress = true;
+    if (bTravelImmediately)
+    {
+        UGameplayStatics::OpenLevel(this, FName(*MatchMapPath), true, TEXT("listen"));
+    }
+    return true;
+}
+
+bool UBLAGameInstance::RequestJoinLANMatch(const FString& Address)
+{
+    FBLALanAddress Parsed;
+    FString Error;
+    if (!UBLALanStatics::ParseLANAddress(Address, Parsed, Error))
+    {
+        ReportFlowFailure(Error.IsEmpty() ? TEXT("FLOW_LAN_INVALID_ADDRESS") : Error, Address);
+        return false;
+    }
+    if (bTravelInProgress)
+    {
+        ReportFlowFailure(TEXT("FLOW_DUPLICATE_TRAVEL"), Address);
+        return false;
+    }
+
+    const FString URL = FString::Printf(TEXT("%s:%d"), *Parsed.Host, Parsed.Port);
+    LastTravelRequest = URL;
+    LastFlowError.Empty();
+    bTravelInProgress = true;
+    if (APlayerController* PlayerController = GetFirstLocalPlayerController())
+    {
+        PlayerController->ClientTravel(URL, TRAVEL_Absolute);
+        return true;
+    }
+
+    ReportFlowFailure(TEXT("FLOW_LAN_CONNECT_FAILED"), TEXT("no local player"));
+    bTravelInProgress = false;
+    return false;
+}
+
+bool UBLAGameInstance::RequestLeaveLAN()
+{
+    if (UWorld* World = GetWorld())
+    {
+        if (World->GetNetDriver() && GEngine)
+        {
+            GEngine->ShutdownWorldNetDriver(World);
+        }
+    }
+    return TravelTo(MenuMapPath);
 }
 
 bool UBLAGameInstance::RequestReturnToMenu()

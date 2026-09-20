@@ -77,6 +77,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
     bool RequestStartMatch();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool RequestHostLANMatch();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool RequestJoinLANMatch(const FString& Address);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN")
+    bool RequestLeaveLAN();
+
     UFUNCTION(BlueprintCallable, Category = "BLA|Flow")
     bool RequestReturnToMenu();
 

@@ -15,7 +15,8 @@ public class BLA : ModuleRules
             "AIModule",
             "GameplayTasks",
             "NavigationSystem",
-            "UMG"
+            "UMG",
+            "Sockets"
         });
     }
 }

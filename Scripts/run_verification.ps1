@@ -72,10 +72,19 @@ $matrix = @(
     @{ Script = "verify_task12_pie"; Marker = "BLA_TASK12_PIE_DRIVER_(OK|FAILED)"; Require = @("ALL_MVP_FLOWS_OK", "HARNESS_CONFIGURATION_STARTED") }
 )
 
+$lanMatrix = @(
+    @{ Script = "verify_lan_contracts"; Marker = "BLA_LAN_CONTRACTS_(OK|FAILED)"; FailPattern = "BLA_LAN_CONTRACTS_FAILED|LAN_CONTRACT_FAILURE" }
+    @{ Script = "verify_lan_pie"; Marker = "BLA_LAN_PIE_DRIVER_(OK|FAILED)" }
+)
+
+$runMatrix = $matrix
+if ($Only -ne "") {
+    $runMatrix = @($matrix + $lanMatrix) | Where-Object { $_.Script -eq $Only }
+}
+
 $results = @()
 $failed = 0
-foreach ($entry in $matrix) {
-    if ($Only -ne "" -and $entry.Script -ne $Only) { continue }
+foreach ($entry in $runMatrix) {
 
     $label = $entry.Script
     if ($entry.EnvName) { $label = "$($entry.Script)[$($entry.EnvName.Substring($entry.EnvName.LastIndexOf('_') + 1))=$($entry.EnvValue)]" }

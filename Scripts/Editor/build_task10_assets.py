@@ -88,12 +88,36 @@ def place_flow_test(test_blueprint, level_path, label, flow):
         raise RuntimeError(f"Failed to save {level_path}")
 
 
+def build_lan_flow_test():
+    lan_test = blueprint(f"{TEST_PATH}/BP_BLALanFlowTest", unreal.BLALanFlowTest)
+    if not levels.load_level(MENU_LEVEL):
+        raise RuntimeError(f"Failed to load {MENU_LEVEL}")
+    lan_class = lan_test.generated_class()
+    matches = [actor for actor in actors.get_all_level_actors() if actor.get_class() == lan_class]
+    if not matches:
+        actor = actors.spawn_actor_from_class(lan_class, unreal.Vector(0.0, 0.0, 725.0), unreal.Rotator())
+        if actor is None:
+            raise RuntimeError("Failed to place BP_BLALanFlowTest")
+        actor.set_actor_label("BLA LAN Flow Test")
+    for duplicate in matches[1:]:
+        actors.destroy_actor(duplicate)
+    if not levels.save_current_level():
+        raise RuntimeError(f"Failed to save {MENU_LEVEL}")
+
+
 def main():
-    build_widgets()
-    build_ui_manager()
-    test = blueprint(f"{TEST_PATH}/FT_BLA_UIFlow", unreal.BLAUIFlowTest)
-    place_flow_test(test, MENU_LEVEL, "BLA UI Flow Test (Menu)", unreal.BLA_UIFlowKind.MENU)
-    place_flow_test(test, MATCH_LEVEL, "BLA UI Flow Test (Match)", unreal.BLA_UIFlowKind.MATCH)
+    _, switches, _ = unreal.SystemLibrary.parse_command_line(unreal.SystemLibrary.get_command_line())
+    lan_only = "BLALanAssetsOnly" in switches
+    if not lan_only:
+        build_widgets()
+        build_ui_manager()
+        test = blueprint(f"{TEST_PATH}/FT_BLA_UIFlow", unreal.BLAUIFlowTest)
+        place_flow_test(test, MENU_LEVEL, "BLA UI Flow Test (Menu)", unreal.BLA_UIFlowKind.MENU)
+        place_flow_test(test, MATCH_LEVEL, "BLA UI Flow Test (Match)", unreal.BLA_UIFlowKind.MATCH)
+    build_lan_flow_test()
+    if lan_only:
+        unreal.log("BLA_LAN_TASK1_ASSETS_BUILT flow_tests=1")
+        return
     unreal.log("BLA_TASK10_ASSETS_BUILT widgets=11 managers=1 flow_tests=2 settings_wired=11 flow_guards=1")
 
 
