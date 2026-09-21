@@ -25,7 +25,7 @@ public:
     bool IssueTeamOrder(EBLA_TeamOrder Order, FVector TargetLocation, EBLA_RoundPhase Phase, float DurationSeconds = 20.0f);
 
     UFUNCTION(BlueprintPure, Category = "BLA|Spectator")
-    TArray<ABLACharacterBase*> GetLivingFriendlySpectatorTargets() const;
+    TArray<ABLACharacterBase*> GetLivingFriendlySpectatorTargets();
 
     UFUNCTION(BlueprintCallable, Category = "BLA|Spectator")
     void CycleSpectatorTarget(int32 Direction);
@@ -51,6 +51,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
     void ClientDebugTryLocalDamage(float Amount);
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
+    void ClientDebugSwitchWeapon(int32 Slot);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
+    void ClientDebugRequestObjectiveInteraction(int32 InteractionType);
+
+    UFUNCTION(Server, Reliable)
+    void ServerSwitchWeapon(int32 Slot);
+
+    UFUNCTION(Server, Reliable)
+    void ServerBeginObjectiveInteraction(int32 InteractionType);
+
+    UFUNCTION(Client, Reliable)
+    void ClientNotifyPawnDeath();
+
+
     UFUNCTION(Server, Reliable)
     void ServerFireWeapon(FVector TraceStart, FVector AimDirection);
 
@@ -64,6 +80,7 @@ protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void OnPossess(APawn* InPawn) override;
+    virtual void AcknowledgePossession(APawn* P) override;
 
     UFUNCTION(BlueprintNativeEvent, Category = "BLA|Input")
     void OnFireRequested();

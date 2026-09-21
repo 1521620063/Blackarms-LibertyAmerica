@@ -42,6 +42,26 @@
 - 终线：`MATRIX_OK`
 - 默认矩阵仍是 25 项，LAN 只在 `-Only verify_lan_contracts` / `-Only verify_lan_pie` 时运行。
 
-### 结论
+#### Review fix（2026-09-21）
+
+- 命令：`pwsh -File Scripts/run_verification.ps1 -Only verify_lan_pie -Tag lan-review-green8 -TimeoutSeconds 420`
+- 日志：`Saved/Logs/V_verify_lan_pie_lan-review-green8.log`
+- 结果：`BLA_LAN_PIE_DRIVER_OK sessions=3`，12 个 LAN PIE 标记全部通过。
+- 合约复核：`pwsh -File Scripts/run_verification.ps1 -Only verify_lan_contracts -Tag lan-review-fix2`
+- 结果：`BLA_LAN_CONTRACTS_OK`。
+- 打包复核：`pwsh -File Scripts/run_lan_packaged_smoke.ps1 -Tag lan-review-fix`
+- 结果：`BLA_LAN_PACKAGED_SMOKE_OK`；第二对主机退出后的 UDP 超时仍按预期等待约 90 秒。
+- 离线复核：`pwsh -File Scripts/run_verification.ps1 -Tag lan-review-offline`
+- 结果：`MATRIX_DONE checks=25 failed=0`，终线 `MATRIX_OK`。
+
+### Review 结论
+
+- Finding 2（AutoStart 达到 2 人才倒计时）判定为误报：计划第 1799 行只要求 Waiting 且延迟大于 0 后由主机自动 Start；设计第 293 行说明它是测试用的主机便利功能。打包冒烟里 `humans=2` 只是测试场景，不是生产门槛。
+- `s2_damage` 改为服务器权威：驱动调用客户端 PC 的 `ClientDebugTryLocalDamage(999)`，继续走已有 Server RPC，不再把 listen 世界里的 pawn 当作普通客户端目标。
+- 修复旁观者客户端找不到目标的问题：possession 确认时绑定本地战斗单位，并在客户端按需懒加载 `ControlledCombatant`、遍历世界筛选存活友军。
+- PIE 驱动隔离：`BLAAllMVPFlowsTest` 和 `BLAMapNavigationTest` 现在必须看到 `-BLAPieDriver` 才接管 Tick；该参数只加在 `verify_lan_pie` 运行命令上，默认 25 项矩阵不受影响。
+- minor 5–10 记录为 `minor (deferred)`，不阻塞本次 review 修复。
+
+## 结论
 
 Task 7 完成：PIE、合约、打包双进程冒烟、离线 25 项矩阵全部通过。README 已替换为真实的 LAN Listen Server 说明。

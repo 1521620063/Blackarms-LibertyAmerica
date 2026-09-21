@@ -99,8 +99,9 @@ foreach ($entry in $runMatrix) {
         [Environment]::SetEnvironmentVariable("BLA_TASK8_TEAM_SIZE", $null, "Process")
     }
 
-    $arguments = '"{0}" -unattended -nop4 -nosplash -nullrhi -NoSound -ExecCmds="py {1}/{2}.py" -abslog="{3}"' -f `
-        $project, ($scriptDir -replace "\\", "/"), $entry.Script, $log
+    $pieDriverFlag = if ($entry.Script -eq "verify_lan_pie") { " -BLAPieDriver" } else { "" }
+    $arguments = '"{0}" -unattended -nop4 -nosplash -nullrhi -NoSound{4} -ExecCmds="py {1}/{2}.py" -abslog="{3}"' -f `
+        $project, ($scriptDir -replace "\\", "/"), $entry.Script, $log, $pieDriverFlag
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $process = Start-Process -FilePath $editor -ArgumentList $arguments -PassThru -WindowStyle Hidden
 

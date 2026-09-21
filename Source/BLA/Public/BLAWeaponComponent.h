@@ -54,6 +54,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "BLA|Weapon")
     bool IsReloading() const { return bIsReloading; }
 
+    /** Test/debug readback for server-authoritative weapon selection. */
+    UFUNCTION(BlueprintPure, Category = "BLA|Weapon|Debug", meta = (DevelopmentOnly))
+    int32 GetCurrentWeaponSlot() const;
+
     UFUNCTION(BlueprintPure, Category = "BLA|Weapon")
     bool GetCurrentWeaponData(FBLAWeaponData& OutData) const;
 
@@ -79,6 +83,9 @@ private:
     UFUNCTION()
     void OnRep_Ammo();
 
+    UFUNCTION()
+    void OnRep_CurrentWeaponSlot();
+
     bool TraceShot(const FVector& Start, const FVector& Direction, const FBLAWeaponData& Data, float DamageScale = 1.0f);
     static FVector ApplySpread(const FVector& Direction, float YawDegrees, float PitchDegrees);
 
@@ -89,6 +96,9 @@ private:
 
     UPROPERTY(Replicated)
     int32 ReplicatedReserveAmmo = 0;
+
+    UPROPERTY(ReplicatedUsing = OnRep_CurrentWeaponSlot)
+    int32 ReplicatedCurrentSlot = INDEX_NONE;
 
     int32 CurrentSlot = INDEX_NONE;
     double NextFireTime = 0.0;

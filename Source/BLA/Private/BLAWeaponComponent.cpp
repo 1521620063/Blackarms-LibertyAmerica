@@ -153,6 +153,15 @@ int32 UBLAWeaponComponent::GetReserveAmmo() const
     return State ? State->ReserveAmmo : 0;
 }
 
+int32 UBLAWeaponComponent::GetCurrentWeaponSlot() const
+{
+    if (GetOwner() && !GetOwner()->HasAuthority())
+    {
+        return ReplicatedCurrentSlot;
+    }
+    return CurrentSlot;
+}
+
 bool UBLAWeaponComponent::GetCurrentWeaponData(FBLAWeaponData& OutData) const
 {
     const FWeaponSlotState* State = CurrentState();
@@ -218,9 +227,15 @@ void UBLAWeaponComponent::PushReplicatedAmmo()
     const FWeaponSlotState* State = CurrentState();
     ReplicatedMagazineAmmo = State ? State->MagazineAmmo : 0;
     ReplicatedReserveAmmo = State ? State->ReserveAmmo : 0;
+    ReplicatedCurrentSlot = CurrentSlot;
 }
 
 void UBLAWeaponComponent::OnRep_Ammo()
+{
+    OnAmmoChanged.Broadcast();
+}
+
+void UBLAWeaponComponent::OnRep_CurrentWeaponSlot()
 {
     OnAmmoChanged.Broadcast();
 }
@@ -230,6 +245,7 @@ void UBLAWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(UBLAWeaponComponent, ReplicatedMagazineAmmo);
     DOREPLIFETIME(UBLAWeaponComponent, ReplicatedReserveAmmo);
+    DOREPLIFETIME(UBLAWeaponComponent, ReplicatedCurrentSlot);
 }
 
 bool UBLAWeaponComponent::TraceShot(const FVector& Start, const FVector& Direction, const FBLAWeaponData& Data, float DamageScale)

@@ -59,6 +59,43 @@ def set_standalone_play():
 
 def set_team_size(size):
     unreal.BLALanStatics.apply_lan_selection_to_game_instances(size, MATCH_MAP)
+    for world in get_worlds():
+        gi = unreal.GameplayStatics.get_game_instance(world)
+        if gi:
+            gi.set_editor_property("selected_mode", unreal.BLA_MatchMode.DATA_CORE_ATTACK_DEFENSE)
+
+
+def weapon_slot_of(world):
+    pawn = unreal.GameplayStatics.get_player_pawn(world, 0) if world else None
+    component = prop(pawn, "weapon_component") if pawn else None
+    if component is None:
+        return None
+    return component.get_current_weapon_slot()
+
+
+def remote_weapon_slot_of(world):
+    host_pawn = unreal.GameplayStatics.get_player_pawn(world, 0) if world else None
+    for pawn in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase):
+        if pawn == host_pawn or isinstance(pawn, unreal.BLABotCharacter):
+            continue
+        component = prop(pawn, "weapon_component")
+        if component is not None:
+            return component.get_current_weapon_slot()
+    return None
+
+
+def objective_manager_of(world):
+    managers = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAObjectiveManager)
+    return managers[0] if managers else None
+
+
+def remote_client_pawn_of(world):
+    host_pawn = unreal.GameplayStatics.get_player_pawn(world, 0) if world else None
+    for pawn in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase):
+        if pawn == host_pawn or isinstance(pawn, unreal.BLABotCharacter):
+            continue
+        return pawn
+    return None
 
 
 def get_worlds():
@@ -394,15 +431,15 @@ def tick_impl():
         if wait == 0:
             host_pc = get_pc(listen)
             client_pc = get_pc(client)
-            gm.set_lan_team(host_pc, unreal.BLA_Team.ATTACKERS)
-            client_pc.client_debug_request_team(unreal.BLA_Team.DEFENDERS)
-            log_team_diag(listen, client, wait, "s2-request-defenders")
+            gm.set_lan_team(host_pc, unreal.BLA_Team.DEFENDERS)
+            client_pc.client_debug_request_team(unreal.BLA_Team.ATTACKERS)
+            log_team_diag(listen, client, wait, "s2-request-attacker-client")
             state["rpc_wait"] = 1
             return
         client_pc = get_pc(client)
         client_ps = client_pc.player_state if client_pc else None
         client_team = prop(client_ps, "team")
-        if client_team != unreal.BLA_Team.DEFENDERS:
+        if client_team != unreal.BLA_Team.ATTACKERS:
             if wait in (1, 10, 30, 60, 90, 110, 120, 180, 240, 360, 480, 599) or wait % 60 == 0:
                 log_team_diag(listen, client, wait, "s2-waiting-client=%s" % client_team)
             if wait < 600:
@@ -427,7 +464,7 @@ def tick_impl():
         wait = state.get("rpc_wait", 0)
         if not state.get("s2_start_sent"):
             client_team = prop(client_ps, "team")
-            if client_team != unreal.BLA_Team.DEFENDERS:
+            if client_team != unreal.BLA_Team.ATTACKERS:
                 if wait in (0, 10, 30, 60, 90, 120, 180, 240, 360, 480, 599) or wait % 60 == 0:
                     log_team_diag(listen, client, wait, "s2-start-waiting-client=%s" % client_team)
                 if wait < 600:
@@ -458,9 +495,74 @@ def tick_impl():
             finish(False, "start fill failed bots=%s total=%s" % (len(bots), len(units)))
             return
         mark("BLA_LAN_PIE_START_OK")
-        state["phase"] = "s2_started_reject"
+        state["phase"] = "s2_weapon"
         state["wait"] = 0
         state["rpc_wait"] = 0
+        return
+
+    if phase == "s2_weapon":
+        server_slot = remote_weapon_slot_of(listen)
+        client_slot = weapon_slot_of(client)
+        client_pc = get_pc(client)
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            state["rpc_wait"] = 1
+            client_pc.client_debug_switch_weapon(1)
+            return
+        if server_slot is None or client_slot is None:
+            if wait < 120:
+                state["rpc_wait"] = wait + 1
+                return
+            finish(False, "weapon slots unavailable server=%s client=%s" % (server_slot, client_slot))
+            return
+        if server_slot != 1 or client_slot != 1:
+            if wait < 120:
+                state["rpc_wait"] = wait + 1
+                return
+            finish(False, "weapon switch desync server=%s client=%s" % (server_slot, client_slot))
+            return
+        mark("BLA_LAN_PIE_WEAPON_SWITCH_OK")
+        state["phase"] = "s2_objective"
+        state["wait"] = 0
+        state["rpc_wait"] = 0
+        state["objective_teleported"] = False
+        return
+
+    if phase == "s2_objective":
+        manager = objective_manager_of(listen)
+        pawn = remote_client_pawn_of(listen)
+        if manager is None or pawn is None:
+            return
+        if not state.get("objective_teleported"):
+            core_list = unreal.GameplayStatics.get_all_actors_of_class(listen, unreal.BLADataCore)
+            if not core_list:
+                return
+            location = core_list[0].get_actor_location()
+            offset = location.__class__(location.x + 80.0, location.y, location.z)
+            pawn.set_actor_location(offset, False, True)
+            state["objective_teleported"] = True
+        round_phase = prop(get_gs(listen), "round_phase")
+        if round_phase != unreal.BLA_RoundPhase.COMBAT:
+            return
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            state["rpc_wait"] = 1
+            get_pc(client).client_debug_request_objective_interaction(0)
+            return
+        objective_state = prop(manager, "objective_state")
+        if objective_state == unreal.BLA_ObjectiveState.CARRIED:
+            mark("BLA_LAN_PIE_OBJECTIVE_RPC_OK")
+            state["phase"] = "s2_started_reject"
+            state["wait"] = 0
+            state["rpc_wait"] = 0
+            state["health_before"] = None
+            return
+        if wait in (10, 40, 80):
+            get_pc(client).client_debug_request_objective_interaction(0)
+        if wait < 120:
+            state["rpc_wait"] = wait + 1
+            return
+        finish(False, "client objective pickup failed state=%s" % objective_state)
         return
 
     if phase == "s2_started_reject":
@@ -499,13 +601,25 @@ def tick_impl():
             return
         if state["health_before"] is None:
             state["health_before"] = hp
-            client_pc.client_debug_try_local_damage(25.0)
+            client_pc.client_debug_try_local_damage(999.0)
             return
-        if hp != state["health_before"]:
-            finish(False, "client local damage applied hp=%s before=%s" % (hp, state["health_before"]))
+        wait = state.get("rpc_wait", 0)
+        if hp != 0.0:
+            if wait < 120:
+                state["rpc_wait"] = wait + 1
+                return
+            finish(False, "server damage did not kill client hp=%s" % hp)
             return
-        mark("BLA_LAN_PIE_CLIENT_DAMAGE_OK")
-        request_end("s2_end")
+        spectator = client_pc.is_in_team_spectator_mode() if client_pc else False
+        target = client_pc.get_spectator_target() if client_pc else None
+        if spectator and target is not None:
+            mark("BLA_LAN_PIE_CLIENT_DAMAGE_OK")
+            request_end("s2_end")
+            return
+        if wait < 180:
+            state["rpc_wait"] = wait + 1
+            return
+        finish(False, "client death spectator failed mode=%s target=%s" % (spectator, target))
         return
 
     if phase == "standalone_play":
@@ -552,6 +666,8 @@ def tick_impl():
                     "BLA_LAN_PIE_FULL_REJECT_OK",
                     "BLA_LAN_PIE_NOT_HOST_OK",
                     "BLA_LAN_PIE_START_OK",
+                    "BLA_LAN_PIE_WEAPON_SWITCH_OK",
+                    "BLA_LAN_PIE_OBJECTIVE_RPC_OK",
                     "BLA_LAN_PIE_STARTED_REJECT_OK",
                     "BLA_LAN_PIE_CLIENT_DAMAGE_OK",
                     "BLA_LAN_PIE_HOST_LEFT_OK",

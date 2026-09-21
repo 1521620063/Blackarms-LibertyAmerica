@@ -8,6 +8,7 @@
 #include "BLAGameInstance.h"
 #include "BLAGameModeElimination.h"
 #include "BLAHealthComponent.h"
+#include "BLAObjectiveManager.h"
 #include "BLATeamManager.h"
 #include "BLATeamOrderManager.h"
 #include "BLAWeaponComponent.h"
@@ -73,6 +74,14 @@ void ABLAPlayerController::OnPossess(APawn* InPawn)
 {
     Super::OnPossess(InPawn);
     BindControlledCombatant(Cast<ABLACharacterBase>(InPawn));
+}
+
+void ABLAPlayerController::AcknowledgePossession(APawn* P)
+{
+    Super::AcknowledgePossession(P);
+    // Possession is server-only; clients need this acknowledgment to resolve the locally
+    // replicated pawn before server-authoritative death RPCs arrive.
+    BindControlledCombatant(Cast<ABLACharacterBase>(P));
 }
 
 void ABLAPlayerController::BindInputActions()
@@ -196,7 +205,14 @@ void ABLAPlayerController::OnSwitchPrimaryRequested_Implementation()
     }
     if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
     {
-        BLACharacter->WeaponComponent->SwitchWeapon(0);
+        if (HasAuthority())
+        {
+            BLACharacter->WeaponComponent->SwitchWeapon(0);
+        }
+        else
+        {
+            ServerSwitchWeapon(0);
+        }
     }
 }
 
@@ -209,7 +225,14 @@ void ABLAPlayerController::OnSwitchSecondaryRequested_Implementation()
     }
     if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
     {
-        BLACharacter->WeaponComponent->SwitchWeapon(1);
+        if (HasAuthority())
+        {
+            BLACharacter->WeaponComponent->SwitchWeapon(1);
+        }
+        else
+        {
+            ServerSwitchWeapon(1);
+        }
     }
 }
 
@@ -226,11 +249,30 @@ bool ABLAPlayerController::IssueTeamOrder(EBLA_TeamOrder Order, FVector TargetLo
         && TeamOrderManager->SubmitOrder(Order, ControlledCombatant, TargetLocation, Phase, DurationSeconds);
 }
 
-TArray<ABLACharacterBase*> ABLAPlayerController::GetLivingFriendlySpectatorTargets() const
+TArray<ABLACharacterBase*> ABLAPlayerController::GetLivingFriendlySpectatorTargets()
 {
     TArray<ABLACharacterBase*> Result;
-    if (!TeamManager || !ControlledCombatant)
+    // Team systems are configured on the authority. Clients fall back to the replicated pawn
+    // and enumerate world combatants so death RPCs can select a local spectator camera target.
+    if (!ControlledCombatant)
     {
+        ControlledCombatant = Cast<ABLACharacterBase>(GetPawn());
+    }
+    if (!ControlledCombatant)
+    {
+        return Result;
+    }
+    if (!TeamManager)
+    {
+        for (TActorIterator<ABLACharacterBase> It(GetWorld()); It; ++It)
+        {
+            ABLACharacterBase* Friendly = *It;
+            if (Friendly && Friendly != ControlledCombatant
+                && Friendly->Team == ControlledCombatant->Team && Friendly->GetIsAlive())
+            {
+                Result.Add(Friendly);
+            }
+        }
         return Result;
     }
     for (ABLACharacterBase* Friendly : TeamManager->GetTeamMembers(ControlledCombatant->Team))
@@ -329,6 +371,7 @@ void ABLAPlayerController::SelectSpectatorTarget(AActor* Target)
 
 void ABLAPlayerController::HandleControlledPawnDeath(AActor* InstigatorActor)
 {
+    ClientNotifyPawnDeath();
     EnterTeamSpectatorMode();
 }
 
@@ -377,6 +420,68 @@ void ABLAPlayerController::ClientDebugTryLocalDamage(float Amount)
         Victim->HealthComponent->ApplyDamage(Amount, TEXT("Debug"), this);
     }
 #endif
+}
+
+void ABLAPlayerController::ClientDebugSwitchWeapon(int32 Slot)
+{
+#if !UE_BUILD_SHIPPING
+    const TGuardValue<bool> RestoreEditorScript(GAllowActorScriptExecutionInEditor, false);
+    ServerSwitchWeapon(Slot);
+#endif
+}
+
+void ABLAPlayerController::ClientDebugRequestObjectiveInteraction(int32 InteractionType)
+{
+#if !UE_BUILD_SHIPPING
+    const TGuardValue<bool> RestoreEditorScript(GAllowActorScriptExecutionInEditor, false);
+    ServerBeginObjectiveInteraction(InteractionType);
+#endif
+}
+
+void ABLAPlayerController::ServerSwitchWeapon_Implementation(int32 Slot)
+{
+    ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn());
+    if (BLACharacter && BLACharacter->WeaponComponent)
+    {
+        BLACharacter->WeaponComponent->SwitchWeapon(Slot);
+    }
+}
+
+void ABLAPlayerController::ServerBeginObjectiveInteraction_Implementation(int32 InteractionType)
+{
+    ABLAObjectiveManager* ObjectiveManager = nullptr;
+    for (TActorIterator<ABLAObjectiveManager> It(GetWorld()); It; ++It)
+    {
+        ObjectiveManager = *It;
+        break;
+    }
+
+    ABLACharacterBase* Interactor = Cast<ABLACharacterBase>(GetPawn());
+    if (!ObjectiveManager || !Interactor)
+    {
+        return;
+    }
+
+    bool bStarted = false;
+    switch (InteractionType)
+    {
+    case 1:
+        bStarted = ObjectiveManager->BeginPlant(Interactor);
+        break;
+    case 2:
+        bStarted = ObjectiveManager->BeginDefuse(Interactor);
+        break;
+    case 0:
+    default:
+        bStarted = ObjectiveManager->BeginPickup(Interactor);
+        break;
+    }
+    (void)bStarted;
+}
+
+void ABLAPlayerController::ClientNotifyPawnDeath_Implementation()
+{
+    EnterTeamSpectatorMode();
 }
 
 void ABLAPlayerController::ServerFireWeapon_Implementation(FVector TraceStart, FVector AimDirection)

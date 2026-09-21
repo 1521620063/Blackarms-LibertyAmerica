@@ -64,7 +64,8 @@ void ABLAAllMVPFlowsTest::Tick(float DeltaSeconds)
     if (FParse::Param(FCommandLine::Get(), TEXT("BLASoakTest"))
         || bLanCommandLine
         || bLanGameInstance
-        || (GameInstance && GameInstance->bSoakRequested))
+        || (GameInstance && GameInstance->bSoakRequested)
+        || FParse::Param(FCommandLine::Get(), TEXT("BLAPieDriver")))
     {
         // Soak and LAN listen/join drive a live session. This flow test forces damage, ends
         // matches and travels, so it stays out of the way and reports a neutral marker.

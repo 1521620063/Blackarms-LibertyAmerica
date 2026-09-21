@@ -9,6 +9,8 @@
 #include "EngineUtils.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -65,6 +67,12 @@ void ABLAMapNavigationTest::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     if (bTestSucceeded)
+    {
+        return;
+    }
+    // Editor PIE drivers own live LAN sessions; standalone map navigation assertions must
+    // not spam or travel while those sessions are running.
+    if (FParse::Param(FCommandLine::Get(), TEXT("BLAPieDriver")))
     {
         return;
     }
