@@ -15,6 +15,7 @@
 #include "EngineUtils.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "CoreGlobals.h"
 
 namespace
 {
@@ -347,6 +348,37 @@ void ABLAPlayerController::ServerStartLANMatch_Implementation()
     }
 }
 
+void ABLAPlayerController::ClientDebugRequestTeam(EBLA_Team Team)
+{
+#if !UE_BUILD_SHIPPING
+    // Python/editor ProcessEvent enables GAllowActorScriptExecutionInEditor, which forces
+    // Server RPCs to execute locally. Clear it so the public ServerSetTeam path is used.
+    const TGuardValue<bool> RestoreEditorScript(GAllowActorScriptExecutionInEditor, false);
+    ServerSetTeam(Team);
+#endif
+}
+
+void ABLAPlayerController::ClientDebugRequestStartLANMatch()
+{
+#if !UE_BUILD_SHIPPING
+    const TGuardValue<bool> RestoreEditorScript(GAllowActorScriptExecutionInEditor, false);
+    ServerStartLANMatch();
+#endif
+}
+
+void ABLAPlayerController::ClientDebugTryLocalDamage(float Amount)
+{
+#if UE_BUILD_SHIPPING
+    return;
+#else
+    ABLACharacterBase* Victim = Cast<ABLACharacterBase>(GetPawn());
+    if (Victim && Victim->HealthComponent)
+    {
+        Victim->HealthComponent->ApplyDamage(Amount, TEXT("Debug"), this);
+    }
+#endif
+}
+
 void ABLAPlayerController::ServerFireWeapon_Implementation(FVector TraceStart, FVector AimDirection)
 {
     if (ABLACharacterBase* BLACharacter = Cast<ABLACharacterBase>(GetPawn()); BLACharacter && BLACharacter->WeaponComponent)
@@ -368,13 +400,22 @@ void ABLAPlayerController::ClientNotifyFlowError_Implementation(const FString& C
     if (UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr)
     {
         GameInstance->ReportFlowFailure(Code);
-        if (Code.Contains(TEXT("FLOW_LAN_HOST_LEFT"))
-            || Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_FULL"))
-            || Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_STARTED"))
+        const bool bJoinRejected = Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_FULL"))
+            || Code.Contains(TEXT("FLOW_LAN_JOIN_REJECTED_STARTED"));
+        const bool bLeave = Code.Contains(TEXT("FLOW_LAN_HOST_LEFT"))
+            || bJoinRejected
             || Code.Contains(TEXT("FLOW_LAN_CONNECT_FAILED"))
-            || Code.Contains(TEXT("FLOW_LAN_LISTEN_FAILED")))
+            || Code.Contains(TEXT("FLOW_LAN_LISTEN_FAILED"));
+        if (bLeave)
         {
-            GameInstance->RequestLeaveLAN();
+            // JOIN_REJECTED_* must send the joining client to the menu, not the host.
+            // Local extra players created on the listen world execute this Client RPC
+            // in-place; tearing down the GameInstance would end the whole session.
+            const bool bListenJoinReject = bJoinRejected && GetNetMode() == NM_ListenServer;
+            if (!bListenJoinReject)
+            {
+                GameInstance->RequestLeaveLAN();
+            }
         }
     }
 }

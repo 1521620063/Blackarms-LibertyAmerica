@@ -89,13 +89,23 @@ The 2026-09-15 offline milestone recorded `HARNESS_RUN_COMPLETE configurations=1
 `docs/builds/single-player-release-2026-09-15.md`. The earlier morning MVP package record remains in
 `docs/builds/windows-mvp-smoke-test.md`.
 
-## LAN Extension Roadmap
+## LAN Listen Server
 
-This repository's current milestone is offline single-player only. LAN work is deferred and limited to:
+Windows PC LAN uses a listen server on port 7777 (`IpNetDriver`). The menu stays standalone.
+Host travel is `MatchMapPath?listen`. Join is a direct IPv4 (`127.0.0.1` or `IP:7777`).
+Waiting happens on the match map. Players pick Attack/Defense. The host starts the match and empty slots are filled with the existing `SpawnBot()` path.
 
-- Listen Server on the local network
-- Server-authoritative match truth (damage, objective, score, spawn)
-- AI fill for empty slots
-- Disconnect returns remaining players to the menu
+Unattended flags (not shown on the Shipping menu):
 
-No public matchmaking, accounts, dedicated server, or replication code is in this release.
+- Host: `-BLALanHost -BLALanMode=Elimination -BLALanTeamSize=2 -BLALanAutoStart=5`
+- Client: `-BLALanJoin=127.0.0.1 -BLALanTeam=Defenders`
+
+LAN editor checks are extra `-Only` targets and are not part of the default 25-check offline matrix:
+
+```powershell
+pwsh -File Scripts/run_verification.ps1 -Only verify_lan_contracts
+pwsh -File Scripts/run_verification.ps1 -Only verify_lan_pie -TimeoutSeconds 420
+pwsh -File Scripts/run_lan_packaged_smoke.ps1
+```
+
+No Steam, no matchmaking, no Dedicated Server. LAN uses the same Zero Facility `MatchMapPath` as offline `RequestStartMatch()`.

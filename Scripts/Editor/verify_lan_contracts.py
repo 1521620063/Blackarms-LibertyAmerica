@@ -20,4 +20,8 @@ world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_wor
 tests = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLALanFlowTest)
 if not tests:
     fail("BLALanFlowTest missing from bootstrap/editor world")
-unreal.log("BLA_LAN_CONTRACTS_OK pending_runtime_marker")
+
+test_actor = tests[0]
+test_actor.run_address_contracts()
+if test_actor.get_editor_property("b_test_failed") or not test_actor.get_editor_property("b_test_succeeded"):
+    fail("address contracts failed")

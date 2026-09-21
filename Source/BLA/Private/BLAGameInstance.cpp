@@ -46,7 +46,7 @@ void UBLAGameInstance::Init()
     FParse::Value(CommandLine, TEXT("BLALanTeam="), LanTeamName);
     FParse::Value(CommandLine, TEXT("BLALanMode="), LanModeName);
     FParse::Value(CommandLine, TEXT("BLALanTeamSize="), LanTeamSizeOverride);
-    FParse::Value(CommandLine, TEXT("BLALanAutoStart="), LanAutoStartSeconds);
+    UBLALanStatics::ParseLANAutoStartSeconds(CommandLine, LanAutoStartSeconds);
     if (bLanHostRequested || !LanJoinAddress.IsEmpty())
     {
         MatchMapPath = TEXT("/Game/BLA/Maps/Final/L_BLA_ZeroFacility");
@@ -257,9 +257,8 @@ void UBLAGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver
 {
     const bool bWasConnectedClient = World && World->GetNetMode() == NM_Client
         && World->GetGameState() != nullptr;
-    if (bWasConnectedClient
-        && (FailureType == ENetworkFailure::ConnectionLost
-            || FailureType == ENetworkFailure::FailureReceived))
+    if (UBLALanStatics::ShouldTreatLANNetworkFailureAsHostLeft(
+            bWasConnectedClient, static_cast<int32>(FailureType)))
     {
         ReportFlowFailure(TEXT("FLOW_LAN_HOST_LEFT"), ErrorString);
     }

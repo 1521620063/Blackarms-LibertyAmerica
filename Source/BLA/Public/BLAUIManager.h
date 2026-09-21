@@ -289,5 +289,7 @@ private:
     TObjectPtr<AActor> BoundFeedbackOwner;
 
     bool bPackagedClientJoinedLogged = false;
+    bool bPackagedTeamLogged = false;
+    bool bPackagedStartedLogged = false;
     bool bPackagedStateLogged = false;
 };

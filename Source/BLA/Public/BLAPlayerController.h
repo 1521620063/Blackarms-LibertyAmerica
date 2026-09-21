@@ -42,6 +42,15 @@ public:
     UFUNCTION(Server, Reliable, BlueprintCallable, Category = "BLA|LAN")
     void ServerStartLANMatch();
 
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
+    void ClientDebugRequestTeam(EBLA_Team Team);
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
+    void ClientDebugRequestStartLANMatch();
+
+    UFUNCTION(BlueprintCallable, Category = "BLA|LAN|Debug", meta = (DevelopmentOnly))
+    void ClientDebugTryLocalDamage(float Amount);
+
     UFUNCTION(Server, Reliable)
     void ServerFireWeapon(FVector TraceStart, FVector AimDirection);
 

@@ -16,6 +16,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -55,13 +56,21 @@ void ABLAAllMVPFlowsTest::Tick(float DeltaSeconds)
         return;
     }
     UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
+    FString LanJoin;
+    const bool bLanCommandLine = FParse::Param(FCommandLine::Get(), TEXT("BLALanHost"))
+        || FParse::Value(FCommandLine::Get(), TEXT("BLALanJoin="), LanJoin);
+    const bool bLanGameInstance = GameInstance
+        && (GameInstance->bLanHostRequested || !GameInstance->LanJoinAddress.IsEmpty());
     if (FParse::Param(FCommandLine::Get(), TEXT("BLASoakTest"))
+        || bLanCommandLine
+        || bLanGameInstance
         || (GameInstance && GameInstance->bSoakRequested))
     {
-        // The soak drives a live match for AI observation; this flow test forces damage, ends
+        // Soak and LAN listen/join drive a live session. This flow test forces damage, ends
         // matches and travels, so it stays out of the way and reports a neutral marker.
         bFinished = true;
-        UE_LOG(LogTemp, Display, TEXT("BLA_ALL_MVP_FLOWS_SKIPPED reason=soak"));
+        UE_LOG(LogTemp, Display, TEXT("BLA_ALL_MVP_FLOWS_SKIPPED reason=%s"),
+            (bLanCommandLine || bLanGameInstance) ? TEXT("lan") : TEXT("soak"));
         return;
     }
     ABLAUIManager* UIManager = Cast<ABLAUIManager>(

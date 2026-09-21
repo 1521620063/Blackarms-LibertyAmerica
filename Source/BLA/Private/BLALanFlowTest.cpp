@@ -14,6 +14,7 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Engine/EngineBaseTypes.h"
 
 ABLALanFlowTest::ABLALanFlowTest()
 {
@@ -269,6 +270,10 @@ void ABLALanFlowTest::RunAddressContracts()
     }
 
     UBLAGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance<UBLAGameInstance>() : nullptr;
+    if (!GameInstance)
+    {
+        GameInstance = GetMutableDefault<UBLAGameInstance>();
+    }
     const FString ListenURL = GameInstance
         ? UBLALanStatics::BuildListenMapURL(GameInstance->MatchMapPath, 7777)
         : FString();
@@ -301,17 +306,30 @@ void ABLALanFlowTest::RunAddressContracts()
         GameInstance->LastFlowError = PreviousFlowError;
     }
 
-    if (Failed == 0 && bListenHasFlag && bOfflineClean && bTravelRequestsClean)
+    float ParsedAutoStart = -1.0f;
+    const bool bParsedFive = UBLALanStatics::ParseLANAutoStartSeconds(
+        TEXT("-BLALanHost -BLALanAutoStart=5 -nullrhi"), ParsedAutoStart)
+        && FMath::IsNearlyEqual(ParsedAutoStart, 5.0f);
+    const bool bAutoStartGate = !UBLALanStatics::ShouldFireLANAutoStart(5.0f, 1.85)
+        && UBLALanStatics::ShouldFireLANAutoStart(5.0f, 5.0);
+    const bool bHostLeftGate =
+        UBLALanStatics::ShouldTreatLANNetworkFailureAsHostLeft(
+            true, static_cast<int32>(ENetworkFailure::ConnectionTimeout))
+        && !UBLALanStatics::ShouldTreatLANNetworkFailureAsHostLeft(
+            false, static_cast<int32>(ENetworkFailure::ConnectionTimeout));
+
+    if (Failed == 0 && bListenHasFlag && bOfflineClean && bTravelRequestsClean && bParsedFive && bAutoStartGate && bHostLeftGate)
     {
         bTestSucceeded = true;
-        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_CONTRACTS_OK cases=%d listen=1 offline_clean=1"),
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_CONTRACTS_OK cases=%d listen=1 offline_clean=1 autostart=1"),
             UE_ARRAY_COUNT(Cases));
     }
     else
     {
         bTestFailed = true;
         UE_LOG(LogTemp, Error,
-            TEXT("BLA_LAN_CONTRACTS_FAILED failed=%d listen=%d offline_clean=%d travel_requests=%d"),
-            Failed, bListenHasFlag ? 1 : 0, bOfflineClean ? 1 : 0, bTravelRequestsClean ? 1 : 0);
+            TEXT("BLA_LAN_CONTRACTS_FAILED failed=%d listen=%d offline_clean=%d travel_requests=%d parsed_five=%d autostart_gate=%d host_left_gate=%d parsed=%f"),
+            Failed, bListenHasFlag ? 1 : 0, bOfflineClean ? 1 : 0, bTravelRequestsClean ? 1 : 0,
+            bParsedFive ? 1 : 0, bAutoStartGate ? 1 : 0, bHostLeftGate ? 1 : 0, ParsedAutoStart);
     }
 }

@@ -74,7 +74,7 @@ $matrix = @(
 
 $lanMatrix = @(
     @{ Script = "verify_lan_contracts"; Marker = "BLA_LAN_CONTRACTS_(OK|FAILED)"; FailPattern = "BLA_LAN_CONTRACTS_FAILED|LAN_CONTRACT_FAILURE" }
-    @{ Script = "verify_lan_pie"; Marker = "BLA_LAN_PIE_DRIVER_(OK|FAILED)" }
+    @{ Script = "verify_lan_pie"; Marker = "BLA_LAN_PIE_DRIVER_(OK|FAILED)"; Require = @("BLA_LAN_PIE_WAITING_OK", "BLA_LAN_PIE_JOIN_OK", "BLA_LAN_PIE_TEAM_OK", "BLA_LAN_PIE_FULL_REJECT_OK", "BLA_LAN_PIE_NOT_HOST_OK", "BLA_LAN_PIE_START_OK", "BLA_LAN_PIE_STARTED_REJECT_OK", "BLA_LAN_PIE_CLIENT_DAMAGE_OK", "BLA_LAN_PIE_HOST_LEFT_OK", "BLA_LAN_PIE_STANDALONE_OK") }
 )
 
 $runMatrix = $matrix

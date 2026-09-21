@@ -79,4 +79,6 @@ private:
     UPROPERTY() TObjectPtr<ABLATacticalManager> TacticalManager;
     FTimerHandle InitializeMatchTimer;
     FTimerHandle LANAutoStartTimer;
+    double LANAutoStartEpoch = 0.0;
+    float LANAutoStartRequestedSeconds = 0.0f;
 };

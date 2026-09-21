@@ -23,6 +23,7 @@
 #include "GameFramework/GameSession.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "HAL/PlatformTime.h"
 
 ABLAGameModeElimination::ABLAGameModeElimination()
 {
@@ -39,7 +40,12 @@ void ABLAGameModeElimination::BeginPlay()
     TacticalManager = GetWorld()->SpawnActor<ABLATacticalManager>();
     if (IsLANListenMatch())
     {
-        EnterLANWaiting();
+        GetWorldTimerManager().SetTimer(
+            InitializeMatchTimer,
+            this,
+            &ABLAGameModeElimination::EnterLANWaiting,
+            0.05f,
+            false);
         return;
     }
     GetWorldTimerManager().SetTimer(InitializeMatchTimer, this, &ABLAGameModeElimination::InitializeMatch, 0.25f, false);
@@ -87,19 +93,36 @@ void ABLAGameModeElimination::EnterLANWaiting()
         *UBLALanStatics::GetAdvertiseIPv4());
     if (GameInstance && GameInstance->LanAutoStartSeconds > 0.0f)
     {
-        GetWorldTimerManager().SetTimer(LANAutoStartTimer, this,
-            &ABLAGameModeElimination::HandleLANAutoStart, GameInstance->LanAutoStartSeconds, false);
+        LANAutoStartRequestedSeconds = GameInstance->LanAutoStartSeconds;
+        LANAutoStartEpoch = FPlatformTime::Seconds();
+        GetWorldTimerManager().SetTimer(
+            LANAutoStartTimer,
+            this,
+            &ABLAGameModeElimination::HandleLANAutoStart,
+            0.05f,
+            true);
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_AUTOSTART_ARMED seconds=%f"), LANAutoStartRequestedSeconds);
     }
 #endif
-    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_ENTERED team_size=%d"),
-        GameInstance ? GameInstance->SelectedTeamSize : 0);
+    UE_LOG(LogTemp, Display, TEXT("BLA_LAN_WAITING_ENTERED team_size=%d gi=%s class=%s"),
+        GameInstance ? GameInstance->SelectedTeamSize : 0,
+        GameInstance ? *GameInstance->GetName() : TEXT("None"),
+        GameInstance ? *GameInstance->GetClass()->GetPathName() : TEXT("None"));
 }
 
 void ABLAGameModeElimination::HandleLANAutoStart()
 {
+    const double Elapsed = FPlatformTime::Seconds() - LANAutoStartEpoch;
+    if (!UBLALanStatics::ShouldFireLANAutoStart(LANAutoStartRequestedSeconds, Elapsed))
+    {
+        return;
+    }
+    GetWorldTimerManager().ClearTimer(LANAutoStartTimer);
     ABLAGameState* State = GetGameState<ABLAGameState>();
     if (IsLANListenMatch() && State && State->RoundPhase == EBLA_RoundPhase::Waiting)
     {
+        UE_LOG(LogTemp, Display, TEXT("BLA_LAN_AUTOSTART_FIRE elapsed_real=%f humans=%d"),
+            Elapsed, CountHumans());
         StartLANMatch(GetWorld()->GetFirstPlayerController());
     }
 }
@@ -200,7 +223,7 @@ void ABLAGameModeElimination::PostLogin(APlayerController* NewPlayer)
     }
 
     ABLAGameState* State = GetGameState<ABLAGameState>();
-    if (State && State->RoundPhase == EBLA_RoundPhase::Loading && CountHumans() == 1)
+    if (State && State->RoundPhase == EBLA_RoundPhase::Loading)
     {
         return;
     }
@@ -220,7 +243,21 @@ void ABLAGameModeElimination::PostLogin(APlayerController* NewPlayer)
         {
             PlayerController->ClientNotifyFlowError(RejectCode);
         }
-        if (GameSession)
+        // AGameSession::KickPlayer only closes UNetConnection clients. A PIE extra
+        // created with CreatePlayer is a local player, so remove that local player
+        // instead of leaving the listen session.
+        if (NewPlayer && NewPlayer->IsLocalPlayerController())
+        {
+            TWeakObjectPtr<APlayerController> WeakPlayer(NewPlayer);
+            GetWorldTimerManager().SetTimerForNextTick([WeakPlayer]()
+            {
+                if (APlayerController* Player = WeakPlayer.Get())
+                {
+                    UGameplayStatics::RemovePlayer(Player, true);
+                }
+            });
+        }
+        else if (GameSession)
         {
             GameSession->KickPlayer(NewPlayer, FText::FromString(RejectCode));
         }
@@ -309,6 +346,7 @@ bool ABLAGameModeElimination::SetLANTeam(APlayerController* PlayerController, EB
 
 bool ABLAGameModeElimination::StartLANMatch(APlayerController* Requestor)
 {
+    GetWorldTimerManager().ClearTimer(LANAutoStartTimer);
     ABLAGameState* State = GetGameState<ABLAGameState>();
     UBLAGameInstance* GameInstance = GetGameInstance<UBLAGameInstance>();
     ABLAPlayerState* RequestorState = Requestor ? Requestor->GetPlayerState<ABLAPlayerState>() : nullptr;

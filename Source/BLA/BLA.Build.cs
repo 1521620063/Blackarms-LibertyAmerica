@@ -18,5 +18,10 @@ public class BLA : ModuleRules
             "UMG",
             "Sockets"
         });
+
+        if (Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.Add("UnrealEd");
+        }
     }
 }

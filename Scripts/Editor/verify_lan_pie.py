@@ -1,24 +1,38 @@
 import unreal
 
-
-MENU_MAP = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
 MATCH_MAP = "/Game/BLA/Maps/Final/L_BLA_ZeroFacility"
-MATCH_MAP_NAME = "L_BLA_ZeroFacility"
-MAX_TICKS = 1200
+MENU_MAP = "/Game/BLA/Maps/Graybox/L_TestBootstrap"
+MAX_TICKS = 18000
 
 level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+original_play = unreal.BLALanStatics.capture_pie_play_settings()
+if not original_play:
+    raise RuntimeError("PIE play settings unavailable")
+
 state = {
     "ticks": 0,
-    "pie_ticks": 0,
-    "host_requested": False,
+    "phase": "boot",
+    "wait": 0,
     "ending": False,
+    "health_before": None,
+    "markers": [],
+    "rpc_wait": 0,
+    "rpc_sent": False,
+    "extra_pc": None,
 }
 handle = None
 
 
+def restore_play_settings():
+    if not unreal.BLALanStatics.restore_pie_play_settings(original_play):
+        unreal.log_error("BLA_LAN_PIE_SETTINGS_RESTORE_FAILED")
+
+
 def finish(success, message):
+    restore_play_settings()
     log = unreal.log if success else unreal.log_error
-    log(f"BLA_LAN_PIE_DRIVER_{'OK' if success else 'FAILED'} {message}")
+    suffix = "OK" if success else "FAILED"
+    log("BLA_LAN_PIE_DRIVER_%s %s markers=%s" % (suffix, message, ",".join(state["markers"])))
     state["ending"] = True
     if level.is_in_play_in_editor():
         level.editor_request_end_play()
@@ -27,156 +41,540 @@ def finish(success, message):
         unreal.SystemLibrary.quit_editor()
 
 
+def mark(name):
+    if name not in state["markers"]:
+        state["markers"].append(name)
+        unreal.log(name)
+
+
+def set_listen_play():
+    if not unreal.BLALanStatics.configure_pie_play_settings(True, 2):
+        raise RuntimeError("listen PIE settings unavailable")
+
+
+def set_standalone_play():
+    if not unreal.BLALanStatics.configure_pie_play_settings(False, 1):
+        raise RuntimeError("standalone PIE settings unavailable")
+
+
+def set_team_size(size):
+    unreal.BLALanStatics.apply_lan_selection_to_game_instances(size, MATCH_MAP)
+
+
+def get_worlds():
+    return list(unreal.BLALanStatics.get_play_worlds())
+
+
+def split_worlds(worlds):
+    listen = None
+    client = None
+    fallback_listen = None
+    for world in worlds:
+        gm = unreal.GameplayStatics.get_game_mode(world)
+        if isinstance(gm, unreal.BLAGameModeElimination):
+            listen = world
+        elif gm and fallback_listen is None:
+            fallback_listen = world
+        else:
+            client = world
+    if listen is None:
+        listen = fallback_listen
+    return listen, client
+
+
+def get_lan_gm(world):
+    gm = unreal.GameplayStatics.get_game_mode(world) if world else None
+    if isinstance(gm, unreal.BLAGameModeElimination):
+        return gm
+    return gm
+
+
+def get_pc(world):
+    return unreal.GameplayStatics.get_player_controller(world, 0)
+
+
+def get_gs(world):
+    return unreal.GameplayStatics.get_game_state(world)
+
+
+def prop(obj, name, default=None):
+    if obj is None:
+        return default
+    try:
+        return obj.get_editor_property(name)
+    except Exception:
+        return default
+
+
+def describe_player_states(world, label):
+    if world is None:
+        return '%s=None' % label
+    actors = list(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.PlayerState))
+    parts = []
+    for ps in actors:
+        class_name = ps.get_class().get_name() if ps.get_class() else 'None'
+        parts.append('name=%s class=%s team=%s host=%s' % (
+            ps.get_name(),
+            class_name,
+            prop(ps, 'team'),
+            prop(ps, 'is_lan_host'),
+        ))
+    return '%s(n=%d %s)' % (label, len(parts), '; '.join(parts) if parts else 'empty')
+
+
+def log_team_diag(listen, client, wait, note):
+    gi = unreal.GameplayStatics.get_game_instance(listen) if listen else None
+    gs = get_gs(listen)
+    unreal.log('BLA_LAN_PIE_TEAM_DIAG wait=%s note=%s gi=%s gs=%s %s %s' % (
+        wait,
+        note,
+        prop(gi, 'selected_team_size'),
+        prop(gs, 'attackers_team_size'),
+        describe_player_states(listen, 'listen'),
+        describe_player_states(client, 'client'),
+    ))
+
+
+def health_of(world):
+    pawn = unreal.GameplayStatics.get_player_pawn(world, 0) if world else None
+    if pawn is None:
+        return None
+    component = prop(pawn, "health_component")
+    if component is None:
+        return None
+    return prop(component, "current_health")
+
+
+def begin_listen(team_size, next_phase):
+    if not level.load_level(MATCH_MAP):
+        finish(False, "failed to load match map")
+        return
+    state["listen_team_size"] = team_size
+    state["s2_start_sent"] = False
+    set_team_size(team_size)
+    set_listen_play()
+    state["phase"] = next_phase
+    state["wait"] = 0
+    state["rpc_wait"] = 0
+    level.editor_request_begin_play()
+    set_team_size(team_size)
+
+
+def begin_standalone():
+    if not level.load_level(MENU_MAP):
+        finish(False, "failed to load menu map")
+        return
+    set_team_size(1)
+    set_standalone_play()
+    state["phase"] = "standalone_play"
+    state["wait"] = 0
+    level.editor_request_begin_play()
+
+
+def request_end(next_phase):
+    state["phase"] = next_phase
+    state["wait"] = 0
+    if level.is_in_play_in_editor():
+        level.editor_request_end_play()
+
+
 def tick_impl():
     state["ticks"] += 1
     if state["ending"]:
         if not level.is_in_play_in_editor():
+            restore_play_settings()
             unreal.unregister_slate_post_tick_callback(handle)
             unreal.SystemLibrary.quit_editor()
         return
+    if state["ticks"] >= MAX_TICKS:
+        finish(False, "timeout phase=%s" % state["phase"])
+        return
+
+    phase = state["phase"]
+    if phase == "boot":
+        begin_listen(1, "s1_wait_worlds")
+        return
+
+    if phase in ("s1_end", "s2_end"):
+        if not level.is_in_play_in_editor():
+            if phase == "s1_end":
+                begin_listen(2, "s2_wait_worlds")
+            else:
+                begin_standalone()
+        return
+
     if not level.is_in_play_in_editor():
-        if state["ticks"] >= MAX_TICKS:
-            finish(False, "PIE did not start")
+        state["wait"] += 1
+        if state["wait"] > 600:
+            finish(False, "PIE did not start phase=%s" % phase)
         return
 
-    state["pie_ticks"] += 1
-    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
-    if world is None:
+    worlds = get_worlds()
+    listen, client = split_worlds(worlds)
+
+    if phase == "s1_wait_worlds":
+        if listen is None or client is None:
+            return
+        gs = get_gs(listen)
+        if prop(gs, "round_phase") != unreal.BLA_RoundPhase.WAITING:
+            return
+        bots = unreal.GameplayStatics.get_all_actors_of_class(listen, unreal.BLABotCharacter)
+        if len(bots) != 0:
+            finish(False, "waiting spawned bots")
+            return
+        mark("BLA_LAN_PIE_WAITING_OK")
+        state["phase"] = "s1_join"
         return
 
-    map_path = world.get_path_name()
-    if not state["host_requested"]:
-        game_instance = unreal.GameplayStatics.get_game_instance(world)
-        if game_instance is None:
+    if phase == "s1_join":
+        gm = unreal.GameplayStatics.get_game_mode(listen)
+        client_pc = get_pc(client)
+        client_ps = client_pc.player_state if client_pc else None
+        if gm is None or client_ps is None:
             return
-        game_instance.set_editor_property("match_map_path", MATCH_MAP)
-        game_instance.set_editor_property("selected_team_size", 1)
-        if not game_instance.request_host_lan_match():
-            finish(False, "RequestHostLANMatch rejected")
+        if gm.count_humans() < 2:
             return
-        state["host_requested"] = True
-        unreal.log("BLA_LAN_PIE_HOST_REQUESTED listen=1")
+        if prop(client_ps, "team") != unreal.BLA_Team.NEUTRAL:
+            finish(False, "joiner was not Neutral")
+            return
+        mark("BLA_LAN_PIE_JOIN_OK")
+        state["phase"] = "s1_team"
         return
 
-    if MATCH_MAP_NAME not in map_path:
-        if state["pie_ticks"] >= MAX_TICKS:
-            finish(False, f"listen travel did not complete map={map_path}")
+    if phase == "s1_team":
+        gm = unreal.GameplayStatics.get_game_mode(listen)
+        host_pc = get_pc(listen)
+        client_pc = get_pc(client)
+        host_ps = host_pc.player_state if host_pc else None
+        client_ps = client_pc.player_state if client_pc else None
+        if gm is None or host_ps is None or client_ps is None:
+            return
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            gm.set_lan_team(host_pc, unreal.BLA_Team.ATTACKERS)
+            client_pc.client_debug_request_team(unreal.BLA_Team.ATTACKERS)
+            state["rpc_wait"] = 1
+            return
+        if wait < 3:
+            state["rpc_wait"] = wait + 1
+            return
+        if wait == 3:
+            if prop(client_ps, "team") == unreal.BLA_Team.ATTACKERS:
+                finish(False, "second attacker was accepted at TeamSize=1")
+                return
+            log_team_diag(listen, client, wait, "request-defenders")
+            client_pc.client_debug_request_team(unreal.BLA_Team.DEFENDERS)
+            state["rpc_wait"] = 4
+            return
+        client_team = prop(client_ps, "team")
+        if client_team != unreal.BLA_Team.DEFENDERS:
+            if wait in (4, 10, 30, 60, 90, 110, 120, 180, 240, 360, 480, 599) or wait % 60 == 0:
+                log_team_diag(listen, client, wait, "waiting-client=%s" % client_team)
+            if wait < 600:
+                state["rpc_wait"] = wait + 1
+                return
+            log_team_diag(listen, client, wait, "timeout-client=%s" % client_team)
+            finish(False, "team pick failed wait=%s client=%s" % (wait, client_team))
+            return
+        log_team_diag(listen, client, wait, "replicated-client=%s" % client_team)
+        mark("BLA_LAN_PIE_TEAM_OK")
+        state["phase"] = "s1_full"
+        state["rpc_wait"] = 0
         return
 
-    game_state = unreal.GameplayStatics.get_game_state(world)
-    if game_state is None:
+    if phase == "s1_full":
+        gm = get_lan_gm(listen)
+        if gm is None:
+            return
+        if not isinstance(gm, unreal.BLAGameModeElimination):
+            finish(False, "s1_full gm=%s" % gm.get_class().get_name())
+            return
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            state["extra_pc"] = unreal.GameplayStatics.create_player(listen, 2, True)
+            state["rpc_wait"] = 1
+            return
+        if wait < 3:
+            state["rpc_wait"] = wait + 1
+            return
+        accepted = gm.can_accept_lan_join()
+        humans = gm.count_humans()
+        extra = state.get("extra_pc")
+        if extra:
+            unreal.GameplayStatics.remove_player(extra, True)
+            state["extra_pc"] = None
+        if accepted or humans != 2:
+            finish(False, "third join not rejected humans=%s accepted=%s" % (humans, accepted))
+            return
+        mark("BLA_LAN_PIE_FULL_REJECT_OK")
+        state["phase"] = "s1_not_host"
+        state["rpc_wait"] = 0
         return
-    phase = game_state.get_editor_property("round_phase")
-    bots = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAAIController)
-    if phase == unreal.BLA_RoundPhase.WAITING and len(bots) == 0:
-        waiting_combatants = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase)
-        if waiting_combatants:
-            names = ",".join(actor.get_name() for actor in waiting_combatants)
-            finish(False, f"waiting combat pawn leak count={len(waiting_combatants)} names={names}")
-            return
-        ui_managers = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLAUIManager)
-        ui_manager = ui_managers[0] if ui_managers else None
-        ui_state = ui_manager.get_match_state() if ui_manager else None
-        advertised = ui_manager.get_lan_advertise_address() if ui_manager else ""
-        ui_ok = (
-            ui_manager is not None
-            and ui_manager.get_current_screen() == unreal.BLA_UIScreen.LAN_WAITING
-            and ui_state == game_state
-            and "." in advertised
-        )
-        if not ui_ok:
-            finish(False, f"BLA_LAN_UI_FAILED screen={ui_manager.get_current_screen() if ui_manager else None} same_gs={ui_state == game_state} ip={advertised}")
-            return
-        ui_manager.run_ui_and_command_line_contracts() if hasattr(ui_manager, "run_ui_and_command_line_contracts") else None
-        unreal.log(f"BLA_LAN_UI_OK screen=lan_waiting ip={advertised} world_gs=1")
 
-        game_mode = unreal.GameplayStatics.get_game_mode(world)
-        host = unreal.GameplayStatics.get_player_controller(world, 0)
-        if game_mode is None or host is None:
-            finish(False, "join/team missing game mode or host")
+    if phase == "s1_not_host":
+        gm = unreal.GameplayStatics.get_game_mode(listen)
+        gs = get_gs(listen)
+        client_pc = get_pc(client)
+        client_gi = unreal.GameplayStatics.get_game_instance(client)
+        if gm is None or gs is None or client_pc is None:
             return
-        host_defenders = game_mode.set_lan_team(host, unreal.BLA_Team.DEFENDERS)
-        host_attackers = game_mode.set_lan_team(host, unreal.BLA_Team.ATTACKERS)
-        open_before_join = game_mode.can_accept_lan_join()
-        extra = unreal.GameplayStatics.create_player(world, 1, True)
-        extra_state = extra.get_editor_property("player_state") if extra else None
-        join_neutral = extra_state is not None and extra_state.get_editor_property("team") == unreal.BLA_Team.NEUTRAL
-        picked = extra is not None and game_mode.set_lan_team(extra, unreal.BLA_Team.DEFENDERS)
-        team_full = not game_mode.set_lan_team(host, unreal.BLA_Team.DEFENDERS)
-        roster = game_state.get_editor_property("lan_roster")
-        if not (host_defenders and host_attackers and open_before_join and extra and join_neutral and picked and team_full and len(roster) == 2):
-            finish(False, f"join/team contracts failed host_def={host_defenders} host_atk={host_attackers} open={open_before_join} extra={bool(extra)} neutral={join_neutral} picked={picked} full={team_full} roster={len(roster)}")
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            client_pc.client_debug_request_start_lan_match()
+            state["rpc_wait"] = 1
             return
-        unreal.log("BLA_LAN_WAITING_OK net=listen phase=6 bots=0")
-        unreal.log("BLA_LAN_JOIN_OK accepted=1 team_pick=1 team_full=1 started_reject=0")
-
-        game_instance = unreal.GameplayStatics.get_game_instance(world)
-        host_state = host.get_editor_property("player_state")
-        if game_instance is None or host_state is None:
-            finish(False, "start contracts missing game instance or host state")
+        if wait < 3:
+            state["rpc_wait"] = wait + 1
             return
-        game_instance.set_editor_property("selected_team_size", 2)
-        game_state.set_editor_property("attackers_team_size", 2)
-        game_state.set_editor_property("defenders_team_size", 2)
-        host_state.set_editor_property("team", unreal.BLA_Team.NEUTRAL)
-        extra_state.set_editor_property("team", unreal.BLA_Team.NEUTRAL)
-
-        extra.server_start_lan_match()
-        still_waiting = game_state.get_editor_property("round_phase") == unreal.BLA_RoundPhase.WAITING
-        not_host = "FLOW_LAN_NOT_HOST" in game_instance.get_editor_property("last_flow_error")
-        host_started = game_mode.start_lan_match(host)
-        phase_prep = game_state.get_editor_property("round_phase") == unreal.BLA_RoundPhase.PREPARATION
-        bot_pawns = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter)
-        combatants = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLACharacterBase)
-        host_team = host_state.get_editor_property("team")
-        extra_team = extra_state.get_editor_property("team")
-        neutral_ok = host_team == unreal.BLA_Team.ATTACKERS and extra_team == unreal.BLA_Team.DEFENDERS
-        started_reject = not game_mode.can_accept_lan_join()
-        if not (still_waiting and not_host and host_started and phase_prep and len(bot_pawns) == 2 and len(combatants) == 4 and neutral_ok and started_reject):
-            finish(False, f"start contracts failed waiting={still_waiting} not_host={not_host} started={host_started} prep={phase_prep} bots={len(bot_pawns)} total={len(combatants)} neutral={neutral_ok} reject={started_reject}")
+        still_waiting = prop(gs, "round_phase") == unreal.BLA_RoundPhase.WAITING
+        error = str(prop(client_gi, "last_flow_error", ""))
+        if not still_waiting:
+            finish(False, "non-host start left Waiting")
             return
-        unreal.log("BLA_LAN_NEUTRAL_OK host=0 extra=1")
-        unreal.log(f"BLA_LAN_START_OK not_host=1 bots={len(bot_pawns)} total={len(combatants)} started_reject=1")
-
-        victim = bot_pawns[0] if bot_pawns else None
-        server_damage = bool(victim and victim.apply_combat_damage(15.0, "Body", None))
-        health_component = victim.get_editor_property("health_component") if victim else None
-        health_after_server = health_component.get_editor_property("current_health") if health_component else -1.0
-        humans_before = game_mode.count_humans()
-        bots_before = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
-        unreal.GameplayStatics.remove_player(extra, True)
-        humans_after_leave = game_mode.count_humans()
-        bots_after_leave = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
-        game_mode.fill_vacant_lan_slots_with_bots()
-        bots_after_fill = len(unreal.GameplayStatics.get_all_actors_of_class(world, unreal.BLABotCharacter))
-        authority_ok = (
-            server_damage
-            and health_after_server < 100.0
-            and humans_after_leave == humans_before - 1
-            and bots_after_leave == bots_before
-            and bots_after_fill == bots_before + 1
-        )
-        if not authority_ok:
-            finish(False, f"BLA_LAN_AUTHORITY_FAILED dmg={server_damage} health={health_after_server} humans={humans_before}/{humans_after_leave} bots={bots_before}/{bots_after_leave}/{bots_after_fill}")
+        if "FLOW_LAN_NOT_HOST" not in error:
+            if wait < 30:
+                state["rpc_wait"] = wait + 1
+                return
+            finish(False, "non-host start missing FLOW_LAN_NOT_HOST")
             return
-        unreal.log("BLA_LAN_AUTHORITY_OK damage_server=1 leave_empty_slot=1 next_round_fill=1")
-        finish(True, "waiting=1 ui=1 join=1 team_full=1 start=1 neutral=1 authority=1 production_host_path=1")
+        mark("BLA_LAN_PIE_NOT_HOST_OK")
+        state["phase"] = "s1_host_left"
+        state["rpc_wait"] = 0
         return
-    if phase != unreal.BLA_RoundPhase.LOADING or bots:
-        finish(False, f"BLA_LAN_WAITING_FAILED phase={phase} bots={len(bots)}")
-    elif state["pie_ticks"] >= MAX_TICKS:
-        finish(False, "BLA_LAN_WAITING_FAILED timeout")
+
+    if phase == "s1_host_left":
+        listen_gi = unreal.GameplayStatics.get_game_instance(listen) if listen else None
+        client_gi = unreal.GameplayStatics.get_game_instance(client) if client else None
+        if listen_gi is None:
+            return
+        listen_gi.request_leave_lan()
+        state["phase"] = "s1_host_left_wait"
+        state["wait"] = 0
+        return
+
+    if phase == "s1_host_left_wait":
+        state["wait"] += 1
+        client_gi = unreal.GameplayStatics.get_game_instance(client) if client else None
+        error = str(prop(client_gi, "last_flow_error", "")) if client_gi else ""
+        client_map = client.get_path_name() if client else ""
+        left = ("FLOW_LAN_HOST_LEFT" in error) or ("L_TestBootstrap" in client_map) or (client is None)
+        if left:
+            mark("BLA_LAN_PIE_HOST_LEFT_OK")
+            request_end("s1_end")
+            return
+        if state["wait"] > 600:
+            finish(False, "host leave did not return client")
+        return
+
+    if phase == "s2_wait_worlds":
+        desired = state.get("listen_team_size", 2)
+        if listen is None or client is None:
+            set_team_size(desired)
+            return
+        gs = get_gs(listen)
+        gm = unreal.GameplayStatics.get_game_mode(listen)
+        if prop(gs, "round_phase") != unreal.BLA_RoundPhase.WAITING or gm is None:
+            set_team_size(desired)
+            return
+        gi = unreal.GameplayStatics.get_game_instance(listen)
+        gi_size = prop(gi, "selected_team_size")
+        gs_size = prop(gs, "attackers_team_size")
+        if gi_size != desired or gs_size != desired:
+            set_team_size(desired)
+            wait = state.get("wait", 0) + 1
+            state["wait"] = wait
+            if wait in (1, 10, 30, 60, 90, 120, 180) or wait % 30 == 0:
+                log_team_diag(listen, client, wait, "s2-size gi=%s gs=%s" % (gi_size, gs_size))
+            if wait > 180:
+                finish(False, "s2 team_size gi=%s gs=%s" % (gi_size, gs_size))
+            return
+        if gm.count_humans() < 2:
+            return
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            host_pc = get_pc(listen)
+            client_pc = get_pc(client)
+            gm.set_lan_team(host_pc, unreal.BLA_Team.ATTACKERS)
+            client_pc.client_debug_request_team(unreal.BLA_Team.DEFENDERS)
+            log_team_diag(listen, client, wait, "s2-request-defenders")
+            state["rpc_wait"] = 1
+            return
+        client_pc = get_pc(client)
+        client_ps = client_pc.player_state if client_pc else None
+        client_team = prop(client_ps, "team")
+        if client_team != unreal.BLA_Team.DEFENDERS:
+            if wait in (1, 10, 30, 60, 90, 110, 120, 180, 240, 360, 480, 599) or wait % 60 == 0:
+                log_team_diag(listen, client, wait, "s2-waiting-client=%s" % client_team)
+            if wait < 600:
+                state["rpc_wait"] = wait + 1
+                return
+            log_team_diag(listen, client, wait, "s2-timeout-client=%s" % client_team)
+            finish(False, "s2 team pick failed wait=%s client=%s" % (wait, client_team))
+            return
+        log_team_diag(listen, client, wait, "s2-replicated-client=%s" % client_team)
+        state["phase"] = "s2_start"
+        state["wait"] = 0
+        state["rpc_wait"] = 0
+        return
+
+    if phase == "s2_start":
+        gm = unreal.GameplayStatics.get_game_mode(listen)
+        gs = get_gs(listen)
+        host_pc = get_pc(listen)
+        client_ps = get_pc(client).player_state if get_pc(client) else None
+        if gm is None or host_pc is None or client_ps is None:
+            return
+        wait = state.get("rpc_wait", 0)
+        if not state.get("s2_start_sent"):
+            client_team = prop(client_ps, "team")
+            if client_team != unreal.BLA_Team.DEFENDERS:
+                if wait in (0, 10, 30, 60, 90, 120, 180, 240, 360, 480, 599) or wait % 60 == 0:
+                    log_team_diag(listen, client, wait, "s2-start-waiting-client=%s" % client_team)
+                if wait < 600:
+                    state["rpc_wait"] = wait + 1
+                    return
+                log_team_diag(listen, client, wait, "s2-start-timeout-client=%s" % client_team)
+                finish(False, "s2 team pick failed wait=%s client=%s" % (wait, client_team))
+                return
+            gm.start_lan_match(host_pc)
+            state["s2_start_sent"] = True
+            state["rpc_wait"] = 1
+            state["wait"] = 0
+            return
+        if wait < 3:
+            state["rpc_wait"] = wait + 1
+            return
+        state["wait"] += 1
+        if prop(gs, "round_phase") == unreal.BLA_RoundPhase.WAITING:
+            if state["wait"] < 180:
+                return
+            finish(False, "start did not leave Waiting")
+            return
+        bots = unreal.GameplayStatics.get_all_actors_of_class(listen, unreal.BLABotCharacter)
+        units = unreal.GameplayStatics.get_all_actors_of_class(listen, unreal.BLACharacterBase)
+        if len(bots) != 2 or len(units) != 4:
+            if state["wait"] < 180:
+                return
+            finish(False, "start fill failed bots=%s total=%s" % (len(bots), len(units)))
+            return
+        mark("BLA_LAN_PIE_START_OK")
+        state["phase"] = "s2_started_reject"
+        state["wait"] = 0
+        state["rpc_wait"] = 0
+        return
+
+    if phase == "s2_started_reject":
+        gm = get_lan_gm(listen)
+        if gm is None:
+            return
+        if not isinstance(gm, unreal.BLAGameModeElimination):
+            finish(False, "s2_started_reject gm=%s" % gm.get_class().get_name())
+            return
+        wait = state.get("rpc_wait", 0)
+        if wait == 0:
+            state["extra_pc"] = unreal.GameplayStatics.create_player(listen, 2, True)
+            state["rpc_wait"] = 1
+            return
+        if wait < 3:
+            state["rpc_wait"] = wait + 1
+            return
+        accepted = gm.can_accept_lan_join()
+        extra = state.get("extra_pc")
+        if extra:
+            unreal.GameplayStatics.remove_player(extra, True)
+            state["extra_pc"] = None
+        if accepted:
+            finish(False, "join after start was accepted")
+            return
+        mark("BLA_LAN_PIE_STARTED_REJECT_OK")
+        state["phase"] = "s2_damage"
+        state["wait"] = 0
+        state["rpc_wait"] = 0
+        return
+
+    if phase == "s2_damage":
+        client_pc = get_pc(client)
+        hp = health_of(client)
+        if hp is None:
+            return
+        if state["health_before"] is None:
+            state["health_before"] = hp
+            client_pc.client_debug_try_local_damage(25.0)
+            return
+        if hp != state["health_before"]:
+            finish(False, "client local damage applied hp=%s before=%s" % (hp, state["health_before"]))
+            return
+        mark("BLA_LAN_PIE_CLIENT_DAMAGE_OK")
+        request_end("s2_end")
+        return
+
+    if phase == "standalone_play":
+        world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+        if world is None:
+            return
+        gi = unreal.GameplayStatics.get_game_instance(world)
+        if not state.get("rpc_sent"):
+            gi.set_editor_property("match_map_path", MATCH_MAP)
+            gi.request_start_match()
+            state["rpc_sent"] = True
+            travel = str(prop(gi, "last_travel_request", ""))
+            if "?listen" in travel:
+                finish(False, "standalone travel had listen url=%s" % travel)
+                return
+            return
+        travel = str(prop(gi, "last_travel_request", ""))
+        if "?listen" in travel:
+            finish(False, "standalone travel had listen url=%s" % travel)
+            return
+        state["phase"] = "standalone_wait"
+        state["wait"] = 0
+        return
+
+    if phase == "standalone_wait":
+        world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+        if world is None:
+            return
+        gs = get_gs(world)
+        gm = unreal.GameplayStatics.get_game_mode(world)
+        if gs is None:
+            return
+        phase_now = prop(gs, "round_phase")
+        if phase_now == unreal.BLA_RoundPhase.WAITING:
+            finish(False, "standalone entered Waiting")
+            return
+        if phase_now in (unreal.BLA_RoundPhase.PREPARATION, unreal.BLA_RoundPhase.COMBAT):
+            if gm is not None:
+                mark("BLA_LAN_PIE_STANDALONE_OK")
+                required = [
+                    "BLA_LAN_PIE_WAITING_OK",
+                    "BLA_LAN_PIE_JOIN_OK",
+                    "BLA_LAN_PIE_TEAM_OK",
+                    "BLA_LAN_PIE_FULL_REJECT_OK",
+                    "BLA_LAN_PIE_NOT_HOST_OK",
+                    "BLA_LAN_PIE_START_OK",
+                    "BLA_LAN_PIE_STARTED_REJECT_OK",
+                    "BLA_LAN_PIE_CLIENT_DAMAGE_OK",
+                    "BLA_LAN_PIE_HOST_LEFT_OK",
+                    "BLA_LAN_PIE_STANDALONE_OK",
+                ]
+                missing = [name for name in required if name not in state["markers"]]
+                if missing:
+                    finish(False, "missing %s" % ",".join(missing))
+                    return
+                finish(True, "sessions=3")
+                return
+        state["wait"] += 1
+        if state["wait"] > 900:
+            finish(False, "standalone did not start phase=%s" % phase_now)
+        return
 
 
 def tick(_):
     try:
         tick_impl()
     except Exception as error:
-        finish(False, f"driver_error {error}")
+        finish(False, "driver_error %s" % error)
 
 
-if not level.load_level(MENU_MAP):
-    raise RuntimeError(f"Failed to load {MENU_MAP}")
 handle = unreal.register_slate_post_tick_callback(tick)
-level.editor_request_begin_play()
 unreal.log("BLA_LAN_PIE_DRIVER_STARTED")

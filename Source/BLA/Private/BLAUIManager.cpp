@@ -53,14 +53,46 @@ void ABLAUIManager::Tick(float DeltaSeconds)
     RefreshHUD();
     EvaluateMatchScreens();
 #if !UE_BUILD_SHIPPING
-    if (!bPackagedClientJoinedLogged && GetWorld() && GetWorld()->GetNetMode() == NM_Client)
+    if (GetWorld() && GetWorld()->GetNetMode() == NM_Client)
     {
         const ABLAGameState* State = GetMatchState();
         const APlayerController* PC = GetWorld()->GetFirstPlayerController();
-        if (State && State->RoundPhase == EBLA_RoundPhase::Waiting && PC && PC->PlayerState)
+        const ABLAPlayerState* PlayerState = PC ? PC->GetPlayerState<ABLAPlayerState>() : nullptr;
+        if (!bPackagedClientJoinedLogged && State && State->RoundPhase == EBLA_RoundPhase::Waiting && PlayerState)
         {
             bPackagedClientJoinedLogged = true;
             UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_CLIENT_JOINED"));
+        }
+        if (!bPackagedTeamLogged && PlayerState
+            && (PlayerState->Team == EBLA_Team::Attackers || PlayerState->Team == EBLA_Team::Defenders))
+        {
+            bPackagedTeamLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_TEAM team=%s"),
+                *StaticEnum<EBLA_Team>()->GetNameStringByValue(static_cast<int64>(PlayerState->Team)));
+        }
+        if (!bPackagedStartedLogged && State
+            && State->RoundPhase != EBLA_RoundPhase::Loading && State->RoundPhase != EBLA_RoundPhase::Waiting)
+        {
+            int32 HumanCount = 0;
+            int32 BotCount = 0;
+            for (APlayerState* BaseState : State->PlayerArray)
+            {
+                if (!BaseState)
+                {
+                    continue;
+                }
+                if (BaseState->IsABot())
+                {
+                    ++BotCount;
+                }
+                else
+                {
+                    ++HumanCount;
+                }
+            }
+            bPackagedStartedLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("BLA_LAN_PACKAGED_STARTED phase=%d humans=%d bots=%d total=%d"),
+                static_cast<int32>(State->RoundPhase), HumanCount, BotCount, HumanCount + BotCount);
         }
     }
     if (!bPackagedStateLogged)
