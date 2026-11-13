@@ -229,7 +229,7 @@ export class WorldView {
       else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
       this.camera.position.copy(this.smoothPos);
       this.camera.position.x+=(Math.random()-.5)*this.shake;
-      this.camera.rotation.set(-(view.pitch??follow.pitch)+this.recoil*.17,view.yaw??follow.yaw,0);
+      this.camera.rotation.set((view.pitch??follow.pitch)+this.recoil*.17,view.yaw??follow.yaw,0);
       const fov=this.settings.fov*(follow.aim?.8:1);
       this.camera.fov=T.MathUtils.lerp(this.camera.fov,fov,1-Math.exp(-dt*12));this.camera.updateProjectionMatrix();
       if(this.weaponType!==follow.weapon)this.makeGun(follow.weapon);

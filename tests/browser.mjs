@@ -22,6 +22,26 @@ try {
   assert.equal(await page.evaluate(()=>window.__BLA.state.actors.find(a=>a.id==='player').weapon),'scatter');
   await page.locator('[data-loadout="rifle"]').click();await page.locator('#ready').click();
   await page.waitForFunction(()=>window.__BLA.state.phase==='combat');await page.locator('#view').click({position:{x:700,y:500}});
+  await page.waitForFunction(()=>window.__BLA.view.recoil===0);
+  // Exercise the pointer-lock listener and compare the rendered view with authoritative aim.
+  const look=async movementY=>page.evaluate(async movementY=>{
+    const g=window.__BLA,camera=g.view.camera;
+    const before=camera.getWorldDirection(camera.position.clone()).y;
+    assertLocked();
+    window.dispatchEvent(new MouseEvent('mousemove',{movementY}));
+    const actor=g.match.actors.find(a=>a.id===g.playerId);
+    for(let frame=0;frame<120;frame++){
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      if(frame>0&&Math.abs(actor.pitch-camera.rotation.x)<1e-6&&g.view.recoil===0)break;
+    }
+    const actual=camera.getWorldDirection(camera.position.clone());
+    const expected={x:-Math.sin(actor.yaw)*Math.cos(actor.pitch),y:Math.sin(actor.pitch),z:-Math.cos(actor.yaw)*Math.cos(actor.pitch)};
+    return {before,after:actual.y,pitch:actor.pitch,yaw:actor.yaw,recoil:g.view.recoil,actual:actual.toArray(),alignment:actual.x*expected.x+actual.y*expected.y+actual.z*expected.z};
+    function assertLocked(){if(!document.pointerLockElement)throw new Error('Mouse look requires pointer lock');}
+  },movementY);
+  const up=await look(-80);assert.ok(up.after>up.before+.05,'moving mouse up looks up');assert.ok(up.alignment>.99999,`rendered view matches upward shot direction: ${JSON.stringify(up)}`);
+  const down=await look(160);assert.ok(down.after<down.before-.05,'moving mouse down looks down');assert.ok(down.alignment>.99999,`rendered view matches downward shot direction: ${JSON.stringify(down)}`);
+  await look(-80);
   const before=await page.evaluate(()=>{const p=window.__BLA.match.actors[0];return {x:p.x,z:p.z};});
   await page.keyboard.down('KeyW');await page.waitForTimeout(400);await page.keyboard.up('KeyW');
   const after=await page.evaluate(()=>{const p=window.__BLA.match.actors[0];return {x:p.x,z:p.z};});
@@ -61,6 +81,6 @@ try {
   await page.screenshot({path:'artifacts/lan.png'});await guest.close();await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===1);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.__BLA.errors),[]);
   await page.setViewportSize({width:1280,height:720});await page.keyboard.press('Escape');await page.locator('#quit').click();await page.screenshot({path:'artifacts/menu-720p.png'});
-  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['menu/loadout','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients','disconnect bot takeover']},null,2));
+  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients','disconnect bot takeover']},null,2));
   console.log('Browser acceptance passed: menu, combat, results, persistence and two-client LAN. Screenshots: artifacts/');
 } finally {await browser?.close();await app.close();}
