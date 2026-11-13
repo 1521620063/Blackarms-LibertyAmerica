@@ -256,9 +256,13 @@ function frame(now){
   view.render(active?state:null,playerId,Math.min(dt,.05),now/1000,camera);
   requestAnimationFrame(frame);
 }
-show('boot',false);requestAnimationFrame(frame);
-if(debug){
-  window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get errors(){return errors;},get paused(){return paused;},config,settings,
-    start:startOffline,input(i){if(match)match.setInput(playerId,i);},step(seconds){if(!match)return;for(let i=0;i<seconds*60;i++)match.step(1/60);state=match.snapshot();},
-    pause(){paused=true;},resume(){paused=false;},get playerId(){return playerId;}};
-}
+view.ready.then(()=>{
+  lastTime=performance.now();show('boot',false);requestAnimationFrame(frame);
+  if(debug){
+    window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get errors(){return errors;},get paused(){return paused;},config,settings,
+      start:startOffline,input(i){if(match)match.setInput(playerId,i);},step(seconds){if(!match)return;for(let i=0;i<seconds*60;i++)match.step(1/60);state=match.snapshot();},
+      pause(){paused=true;},resume(){paused=false;},get playerId(){return playerId;}};
+  }
+}).catch(error=>{
+  show('boot',false);show('fatal',true);text('fatal',`士兵模型加载失败，请刷新页面重试。\n请确认通过项目服务器访问，并包含 public/models/soldier.glb。\n\n${error.message}`);
+});

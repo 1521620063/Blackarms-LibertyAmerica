@@ -1,6 +1,6 @@
 # 黑枪 · 自由美利坚 — 浏览器战术版
 
-`dev` 分支将主分支的 Zero Facility 战术 FPS 玩法实现为 Three.js + HTML/CSS + JavaScript 游戏，参考 `demo/demo.html` 的程序化场景、第一人称武器、HUD 和浏览器交互方式。原 UE 工程继续保留在 `main`。
+`main` 分支是 Three.js + HTML/CSS + JavaScript 浏览器战术 FPS，保留原 Zero Facility 的回合、武器和目标规则。原 UE 工程可在历史提交 `88bcb3e` 中查看。
 
 ## 启动
 
@@ -13,7 +13,7 @@ npm run dev
 
 打开 **http://localhost:5173**，选择模式、人数和难度，点击“开始行动”。准备阶段可调整主武器、护甲；点击“确认就绪”或按 Enter 开始。比赛开始后浏览器会捕获鼠标，Esc 释放并暂停离线比赛。
 
-场景、材质、角色、枪械和音效在本地程序生成。安装依赖后运行不访问外部 CDN，不需要 UE 编辑器，也不需要下载模型。请通过服务器访问，不能直接双击 `index.html`。
+地图、枪械、材质和音效在本地程序生成；人物使用随项目提供的带贴图、骨骼和动画的人类士兵 GLB。安装依赖后运行不访问外部 CDN，不需要 UE 编辑器，也不需要额外下载人物模型。请通过服务器访问，不能直接双击 `index.html`。
 
 发布运行：
 
@@ -38,6 +38,17 @@ npm start
 - 固定 ALPHA / BRAVO 队伍累计比分，按回合周期交换攻守（1v1 每 2 回合、2v2 每 3 回合、3v3 每 4 回合）。蓝色为攻击方，橙色为防守方；角色标识随攻守改变。
 - HUD、小地图（仅队友和已知目标）、命中与受伤反馈、击杀信息、战术字幕、记分板和阵亡观察队友。
 - 灵敏度、FOV、画质 / 渲染分辨率、音量、字幕、准星、色盲辅助、帧率、全屏；浏览器保存设置。
+
+## 画面与人物
+
+- 所有 AI 队友和敌人使用带贴图的 Vanguard 人类士兵模型，49 个骨骼关节、独立骨骼实例、站立 / 步行 / 跑步动画，叠加持枪手臂与蹲伏腿部 IK；包含身体、头盔、护目镜、双手与双腿。
+- 工业设施加入有凹凸和粗糙度的混凝土、金属与织物材质、世界尺寸墙面纹理、磨损、污迹、顶梁、灯具、管道、设备柜、排水槽和区域标识。
+- 枪械包含圆滑边缘、机匣、枪管、枪口制退器、导轨、弹匣、枪托、扳机护圈、透明反射瞄具与红点；配合第一人称手套、持枪惯性、移动摆动、换弹与后坐力表现。
+- 开火包含暖色枪口火光、短暂照明、短弹道、弹着火花与烟尘、弹孔焦痕、带重力与落地反弹的弹壳；核心状态变化有粒子脉冲。
+- 环境反射、软阴影、冷暖灯光、轻雾、空气尘点与受控 Bloom；静态地图按材质合并，粒子、弹孔和弹壳均有数量上限。
+- 低画质关闭阴影、Bloom、胶片颗粒与空气尘点；中 / 高画质启用这些效果，高画质提高像素密度与辉光强度。
+
+模型来源、使用说明与许可见 [docs/asset-credits.md](docs/asset-credits.md)。人物文件约 2.06 MiB，加载完成后才进入主菜单；部署时需要一并发布 `dist/models/`。
 
 ## 操作
 
@@ -68,7 +79,9 @@ npm start
 ```text
 index.html                 菜单、HUD、设置、结算和房间界面
 src/main.js                客户端输入、UI、离线循环、网络快照
-src/world.js               程序化 Three.js 场景、角色、武器、射击效果
+src/world.js               场景装配、灯光、后处理、相机与武器表现
+src/visual/                表面贴图、细节枪械、人类骨骼动画与粒子效果
+public/models/soldier.glb   本地人类士兵模型、贴图与站立/步行/跑步动画
 src/audio.js               Web Audio 合成音效
 src/style.css              界面和响应式布局
 src/shared/data.js         比赛、武器、难度、护甲和地图数据
@@ -80,7 +93,7 @@ tests/                     规则、WebSocket 与真实浏览器验收
 
 `shared/` 不依赖 DOM 或 Three.js，离线客户端与局域网服务端运行同一套规则。UI 显示快照，不计算胜负。局域网客户端提交输入，服务端决定位置、伤害和比分。服务端模拟 60 Hz，网络快照 20 Hz；显示层插值角色位置。当前没有客户端预测或延迟补偿，局域网低延迟为主要使用场景。
 
-规则来源：`main:docs/superpowers/specs/2026-09-14-ue5-tactical-fps-design.md`、`main:Source/BLA/Public/BLAGameplayTypes.h`、`main:Scripts/Editor/build_task11_assets.py`。视觉参考后续 `main:docs/art/art-direction-and-zero-facility-realization.md` 的低饱和混凝土、军绿、冷白灯、橙色警示与蓝 / 橙阵营色；当前是程序化几何版本，未移植 UE 扫描素材或 Lumen 渲染。
+规则来源（原 UE 历史提交 `88bcb3e`）：`docs/superpowers/specs/2026-09-14-ue5-tactical-fps-design.md`、`Source/BLA/Public/BLAGameplayTypes.h`、`Scripts/Editor/build_task11_assets.py`。视觉延续该版本 `docs/art/art-direction-and-zero-facility-realization.md` 的工业设施方向；当前使用本地程序化场景与贴图人类士兵，未移植 UE 扫描素材或 Lumen 渲染。
 
 ## 验证
 
@@ -88,6 +101,7 @@ tests/                     规则、WebSocket 与真实浏览器验收
 npm test
 npm run build
 npm run test:browser
+npm run test:visual
 ```
 
 浏览器验收使用本机 Chrome / Edge，或通过 `CHROME_PATH` 指定浏览器；没有已安装浏览器时先运行 `npx playwright install chromium`。验收脚本自动启动独立端口，不依赖已运行的开发服务器。生成截图与报告在 `artifacts/`，该目录不提交。
