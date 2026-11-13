@@ -3,7 +3,7 @@ import * as T from 'three';
 const specs={
   concrete:{materials:['concrete','wall'],repeat:[1,1],normal:.48},
   floor:{materials:['floor'],repeat:[16,10],normal:.3},
-  gunmetal:{materials:['steel','dark','edge','armor','yellow','polymer'],repeat:[1,1],normal:.24},
+  gunmetal:{materials:['steel','dark','edge','armor','yellow','polymer','gunmetal','titanium'],repeat:[1,1],normal:.24},
   fabric:{materials:['olive','sand'],repeat:[1,1],normal:.45},
   'service-panel':{materials:['panel'],repeat:[1,1],normal:.15}
 };
@@ -26,7 +26,8 @@ export async function loadGeneratedArt(materials,renderer){
     }
     loaded.push(id);
   }));
-  for(const texture of oldTextures)texture.dispose();
+  const liveTextures=new Set(Object.values(materials).flatMap(m=>[m.map,m.normalMap,m.roughnessMap]).filter(Boolean));
+  for(const texture of oldTextures)if(!liveTextures.has(texture))texture.dispose();
   // Tint albedo only slightly: the authored source already contains real surface color.
   const colors={concrete:0xbac0b9,wall:0xe0e1d8,floor:0xc6cecf,steel:0x627073,dark:0x303b3f,edge:0x8f9999,armor:0x68736a,yellow:0xe4b658,polymer:0x8b8e73,olive:0x8e9e7d,sand:0xb6ae90,panel:0xc8d3d4};
   for(const [name,color] of Object.entries(colors))materials[name].color.setHex(color);

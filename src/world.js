@@ -183,7 +183,7 @@ export class WorldView {
   }
   event(e,playerId){
     if(e.type==='shot'){
-      if(e.actor===playerId){this.recoil=Math.min(.18,this.recoil+.065);this.shotTimer=.055;}
+      if(e.actor===playerId){const kick=e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063;this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=e.weapon==='scatter'?.065:.04;}
       this.fx.shot(e,e.actor===playerId);
     }
     if(e.type==='damage'&&e.actor===playerId)this.shake=.045;
@@ -223,7 +223,7 @@ export class WorldView {
       const target=new T.Vector3((aim?0:.24)-this.sway.x*.7,(follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
       this.gun.position.lerp(target,1-Math.exp(-dt*18));this.gun.rotation.set(this.recoil*.8+(follow.sprinting?-.12:0),follow.reload>0?-.55:0,follow.reload>0?-.6:-.025+Math.cos(time*8)*bob);
       if(aim)this.gun.rotation.z=T.MathUtils.damp(this.gun.rotation.z,0,25,dt);
-      this.muzzle.visible=this.shotTimer>0;this.muzzle.material.rotation=time*31;this.muzzle.scale.setScalar(.25+Math.random()*.15);this.flash.intensity=this.muzzle.visible?7:0;this.flash.position.copy(this.gun.position).add(new T.Vector3(0,0,-.6));
+      this.muzzle.visible=this.shotTimer>0;this.muzzle.material.rotation=time*31;this.muzzle.scale.setScalar((this.weaponType==='scatter'?.34:.18)+Math.random()*.1);this.flash.intensity=this.muzzle.visible?7:0;this.gun.updateMatrixWorld(true);this.muzzle.getWorldPosition(this.flash.position);
     }else{
       this.smoothPos=null;this.lastLook=null;this.camera.fov=65;this.camera.updateProjectionMatrix();this.camera.position.set(10.2+Math.sin(time*.07)*.4,3.4,4.6);this.camera.lookAt(1.5,1.2,-3);
     }

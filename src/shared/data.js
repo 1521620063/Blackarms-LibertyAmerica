@@ -7,8 +7,8 @@ export const RULES = {
 export const OBJECTIVE = { plant: 5, defuse: 5, upload: 30, radius: 2.1, x: 6, z: 0 };
 export const WEAPONS = {
   pistol: { name: 'EP–12 能量手枪', short: 'EP–12', mag: 12, reserve: 48, damage: 24, rpm: 300, reload: 1.5, spread: .008, range: 70, pellets: 1, falloff: .5 },
-  rifle: { name: 'PR–24 脉冲步枪', short: 'PR–24', mag: 24, reserve: 120, damage: 23, rpm: 600, reload: 2.1, spread: .012, range: 100, pellets: 1, falloff: .45 },
-  scatter: { name: 'SG–6 近距散射枪', short: 'SG–6', mag: 6, reserve: 30, damage: 13, rpm: 90, reload: 2.6, spread: .075, range: 28, pellets: 8, falloff: .85 },
+  rifle: { name: 'PR–24 游隼战术步枪', short: 'PR–24', mag: 24, reserve: 120, damage: 23, rpm: 600, reload: 2.1, spread: .012, range: 100, pellets: 1, falloff: .45 },
+  scatter: { name: 'SG–6 破门者霰弹枪', short: 'SG–6', mag: 6, reserve: 30, damage: 13, rpm: 90, reload: 2.6, spread: .075, range: 28, pellets: 8, falloff: .85 },
 };
 export const ARMOR = { light: { name: '轻型护甲', protection: .15, speed: 1 }, heavy: { name: '重型护甲', protection: .32, speed: .83 } };
 export const DIFFICULTY = {
