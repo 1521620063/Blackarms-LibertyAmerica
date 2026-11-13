@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { BOXES, OBJECTIVE, WEAPONS, rng } from './shared/data.js';
+import { BOXES, MAP, OBJECTIVE, WEAPONS, rng } from './shared/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
@@ -27,8 +27,8 @@ export class WorldView {
     const pmrem=new T.PMREMGenerator(this.renderer),room=new RoomEnvironment();this.environment=pmrem.fromScene(room,.04).texture;room.dispose();pmrem.dispose();
     this.scene.environment=this.environment;this.scene.environmentIntensity=.55;
     this.scene.add(new T.HemisphereLight(0xbad9e5,0x6c6657,1.3));
-    this.sun=new T.DirectionalLight(0xf5e6c6,3.6);this.sun.position.set(-9,16,8);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);
-    Object.assign(this.sun.shadow.camera,{left:-20,right:20,top:16,bottom:-16,near:.5,far:45});this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.025;this.scene.add(this.sun);
+    this.sun=new T.DirectionalLight(0xf5e6c6,3.6);this.sun.position.set(-15,24,12);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);
+    Object.assign(this.sun.shadow.camera,{left:-35,right:35,top:28,bottom:-28,near:.5,far:70});this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.025;this.scene.add(this.sun);
     this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();facilityDecals(this.facility);this.batchFacility();
     this.characters=new SoldierModels(this.kit);
     this.ready=Promise.all([this.characters.ready,loadGeneratedArt(this.materials,this.renderer)]).then(([,assets])=>{this.artAssets=assets;});
@@ -46,7 +46,7 @@ export class WorldView {
   }
   buildFacility(){
     const random=rng(417);
-    this.box(32,.22,20,0,-.13,0,'floor');
+    this.box(MAP.width,.22,MAP.depth,0,-.13,0,'floor');
     // Keep all substantial geometry on the authoritative collision footprints.
     for(const [index,b] of BOXES.entries()){
       const wall=b.h>=3.9,thin=b.w<.6||b.d<.6;
@@ -82,50 +82,65 @@ export class WorldView {
       }
     }
     // Structural ceiling: steel I-beams, skylight coffers and cable trays.
-    for(let x=-14;x<=14;x+=4){
-      this.box(.12,.42,20,x,5.12,0,'steel');this.box(.32,.065,20,x,4.94,0,'dark');
-      for(const z of [-7.5,-2.5,2.5,7.5]){
+    for(let x=-MAP.halfWidth+2;x<MAP.halfWidth-2;x+=4){
+      this.box(.12,.42,MAP.depth,x,5.12,0,'steel');this.box(.32,.065,MAP.depth,x,4.94,0,'dark');
+      for(let z=-15;z<=15;z+=5){
         this.box(3.7,.08,4.7,x+1.9,5.55,z,'dark');
-        if(Math.abs(z)===2.5){this.box(2.9,.045,1.45,x+1.9,5.48,z,'lamp');for(let i=0;i<5;i++)this.box(.035,.07,1.48,x+.7+i*.6,5.43,z,'steel');}
+        if(Math.abs(z)===5||z===-15){this.box(2.9,.045,1.45,x+1.9,5.48,z,'lamp');for(let i=0;i<5;i++)this.box(.035,.07,1.48,x+.7+i*.6,5.43,z,'steel');}
       }
-      for(const z of [-8,0,8]){
+      for(const z of [-15,-8,0,8,15]){
         this.box(1.8,.14,.36,x,4.77,z,'steel',this.facility,.025);this.box(1.57,.025,.23,x,4.69,z,'lamp');
         for(const dx of [-.65,.65])this.cylinder(.009,.009,.32,x+dx,5,z,'edge',this.facility,6);
       }
     }
-    for(const x of [-12,-4,5,13]){const light=new T.PointLight(x===5?0xa4d6ee:0xd8e9eb,18,13,2);light.position.set(x,4.25,0);this.scene.add(light);}
+    for(const [x,z] of [[-23,0],[-12,0],[5,0],[23,0],[-17,-14],[0,-14],[17,-14],[-15,14],[0,14],[15,14]]){const light=new T.PointLight(z<0?0xa4d6ee:z>0?0xffd2a0:0xd8e9eb,22,16,2);light.position.set(x,4.25,z);this.scene.add(light);}
     // Service pipes, collars, conduit and wall-mounted distribution boards.
-    for(const [i,z] of [-9.6,-9.21,-8.94].entries()){
-      const pipe=this.cylinder(i===0?.13:.067,i===0?.13:.067,31,0,3.45+i*.26,z,i===0?'paintedWall':'steel');pipe.rotation.z=Math.PI/2;
-      for(let x=-14;x<=14;x+=2){const collar=this.cylinder(i===0?.155:.085,i===0?.155:.085,.055,x,3.45+i*.26,z,'edge');collar.rotation.z=Math.PI/2;}
+    for(const [i,z] of [-17.6,-17.21,-16.94].entries()){
+      const pipe=this.cylinder(i===0?.13:.067,i===0?.13:.067,MAP.width-1,0,3.45+i*.26,z,i===0?'paintedWall':'steel');pipe.rotation.z=Math.PI/2;
+      for(let x=-26;x<=26;x+=2){const collar=this.cylinder(i===0?.155:.085,i===0?.155:.085,.055,x,3.45+i*.26,z,'edge');collar.rotation.z=Math.PI/2;}
     }
-    for(let x=-14;x<15;x+=3.5){
-      this.box(1.35,1.48,.13,x,.84,-9.66,'steel',this.facility,.025);
-      const panel=new T.Mesh(new T.PlaneGeometry(1.24,1.34),this.materials.panel);panel.position.set(x,.84,-9.569);this.facility.add(panel);
-      this.sign('HV / '+String(Math.round(x+15)).padStart(2,'0'),'POWER DISTRIBUTION',.75,x,1.85,-9.68,0,'#bcba9a');
-      this.box(.055,1.2,.055,x+.6,2.3,-9.64,'steel');
-      this.box(.34,.21,.12,x,2.65,9.7,'steel',this.facility,.02);this.box(.22,.085,.14,x,2.65,9.64,'warm',this.facility,.015);
+    for(let x=-26;x<27;x+=4){
+      this.box(1.35,1.48,.13,x,.84,-17.66,'steel',this.facility,.025);
+      const panel=new T.Mesh(new T.PlaneGeometry(1.24,1.34),this.materials.panel);panel.position.set(x,.84,-17.569);this.facility.add(panel);
+      this.box(.055,1.2,.055,x+.6,2.3,-17.64,'steel');
+      this.box(.34,.21,.12,x,2.65,17.7,'steel',this.facility,.02);this.box(.22,.085,.14,x,2.65,17.64,'warm',this.facility,.015);
     }
     // Warning paint and floor grime are flat and do not introduce invisible obstacles.
     for(const z of [-6,0,6])for(let x=-14;x<2;x+=1.1)this.box(.6,.006,.035,x,.004,z,'yellow');
-    for(const x of [-12,-8,-4,0,4,8,12])this.box(.012,.003,19.4,x,-.018,0,'dark');
-    for(const z of [-8,-4,0,4,8])this.box(31.4,.003,.012,0,-.018,z,'dark');
-    for(const x of [-13.7,13.7])for(const z of [-7,-4,0,4,7])this.box(.045,.008,.7,x,.006,z,x<0?'blue':'orange');
-    for(const x of [-14,-6,2,10]){
-      this.box(.24,.01,19.2,x,.008,0,'steel');for(let z=-9.4;z<9.5;z+=.24)this.box(.2,.012,.018,x,.013,z,'dark');
+    for(let x=-24;x<=24;x+=4)this.box(.012,.003,MAP.depth-.6,x,-.018,0,'dark');
+    for(let z=-16;z<=16;z+=4)this.box(MAP.width-.6,.003,.012,0,-.018,z,'dark');
+    for(const x of [-24.7,24.7])for(const z of [-12,-6,0,6,12])this.box(.045,.008,.7,x,.006,z,x<0?'blue':'orange');
+    for(const x of [-22,-14,-6,2,10,22]){
+      this.box(.24,.01,MAP.depth-.8,x,.008,0,'steel');for(let z=-17.4;z<17.5;z+=.24)this.box(.2,.012,.018,x,.013,z,'dark');
     }
     const grimeCanvas=document.createElement('canvas');grimeCanvas.width=grimeCanvas.height=128;const gc=grimeCanvas.getContext('2d'),g=gc.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(12,20,17,.36)');g.addColorStop(1,'rgba(12,20,17,0)');gc.fillStyle=g;gc.fillRect(0,0,128,128);
     const grime=new T.MeshBasicMaterial({map:new T.CanvasTexture(grimeCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
-    for(let i=0;i<28;i++){const mesh=new T.Mesh(new T.PlaneGeometry(.8+random()*2,.5+random()*1.5),grime);mesh.rotation.x=-Math.PI/2;mesh.rotation.z=random()*6;mesh.position.set(random()*30-15,.013,random()*18-9);this.facility.add(mesh);}
+    for(let i=0;i<28;i++){const mesh=new T.Mesh(new T.PlaneGeometry(.8+random()*2,.5+random()*1.5),grime);mesh.rotation.x=-Math.PI/2;mesh.rotation.z=random()*6;mesh.position.set(random()*(MAP.width-2)-MAP.halfWidth+1,.013,random()*(MAP.depth-2)-MAP.halfDepth+1);this.facility.add(mesh);}
     for(const b of BOXES.filter(b=>b.h<3.9)){const shadow=new T.Mesh(new T.PlaneGeometry(b.w+.7,b.d+.7),grime);shadow.rotation.x=-Math.PI/2;shadow.position.set(b.x,.017,b.z);this.facility.add(shadow);}
-    this.sign('BLACKARMS','ZERO FACILITY / RESTRICTED AREA',6,-15.77,2.8,0,Math.PI/2,'#9bbfc5');
-    this.sign('SECTOR 06','DATA OPERATIONS / AUTHORIZED ACCESS',5,15.77,2.8,0,-Math.PI/2,'#d8b38a');
+    this.sign('BLACKARMS','ZERO FACILITY / RESTRICTED AREA',6,-27.77,2.8,0,Math.PI/2,'#9bbfc5');
+    this.sign('SECTOR 06','DATA OPERATIONS / AUTHORIZED ACCESS',5,27.77,2.8,0,-Math.PI/2,'#d8b38a');
     for(const [title,z] of [['02 / WEST',6],['03 / CENTRAL',0],['04 / EAST',-6]])this.sign(title,'OPERATIONS • KEEP CLEAR',2.4,-2.215,3.35,z,-Math.PI/2);
     this.sign('CORE CONTROL','06 / HIGH SECURITY',3.5,3.215,2.75,0,Math.PI/2,'#8fc6d0');this.sign('SERVICE / 07','MAINTENANCE ACCESS',3,6,2.7,5.585,0,'#d8b38a');
-    for(const x of [-15.65,15.65])for(const z of [-6.8,6.8]){
+    for(const x of [-27.65,27.65])for(const z of [-6.8,6.8]){
       this.box(.13,1.85,1.05,x,1.1,z,'steel',this.facility,.02);this.box(.015,.62,.72,x+(x<0?.08:-.08),1.4,z,x<0?'blue':'orange',this.facility,.015);
       for(let i=0;i<5;i++)this.box(.025,.018,.48,x+(x<0?.095:-.095),.45+i*.065,z,'edge');
     }
+    // Color-coded outer wings and door headers are above head height; collision remains shared.
+    for(const z of [-10,10])for(const [x,w] of [[-12,1.4],[-6,1.4],[2.2,2.6],[8.3,1.4]]){
+      this.box(w,.35,.48,x,3.82,z,'steel');this.box(w-.2,.05,.51,x,3.58,z,z<0?'blue':'orange');
+    }
+    for(const x of [-16,16])for(const z of [-5.25,5.25]){this.box(.5,.35,3.5,x,3.82,z,'steel');this.box(.52,.06,2.8,x,3.58,z,'lamp');}
+    this.sign('NORTH / FREIGHT','09—11  /  TRANSFER & STORAGE',4.5,0,2.8,-17.77,0,'#94d6e3');
+    this.sign('SOUTH / SERVICE','12—14  /  MAINTENANCE & ARCHIVES',4.5,0,2.8,17.77,Math.PI,'#e3b77d');
+    for(const x of [-23,23])this.sign(x<0?'ALPHA / STAGING':'BRAVO / LOGISTICS','NORTH FREIGHT  ←  →  SOUTH SERVICE',4,x,3.1,x<0?-17.77:17.77,x<0?0:Math.PI);
+    for(const b of BOXES.filter(b=>b.name.startsWith('货运箱组'))){
+      for(let x=b.minX+.15;x<b.maxX;x+=.28)for(const side of [-1,1])this.box(.035,b.h-.12,.035,x,b.h/2,b.z+side*(b.d/2+.025),'edge');
+      this.box(b.w-.18,.12,b.d+.02,b.x,b.h-.2,b.z,'blue');
+    }
+    for(const b of BOXES.filter(b=>b.name.startsWith('档案机柜'))){
+      for(let x=b.minX+.3;x<b.maxX;x+=.5)for(const side of [-1,1])this.box(.12,.07,.025,x,1.6,b.z+side*(b.d/2+.03),'blue');
+    }
+    for(const z of [-16.5,16.5])for(let x=-25;x<26;x+=1.3)this.box(.65,.006,.045,x,.008,z,z<0?'blue':'yellow');
     // Recessed core platform and floating data cartridge.
     this.box(2.95,.028,2.95,OBJECTIVE.x,.02,OBJECTIVE.z,'dark',this.facility,.04);
     for(const dx of [-1.35,1.35])for(const dz of [-1.35,1.35]){this.box(.42,.018,.045,6+dx,.043,dz,'yellow');this.box(.045,.018,.42,6+dx,.043,dz,'yellow');}
@@ -165,7 +180,7 @@ export class WorldView {
     this.grade=new ShaderPass({uniforms:{tDiffuse:{value:null},time:{value:0}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'uniform sampler2D tDiffuse;uniform float time;varying vec2 vUv;void main(){vec3 c=texture2D(tDiffuse,vUv).rgb;float vignette=1.0-smoothstep(.16,.82,distance(vUv,vec2(.5)));c*=mix(.83,1.0,vignette);float grain=fract(sin(dot(vUv+fract(time)*.01,vec2(12.9898,78.233)))*43758.5453);c+=(grain-.5)*.006;gl_FragColor=vec4(c,1.0);}'});this.composer.addPass(this.grade);this.composer.addPass(new OutputPass());
   }
   createDust(){
-    const random=rng(812),positions=new Float32Array(150*3);for(let i=0;i<150;i++)positions.set([random()*30-15,random()*4.5+.3,random()*18-9],i*3);
+    const random=rng(812),positions=new Float32Array(150*3);for(let i=0;i<150;i++)positions.set([random()*(MAP.width-2)-MAP.halfWidth+1,random()*4.5+.3,random()*(MAP.depth-2)-MAP.halfDepth+1],i*3);
     const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));this.dust=new T.Points(geometry,new T.PointsMaterial({color:0xc1d2cf,size:.014,transparent:true,opacity:.35,depthWrite:false}));this.scene.add(this.dust);
   }
   makeGun(type){

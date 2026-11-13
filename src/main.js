@@ -1,7 +1,7 @@
 import './style.css';
 import './weapons.css';
 import { Match } from './shared/match.js';
-import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
+import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, MAP, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
 import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
@@ -136,7 +136,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Tab')show('scoreboard',false);});
 window.addEventListener('blur',()=>{clearInput();if(active)pauseGame();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&active)pauseGame();});
-$('view').addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('contextmenu',e=>e.preventDefault(),{capture:true});
 window.addEventListener('mousedown',e=>{if(!document.pointerLockElement)return;if(e.button===0)mouse.fire=true;if(e.button===2)mouse.aim=true;});
 window.addEventListener('mouseup',e=>{if(e.button===0)mouse.fire=false;if(e.button===2)mouse.aim=false;});
 window.addEventListener('mousemove',e=>{if(document.pointerLockElement&&active&&!paused){const a=state?.actors.find(a=>a.id===playerId),zoom=a?.aim&&!a.reload&&!a.switchTime?(WEAPONS[a.weapon].zoom??1):1;inputYaw-=e.movementX*.002*settings.sensitivity/zoom;inputPitch=clamp(inputPitch-e.movementY*.002*settings.sensitivity/zoom,-1.4,1.4);}});
@@ -200,11 +200,14 @@ function events(){
   }
 }
 function mapDraw(me){
-  const ctx=$('minimap').getContext('2d');ctx.clearRect(0,0,380,240);const sx=10.6,sz=10.6,px=x=>190+x*sx,pz=z=>120+z*sz;
-  ctx.strokeStyle='#98bdc414';ctx.lineWidth=1;for(let x=-15;x<=15;x+=3){ctx.beginPath();ctx.moveTo(px(x),14);ctx.lineTo(px(x),226);ctx.stroke();}
+  const ctx=$('minimap').getContext('2d'),w=ctx.canvas.width,h=ctx.canvas.height;ctx.clearRect(0,0,w,h);
+  const sx=Math.min((w-28)/MAP.width,(h-28)/MAP.depth),sz=sx,px=x=>w/2+x*sx,pz=z=>h/2+z*sz;
+  ctx.fillStyle='#7ac8e309';ctx.fillRect(px(-16),pz(-18),32*sx,8*sz);
+  ctx.fillStyle='#d8b38a0c';ctx.fillRect(px(-16),pz(10),32*sx,8*sz);
+  ctx.strokeStyle='#98bdc414';ctx.lineWidth=1;for(let x=-MAP.halfWidth;x<=MAP.halfWidth;x+=4){ctx.beginPath();ctx.moveTo(px(x),pz(-MAP.halfDepth));ctx.lineTo(px(x),pz(MAP.halfDepth));ctx.stroke();}
   for(const b of BOXES){ctx.fillStyle=b.h<1.5?'#566760':'#8b9e9677';ctx.fillRect(px(b.minX),pz(b.minZ),b.w*sx,b.d*sz);}
   if(state.config.mode==='core'){
-    ctx.strokeStyle='#c9dd9c';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(px(6),pz(0),17,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle='#c9dd9c';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(px(OBJECTIVE.x),pz(OBJECTIVE.z),OBJECTIVE.radius*sx,0,Math.PI*2);ctx.stroke();
     const c=state.core;if(c.carrier===playerId||!c.carrier||state.actors.find(a=>a.id===c.carrier)?.squad===me.squad){ctx.fillStyle='#dde9a8';ctx.fillRect(px(c.x)-3,pz(c.z)-3,6,6);}
   }
   for(const a of state.actors.filter(a=>a.alive&&a.squad===me.squad)){

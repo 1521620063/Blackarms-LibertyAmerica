@@ -1,8 +1,10 @@
 import * as T from 'three';
 
+import { MAP } from '../shared/data.js';
+
 const specs={
   concrete:{materials:['concrete','wall'],repeat:[1,1],normal:.48},
-  floor:{materials:['floor'],repeat:[16,10],normal:.3},
+  floor:{materials:['floor'],repeat:[MAP.width/2,MAP.depth/2],normal:.3},
   gunmetal:{materials:['steel','dark','edge','armor','yellow','polymer','gunmetal','titanium'],repeat:[1,1],normal:.24},
   fabric:{materials:['olive','sand'],repeat:[1,1],normal:.45},
   'service-panel':{materials:['panel'],repeat:[1,1],normal:.15}

@@ -1,8 +1,8 @@
-import { BOXES, clamp, distance } from './data.js';
+import { BOXES, MAP, clamp, distance } from './data.js';
 
 export const RADIUS = .29;
 export function walkable(x,z,r=RADIUS) {
-  return x>-15.75+r && x<15.75-r && z>-9.75+r && z<9.75-r && !BOXES.some(b => {
+  return x>-MAP.halfWidth+.25+r && x<MAP.halfWidth-.25-r && z>-MAP.halfDepth+.25+r && z<MAP.halfDepth-.25-r && !BOXES.some(b => {
     const dx=x-clamp(x,b.minX,b.maxX), dz=z-clamp(z,b.minZ,b.maxZ);
     return dx*dx+dz*dz<r*r;
   });
@@ -29,7 +29,7 @@ export function wallHit(o,d) {
   let hit=Infinity;
   for(const b of BOXES) hit=Math.min(hit,rayBox(o,d,b));
   if(d.y<0) hit=Math.min(hit,-o.y/d.y);
-  if(d.y>0) hit=Math.min(hit,(5.6-o.y)/d.y);
+  if(d.y>0) hit=Math.min(hit,(MAP.ceiling-o.y)/d.y);
   return hit;
 }
 export function visible(a,b) {
@@ -46,8 +46,8 @@ export function raySphere(o,d,c,r) {
 }
 
 // A* on a shared, clearance-tested half-metre navigation grid.
-const STEP=.5, WIDTH=63, HEIGHT=39;
-const nodes=Array.from({length:WIDTH*HEIGHT},(_,i)=>({x:-15.5+(i%WIDTH)*STEP,z:-9.5+Math.floor(i/WIDTH)*STEP}));
+const STEP=.5, WIDTH=MAP.width/STEP-1, HEIGHT=MAP.depth/STEP-1;
+const nodes=Array.from({length:WIDTH*HEIGHT},(_,i)=>({x:-MAP.halfWidth+STEP+(i%WIDTH)*STEP,z:-MAP.halfDepth+STEP+Math.floor(i/WIDTH)*STEP}));
 const valid=nodes.map(p=>walkable(p.x,p.z,.36));
 const neighbors=nodes.map((_,i)=>{
   if(!valid[i]) return [];
@@ -61,30 +61,37 @@ const neighbors=nodes.map((_,i)=>{
   return out;
 });
 function nearest(p) {
+  const x=clamp(Math.round((p.x+MAP.halfWidth-STEP)/STEP),0,WIDTH-1),z=clamp(Math.round((p.z+MAP.halfDepth-STEP)/STEP),0,HEIGHT-1);
+  const index=z*WIDTH+x;if(valid[index])return index;
   let best=-1,dist=Infinity;
   for(let i=0;i<nodes.length;i++) if(valid[i]) {
-    const d=distance(p,nodes[i]); if(d<dist) {best=i; dist=d;}
+    const d=(p.x-nodes[i].x)**2+(p.z-nodes[i].z)**2;if(d<dist){best=i;dist=d;}
   }
   return best;
 }
+// A binary heap keeps long flank routes from scanning the entire open set per step.
 export function findPath(from,to) {
   const start=nearest(from),end=nearest(to);
-  if(start<0||end<0) return [];
-  const open=new Set([start]),came=new Map(),g=new Map([[start,0]]), f=new Map([[start,distance(nodes[start],nodes[end])/STEP]]);
-  while(open.size) {
-    let current=-1,best=Infinity;
-    for(const i of open) if(f.get(i)<best) {best=f.get(i); current=i;}
-    if(current===end) {
-      const path=[nodes[end]]; let c=end;
-      while(came.has(c)) {c=came.get(c); path.push(nodes[c]);}
-      return path.reverse().slice(1);
-    }
-    open.delete(current);
-    for(const [j,cost] of neighbors[current]) {
-      const candidate=g.get(current)+cost;
-      if(candidate<(g.get(j)??Infinity)) {
-        came.set(j,current); g.set(j,candidate); f.set(j,candidate+distance(nodes[j],nodes[end])/STEP); open.add(j);
-      }
+  if(start<0||end<0)return [];
+  const heap=[],cost=new Float64Array(nodes.length),came=new Int32Array(nodes.length),closed=new Uint8Array(nodes.length);
+  cost.fill(Infinity);came.fill(-1);cost[start]=0;
+  const push=(id,score)=>{
+    const item={id,score};let i=heap.length;heap.push(item);
+    while(i){const p=(i-1)>>1;if(heap[p].score<=score)break;heap[i]=heap[p];i=p;}heap[i]=item;
+  };
+  const pop=()=>{
+    const top=heap[0],last=heap.pop();if(heap.length){
+      let i=0;while(i*2+1<heap.length){let child=i*2+1;if(child+1<heap.length&&heap[child+1].score<heap[child].score)child++;if(heap[child].score>=last.score)break;heap[i]=heap[child];i=child;}heap[i]=last;
+    }return top.id;
+  };
+  push(start,distance(nodes[start],nodes[end])/STEP);
+  while(heap.length){
+    const current=pop();if(closed[current])continue;
+    if(current===end){const path=[];for(let c=end;c!==start;c=came[c])path.push(nodes[c]);return path.reverse();}
+    closed[current]=1;
+    for(const [next,step] of neighbors[current]){
+      const candidate=cost[current]+step;
+      if(!closed[next]&&candidate<cost[next]){cost[next]=candidate;came[next]=current;push(next,candidate+distance(nodes[next],nodes[end])/STEP);}
     }
   }
   return [];

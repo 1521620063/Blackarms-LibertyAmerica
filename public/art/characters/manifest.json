@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "style": "Zero Facility / grounded contemporary military industrial",
+  "assets": {
+    "soldier-fabric": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable neutral gray ripstop cotton-polyamide combat uniform fabric, macro material scan covering 50 by 50 centimeters. Dense fine woven threads, subtle ripstop grid, softened fibers, minor lint and restrained abrasion. Almost neutral medium-light gray so the game can tint this fabric into olive or navy. Tiny soft mottling only. No camouflage patches, no garment outline, no pockets, no folds, no seams, no objects. Opposite edges must match.",
+      "createdAt": "2026-11-13T12:30:04.636Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/characters/soldier-fabric-albedo.webp",
+          "bytes": 581866,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/characters/soldier-fabric-normal.webp",
+          "bytes": 834106,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/characters/soldier-fabric-roughness.webp",
+          "bytes": 369390,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "soldier-nylon": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable neutral gray 500 denier Cordura ballistic nylon material used for realistic military plate carriers and ammunition pouches. Macro surface scan covering 30 by 30 centimeters. Credible tightly woven coarse fabric grain, tiny individual fibers, restrained abrasion and embedded dust, subtly uneven surface, predominantly uniform medium-light gray for runtime tinting. No pockets, no webbing straps, no garment outline, no seams, no folds, no camouflage, no objects. Opposite edges must match.",
+      "createdAt": "2026-11-13T12:31:17.420Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/characters/soldier-nylon-albedo.webp",
+          "bytes": 552304,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/characters/soldier-nylon-normal.webp",
+          "bytes": 778676,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/characters/soldier-nylon-roughness.webp",
+          "bytes": 332714,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    }
+  }
+}

@@ -24,9 +24,21 @@ try{
   for(const material of materials.materials)for(const [i,map] of material.maps.entries()){
     assert.equal(map.source,'generated-art');assert.equal(map.width,1024);assert.equal(map.height,1024);assert.equal(map.colorSpace,i===0?'srgb':'');
   }
-  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[16,10]);
-  const manifest=JSON.parse(readFileSync('public/art/manifest.json','utf8')),checks=[];
-  for(const [id,asset] of Object.entries(manifest.assets)){
+  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[28,18]);
+  const characterMaterials=await page.evaluate(()=>{
+    const characters=window.__BLA.view.characters;
+    const palettes=characters.sideMaterials.map(palette=>[...palette.values()]
+      .filter(m=>['cloth','armor','webbing'].includes(m.userData.role))
+      .map(m=>({role:m.userData.role,maps:[m.map,m.normalMap,m.roughnessMap].map(t=>({width:t.image.width,height:t.image.height,colorSpace:t.colorSpace,source:t.userData.source}))})));
+    return {assets:characters.surfaceAssets,palettes};
+  });
+  assert.deepEqual(characterMaterials.assets,['soldier-fabric','soldier-nylon']);
+  for(const palette of characterMaterials.palettes)for(const material of palette)for(const [i,map] of material.maps.entries()){
+    assert.equal(map.source,'generated-character-art');assert.equal(map.width,1024);assert.equal(map.height,1024);assert.equal(map.colorSpace,i===0?'srgb':'');
+  }
+  const manifest=JSON.parse(readFileSync('public/art/manifest.json','utf8')),characterManifest=JSON.parse(readFileSync('public/art/characters/manifest.json','utf8')),checks=[];
+  const allAssets={...manifest.assets,...characterManifest.assets};
+  for(const [id,asset] of Object.entries(allAssets)){
     const check=await page.evaluate(async({base,id,asset})=>{
       const image=new Image();image.src=base+asset.channels.albedo.url;await image.decode();
       const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0);const p=ctx.getImageData(0,0,1024,1024).data;
@@ -42,7 +54,7 @@ try{
   await page.locator('#start-offline').click();await page.locator('#ready').click();await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   await page.evaluate(()=>window.__BLA.pause());await page.screenshot({path:'artifacts/generated-art-gameplay.png'});
   assert.deepEqual(errors,[]);assert.deepEqual(external,[],'runtime uses local assets and does not call the image service');
-  const bytes=Object.values(manifest.assets).reduce((sum,a)=>sum+Object.values(a.channels).reduce((s,c)=>s+c.bytes,0),0);
-  writeFileSync('artifacts/generated-art-report.json',JSON.stringify({passed:true,materials,checks,bytes,errors,external},null,2));
-  console.log(`Generated art acceptance passed: 5 source assets / 15 maps, sRGB and linear data, decoded tile edges, local runtime, no browser errors. Total ${(bytes/1024/1024).toFixed(2)} MiB.`);
+  const bytes=Object.values(allAssets).reduce((sum,a)=>sum+Object.values(a.channels).reduce((s,c)=>s+c.bytes,0),0);
+  writeFileSync('artifacts/generated-art-report.json',JSON.stringify({passed:true,materials,characterMaterials,checks,bytes,errors,external},null,2));
+  console.log(`Generated art acceptance passed: 7 source assets / 21 maps, sRGB and linear data, decoded tile edges, local runtime, no browser errors. Total ${(bytes/1024/1024).toFixed(2)} MiB.`);
 }finally{await browser?.close();await app.close();}

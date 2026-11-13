@@ -297,13 +297,13 @@ export class Match {
         order.type==='retreat'?SPAWNS[this.side(a)][a.slot]:order.type==='attack'?OBJECTIVE:order;
     }
     if(!goal) {
-      const lane=[6,0,-6][a.slot];
-      if(a.routeStage===0) {goal=attacking?{x:-5,z:lane}:{x:7.5,z:clamp(lane,-4,4)};if(distance(a,goal)<.8||this.elapsed>9)a.routeStage=1;}
-      else if(a.routeStage===1) {goal=attacking?{x:.2,z:lane===0?2:lane}:{x:.2,z:lane===0?-2:lane};if(distance(a,goal)<1||this.elapsed>19)a.routeStage=2;}
+      const lane=[12,0,-12][a.slot];
+      if(a.routeStage===0) {goal=attacking?{x:-18,z:lane===0?5:lane}:{x:18,z:lane===0?-5:lane};if(distance(a,goal)<.8||this.elapsed>13)a.routeStage=1;}
+      else if(a.routeStage===1) {goal=attacking?{x:-5,z:lane===0?0:lane>0?16:12*-1}:{x:7.5,z:lane===0?2:lane>0?11.5:-16.5};if(distance(a,goal)<1||this.elapsed>28)a.routeStage=2;}
       else if(a.memory?.until>this.time) goal=a.memory;
       else if(a.heard?.until>this.time) goal=a.heard;
       else {
-        const points=attacking?[{x:6,z:-2},{x:12,z:4},{x:12,z:-4},{x:0,z:6}]:[{x:-5,z:-6},{x:-12,z:4},{x:-12,z:-4},{x:0,z:0}];
+        const points=attacking?[{x:6,z:-2},{x:12,z:4},{x:18,z:-5},{x:12,z:-12},{x:6,z:12},{x:0,z:6}]:[{x:-5,z:-6},{x:-12,z:4},{x:-18,z:5},{x:-12,z:-12},{x:-5,z:16},{x:0,z:0}];
         a.patrol??=a.slot;goal=points[a.patrol%points.length];if(distance(a,goal)<1)a.patrol++;
       }
     }

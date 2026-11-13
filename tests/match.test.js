@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, sanitizeInput } from '../src/shared/match.js';
-import { SPAWNS, OBJECTIVE, RULES, WEAPONS } from '../src/shared/data.js';
+import { SPAWNS, OBJECTIVE, RULES, WEAPONS, MAP, ZONES } from '../src/shared/data.js';
 import { findPath, walkable, move, visible } from '../src/shared/geometry.js';
 
 const advance=(m,seconds)=>{for(let i=0;i<Math.ceil(seconds*60);i++)m.step(1/60);};
@@ -9,12 +9,33 @@ function quiet(config={mode:'core',teamSize:1}) {
   const m=new Match(config,[{id:'p',squad:0},{id:'e',squad:1}]);m.startCombat();return m;
 }
 test('every protected spawn can reach each route, flank and objective without crossing collision',()=>{
-  for(const spawn of [...SPAWNS.attack,...SPAWNS.defense]) for(const target of [OBJECTIVE,{x:-5,z:6},{x:-5,z:0},{x:-5,z:-6},{x:6,z:7.6}]) {
+  for(const spawn of [...SPAWNS.attack,...SPAWNS.defense]) for(const target of [OBJECTIVE,{x:-5,z:6},{x:-5,z:0},{x:-5,z:-6},{x:6,z:7.6},
+    {x:-18,z:5},{x:18,z:-5},{x:-13,z:-16},{x:0,z:-12},{x:13,z:-12},
+    {x:-13,z:16},{x:-5,z:16},{x:6,z:12},{x:13,z:16}]) {
     assert.ok(walkable(spawn.x,spawn.z));const path=findPath(spawn,target);assert.ok(path.length,JSON.stringify({spawn,target}));
-    for(const p of path)assert.ok(walkable(p.x,p.z,.36));
+    assert.ok(walkable(target.x,target.z),`destination is open: ${JSON.stringify(target)}`);
+    let previous=spawn;
+    for(const p of path){
+      for(let t=0;t<=1;t+=.2)assert.ok(walkable(previous.x+(p.x-previous.x)*t,previous.z+(p.z-previous.z)*t,.29),'route segments clear corners');
+      assert.ok(walkable(p.x,p.z,.36));previous=p;
+    }
+    assert.ok(Math.hypot(previous.x-target.x,previous.z-target.z)<=.36,'path reaches requested destination');
   }
-  for(let i=0;i<3;i++)assert.equal(visible(SPAWNS.attack[i],SPAWNS.defense[i]),false,'spawns must not see each other');
+  for(const a of SPAWNS.attack)for(const b of SPAWNS.defense)assert.equal(visible(a,b),false,'all opposing spawn pairs are screened');
   const p={x:-12,z:0};move(p,20,0);assert.ok(p.x<-11.4,'large steps must not tunnel through spawn screen');
+});
+test('expanded map has no isolated walkable rooms and keeps actors inside its perimeter',()=>{
+  const step=.5,key=(x,z)=>`${x},${z}`,cells=new Set();
+  for(let x=-MAP.halfWidth+.5;x<MAP.halfWidth;x+=step)for(let z=-MAP.halfDepth+.5;z<MAP.halfDepth;z+=step)if(walkable(x,z,.36))cells.add(key(x,z));
+  const start=SPAWNS.attack[0],seen=new Set([key(start.x,start.z)]),queue=[start];
+  for(let i=0;i<queue.length;i++)for(const [dx,dz] of [[step,0],[-step,0],[0,step],[0,-step]]){
+    const x=queue[i].x+dx,z=queue[i].z+dz,k=key(x,z);if(cells.has(k)&&!seen.has(k)){seen.add(k);queue.push({x,z});}
+  }
+  assert.equal(seen.size,cells.size,'every navigable room connects to the main network');
+  assert.ok(ZONES.length>=14);assert.ok(walkable(-24,12));assert.ok(walkable(24,-12));
+  for(const [x,z,dx,dz] of [[-27,16,-8,0],[27,16,8,0],[20,-17,0,-8],[20,17,0,8]]){
+    const actor={x,z};move(actor,dx,dz);assert.ok(walkable(actor.x,actor.z));assert.ok(Math.abs(actor.x)<MAP.halfWidth&&Math.abs(actor.z)<MAP.halfDepth);
+  }
 });
 test('untrusted input cannot inject positions, damage, nonfinite values, or unknown weapons',()=>{
   const i=sanitizeInput({forward:Infinity,strafe:900,yaw:NaN,pitch:100,weapon:'rocket',order:'hack',hp:999});
