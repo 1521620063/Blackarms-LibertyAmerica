@@ -11,6 +11,8 @@ import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
 import { CombatEffects } from './visual/effects.js';
+import { loadGeneratedArt } from './visual/generated-art.js';
+import { facilityDecals } from './visual/decals.js';
 
 export class WorldView {
   constructor(canvas,settings){
@@ -25,8 +27,9 @@ export class WorldView {
     this.scene.add(new T.HemisphereLight(0xbad9e5,0x6c6657,1.3));
     this.sun=new T.DirectionalLight(0xf5e6c6,3.6);this.sun.position.set(-9,16,8);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);
     Object.assign(this.sun.shadow.camera,{left:-20,right:20,top:16,bottom:-16,near:.5,far:45});this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.025;this.scene.add(this.sun);
-    this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();this.batchFacility();
-    this.characters=new SoldierModels(this.kit);this.ready=this.characters.ready;
+    this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();facilityDecals(this.facility);this.batchFacility();
+    this.characters=new SoldierModels(this.kit);
+    this.ready=Promise.all([this.characters.ready,loadGeneratedArt(this.materials,this.renderer)]).then(([,assets])=>{this.artAssets=assets;});
     this.gunScene=new T.Scene();this.gunScene.environment=this.environment;this.gunScene.environmentIntensity=1;
     this.gunScene.add(new T.HemisphereLight(0xc8e3eb,0x434737,1.9));const gunLight=new T.DirectionalLight(0xffe3ba,3);gunLight.position.set(-3,4,1);this.gunScene.add(gunLight);
     this.gunCamera=new T.PerspectiveCamera(65,1,.01,10);this.gun=new T.Group();this.gun.scale.setScalar(.82);this.gunScene.add(this.gun);
@@ -45,23 +48,25 @@ export class WorldView {
     // Keep all substantial geometry on the authoritative collision footprints.
     for(const [index,b] of BOXES.entries()){
       const wall=b.h>=3.9,thin=b.w<.6||b.d<.6;
-      this.box(b.w,b.h,b.d,b.x,b.h/2,b.z,wall?'wall':b.h<1?'olive':thin?'concrete':'steel',this.facility,wall?0:.035);
+      this.box(b.w,b.h,b.d,b.x,b.h/2,b.z,wall?'wall':b.h<1?'paintedWall':thin?'concrete':'steel',this.facility,wall?0:.035);
       this.box(b.w+.018,.14,b.d+.018,b.x,.16,b.z,'dark');
       if(wall){
+        this.box(b.w+.018,.84,b.d+.018,b.x,.59,b.z,'paintedWall');
         this.box(b.w+.022,.045,b.d+.022,b.x,1.08,b.z,'steel');this.box(b.w+.025,.1,b.d+.025,b.x,3.75,b.z,'steel');
         const alongX=b.w>b.d,length=alongX?b.w:b.d;
         for(let offset=-length/2+.8;offset<length/2;offset+=2.8){
           this.box(alongX?.095:b.w+.04,3.72,alongX?b.d+.04:.095,b.x+(alongX?offset:0),1.87,b.z+(alongX?0:offset),'steel');
           for(const side of [-1,1]){
             if(length<3)continue;
-            this.box(alongX?.75:.012,.22,alongX?.012:.75,b.x+(alongX?offset+.48:side*(b.w/2+.016)),.66,b.z+(alongX?side*(b.d/2+.016):offset+.48),'olive');
+            this.box(alongX?.75:.012,.22,alongX?.012:.75,b.x+(alongX?offset+.48:side*(b.w/2+.016)),.66,b.z+(alongX?side*(b.d/2+.016):offset+.48),'paintedWall');
           }
         }
       }else if(!thin){
         // Armored cases / equipment cabinets, with recessed fronts and recessed handles.
         this.box(b.w+.025,.07,b.d+.025,b.x,b.h-.05,b.z,'edge',this.facility,.015);
         for(const side of [-1,1]){
-          this.box(b.w*.78,b.h*.68,.018,b.x,b.h*.5,b.z+side*(b.d/2+.012),'dark',this.facility,.012);
+          const face=new T.Mesh(new T.PlaneGeometry(b.w*.77,b.h*.67),this.materials.panel);
+          face.position.set(b.x,b.h*.5,b.z+side*(b.d/2+.025));face.rotation.y=side<0?Math.PI:0;this.facility.add(face);
           for(const x of [-1,1]){
             this.box(.07,b.h*.85,b.d+.035,b.x+x*(b.w/2-.07),b.h*.5,b.z,'edge',this.facility,.007);
             this.box(.11,.09,.045,b.x+x*b.w*.27,b.h*.73,b.z+side*(b.d/2+.026),'steel',this.facility,.012);
@@ -89,18 +94,20 @@ export class WorldView {
     for(const x of [-12,-4,5,13]){const light=new T.PointLight(x===5?0xa4d6ee:0xd8e9eb,18,13,2);light.position.set(x,4.25,0);this.scene.add(light);}
     // Service pipes, collars, conduit and wall-mounted distribution boards.
     for(const [i,z] of [-9.6,-9.21,-8.94].entries()){
-      const pipe=this.cylinder(i===0?.13:.067,i===0?.13:.067,31,0,3.45+i*.26,z,i===0?'olive':'steel');pipe.rotation.z=Math.PI/2;
+      const pipe=this.cylinder(i===0?.13:.067,i===0?.13:.067,31,0,3.45+i*.26,z,i===0?'paintedWall':'steel');pipe.rotation.z=Math.PI/2;
       for(let x=-14;x<=14;x+=2){const collar=this.cylinder(i===0?.155:.085,i===0?.155:.085,.055,x,3.45+i*.26,z,'edge');collar.rotation.z=Math.PI/2;}
     }
     for(let x=-14;x<15;x+=3.5){
-      this.box(1.35,1.48,.13,x,.84,-9.66,'steel',this.facility,.025);this.box(1.24,1.34,.026,x,.84,-9.577,'dark',this.facility,.015);
-      for(let i=0;i<7;i++){this.box(.83,.018,.018,x,.46+i*.11,-9.55,'edge');this.box(.028,.022,.012,x+.48,.46+i*.11,-9.54,i%3?'blue':'warm');}
+      this.box(1.35,1.48,.13,x,.84,-9.66,'steel',this.facility,.025);
+      const panel=new T.Mesh(new T.PlaneGeometry(1.24,1.34),this.materials.panel);panel.position.set(x,.84,-9.569);this.facility.add(panel);
       this.sign('HV / '+String(Math.round(x+15)).padStart(2,'0'),'POWER DISTRIBUTION',.75,x,1.85,-9.68,0,'#bcba9a');
       this.box(.055,1.2,.055,x+.6,2.3,-9.64,'steel');
       this.box(.34,.21,.12,x,2.65,9.7,'steel',this.facility,.02);this.box(.22,.085,.14,x,2.65,9.64,'warm',this.facility,.015);
     }
     // Warning paint and floor grime are flat and do not introduce invisible obstacles.
     for(const z of [-6,0,6])for(let x=-14;x<2;x+=1.1)this.box(.6,.006,.035,x,.004,z,'yellow');
+    for(const x of [-12,-8,-4,0,4,8,12])this.box(.012,.003,19.4,x,-.018,0,'dark');
+    for(const z of [-8,-4,0,4,8])this.box(31.4,.003,.012,0,-.018,z,'dark');
     for(const x of [-13.7,13.7])for(const z of [-7,-4,0,4,7])this.box(.045,.008,.7,x,.006,z,x<0?'blue':'orange');
     for(const x of [-14,-6,2,10]){
       this.box(.24,.01,19.2,x,.008,0,'steel');for(let z=-9.4;z<9.5;z+=.24)this.box(.2,.012,.018,x,.013,z,'dark');

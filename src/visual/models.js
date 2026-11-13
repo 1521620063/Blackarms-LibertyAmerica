@@ -33,11 +33,11 @@ export class ModelKit {
     }else{
       b(.135,.135,.32,0,.015,.025,'steel');b(.116,.095,.23,0,-.07,.04,'dark');
       b(.102,.205,.12,0,-.18,.14,'rubber').rotation.x=-.28;
-      b(.105,.29,scatter?.15:.13,0,-.22,-.045,scatter?'olive':'steel').rotation.x=.12;
+      b(.105,.29,scatter?.15:.13,0,-.22,-.045,scatter?'polymer':'steel').rotation.x=.12;
       b(.12,.025,.15,0,-.365,-.03,'rubber');
       for(let i=0;i<3;i++)b(.108,.17,.007,0,-.22,-.09+i*.025,'dark',.002);
       const length=scatter?.43:.34;
-      b(.132,.125,length,0,.01,-.29,scatter?'olive':'dark');
+      b(.132,.125,length,0,.01,-.29,scatter?'polymer':'dark');
       for(let i=0;i<8;i++){
         const z=-.15-i*.036;b(.137,.035,.018,0,.021,z,'rubber',.003);
         for(const side of [-1,1])b(.005,.019,.023,side*.069,-.024,z,'edge',.001);
@@ -49,7 +49,7 @@ export class ModelKit {
       for(let i=0;i<3;i++)b(.07,.012,.009,0,.047,end-.025+i*.024,'edge',0);
       barrel(.045,.21,.27,.015,'steel');
       b(.1,.15,.24,0,-.015,.38,'dark');b(.12,.21,.05,0,-.04,.51,'rubber');
-      b(.09,.04,.2,0,.065,.36,'olive');
+      b(.09,.04,.2,0,.065,.36,'polymer');
       for(let i=0;i<14;i++)b(.14,.019,.014,0,.093,.13-i*.033,'edge',.002);
       b(.08,.025,.13,0,.115,.035,'dark');b(.09,.015,.033,0,.196,-.015,'steel');b(.09,.015,.033,0,.118,-.015,'steel');
       b(.068,.06,.006,0,.157,-.035,'optic',.004);

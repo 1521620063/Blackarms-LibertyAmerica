@@ -13,4 +13,4 @@
 
 three.js 及使用的 GLTFLoader、SkeletonUtils、RoundedBoxGeometry、RoomEnvironment 与后处理模块采用 MIT 许可，原始许可见 [licenses/threejs.txt](licenses/threejs.txt)。
 
-地图、枪械、第一人称手套与袖子、表面颜色/法线/粗糙度贴图、标识牌、粒子、弹着痕迹及音效由本项目程序生成。地图装饰沿既有碰撞表面布置，未通过视觉升级修改对战规则或地图碰撞布局。
+地图与枪械几何、第一人称手套与袖子造型、标识牌、粒子、弹着痕迹及音效由本项目程序生成。混凝土、地面、金属、织物与设备面板的基础颜色贴图使用用户提供的本地文字生图服务生成，辅助法线与粗糙度经本地处理，详见 [generated-art.md](generated-art.md) 和 `public/art/manifest.json`。人物继续使用上述第三方模型与原始角色贴图。地图装饰沿既有碰撞表面布置，未通过视觉升级修改对战规则或地图碰撞布局。

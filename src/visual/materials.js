@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { rng } from '../shared/data.js';
 
-// All surfaces are generated locally, including their relief and roughness maps.
+// Procedural placeholders are replaced with the locally generated material pack at boot.
 export function surface(kind,seed,size=512) {
   const random=rng(seed),canvas=document.createElement('canvas');canvas.width=canvas.height=size;
   const ctx=canvas.getContext('2d'),image=ctx.createImageData(size,size);
@@ -61,6 +61,9 @@ export function makeMaterials(){
     floor:m(0xabb7b4,.65,.35,{...floor,normalScale:new T.Vector2(.6,.6)}),
     steel:painted(0x414c4e),dark:painted(0x20282b),edge:m(0xa5afb0,.36,.85,metal),
     olive:m(0x66705a,.93,0,{...cloth,normalScale:new T.Vector2(.6,.6)}),sand:m(0xa29373,.93,0,{...cloth,normalScale:new T.Vector2(.6,.6)}),
+    polymer:m(0x7c826c,.94,.05,{normalScale:new T.Vector2(.18,.18)}),
+    panel:m(0x687a7d,.82,.35,{normalScale:new T.Vector2(.15,.15)}),
+    paintedWall:m(0x485750,.91,.05),floorPaint:m(0xb5b6a1,.92,.02),
     rubber:m(0x191d1d,.98,0),armor:painted(0x323e3b),yellow:painted(0xd4a847),
     blue:m(0x389aa8,.45,.5,{emissive:0x257c8d,emissiveIntensity:.35}),orange:m(0xc08043,.5,.4,{emissive:0x8d431e,emissiveIntensity:.25}),
     lamp:m(0xc3e8ef,.3,.1,{emissive:0xabe4f3,emissiveIntensity:4.2}),

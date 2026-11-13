@@ -264,5 +264,5 @@ view.ready.then(()=>{
       pause(){paused=true;},resume(){paused=false;},get playerId(){return playerId;}};
   }
 }).catch(error=>{
-  show('boot',false);show('fatal',true);text('fatal',`士兵模型加载失败，请刷新页面重试。\n请确认通过项目服务器访问，并包含 public/models/soldier.glb。\n\n${error.message}`);
+  show('boot',false);show('fatal',true);text('fatal',`美术资源加载失败，请刷新页面重试。\n请确认通过项目服务器访问，并包含 public/models/ 与 public/art/ 资源。\n\n${error.message}`);
 });

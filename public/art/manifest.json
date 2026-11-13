@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "style": "Zero Facility / grounded contemporary military industrial",
+  "assets": {
+    "concrete": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable pale warm gray cast concrete wall surface covering approximately 2 by 2 meters. Subtle cement mottling, limestone aggregate, tiny bugholes, faint formwork impressions and occasional fine hairline cracks. Clean enough for a maintained facility. Uniform density and scale. No panel joints, no large cracks, no stripes, no graffiti, no metal. Opposite edges must match seamlessly.",
+      "createdAt": "2026-11-13T09:37:40.803Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/concrete-albedo.webp",
+          "bytes": 437616,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/concrete-normal.webp",
+          "bytes": 745486,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/concrete-roughness.webp",
+          "bytes": 219274,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "floor": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable worn graphite gray epoxy-coated industrial concrete floor covering approximately 2 by 2 meters. A slightly desaturated blue-gray neutral surface, subtle fine anti-slip aggregate, irregular scuff marks, faint rubber shoe wear and very subtle dust deposits. Medium-light gray value so the floor remains readable indoors. No tile seams, no grid, no diamond plate, no puddles, no road markings, no large stains, no objects. Opposite edges must match seamlessly.",
+      "createdAt": "2026-11-13T09:39:37.643Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/floor-albedo.webp",
+          "bytes": 411524,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/floor-normal.webp",
+          "bytes": 603328,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/floor-roughness.webp",
+          "bytes": 174956,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "gunmetal": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable dark charcoal graphite Cerakote coating on precision machined firearm steel and aluminum. Micro-grain matte coating, subtle manufacturing tool marks, extremely fine scattered hairline abrasions revealing tiny amounts of gunmetal underneath. Mostly intact dark finish, no dramatic scratches, no camouflage, no graphics, no weapon silhouette, no raised mechanical parts. A close surface scan covering 25 by 25 centimeters. Opposite edges must match seamlessly.",
+      "createdAt": "2026-11-13T09:40:58.170Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/gunmetal-albedo.webp",
+          "bytes": 507006,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/gunmetal-normal.webp",
+          "bytes": 561580,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/gunmetal-roughness.webp",
+          "bytes": 273014,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "service-panel": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. A single square industrial electrical service cabinet front panel filling the whole image, orthographic front view. Flat graphite blue-gray powder-coated steel, recessed rectangular access plate, four realistic small corner screws, a horizontal group of narrow dark ventilation slots in the upper half, a recessed pull handle lower right, small rectangular blank beige equipment label lower left, two tiny cyan and amber status LEDs. Restrained greasy wear near handle, believable subtle scratches, no protruding pipes, no text, no perspective, no surrounding wall. Maintain the surface as a mostly flat game-ready texture with details contained inside a generous continuous plain steel edge.",
+      "createdAt": "2026-11-13T09:45:44.434Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": false,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/service-panel-albedo.webp",
+          "bytes": 284986,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/service-panel-normal.webp",
+          "bytes": 180312,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/service-panel-roughness.webp",
+          "bytes": 70164,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "fabric": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable olive drab military ripstop nylon combat uniform textile close scan covering 35 by 35 centimeters. Fine visible interwoven thread fibers, regular subtle ripstop reinforcement grid every 8 millimeters, restrained irregular muted olive khaki and dark sage camouflage patches in a modern military palette. Flat unstretched fabric, no folds, no stitching seams, no pockets, no garment silhouette. Opposite edges must match seamlessly.",
+      "createdAt": "2026-11-13T09:47:52.499Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/fabric-albedo.webp",
+          "bytes": 620872,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/fabric-normal.webp",
+          "bytes": 842020,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/fabric-roughness.webp",
+          "bytes": 365762,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    }
+  }
+}

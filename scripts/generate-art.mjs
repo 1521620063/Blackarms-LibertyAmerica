@@ -1,0 +1,32 @@
+import { mkdir,writeFile,readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+import path from 'node:path';
+
+const common='Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. ';
+export const assets=[
+  {id:'concrete',size:1024,prompt:common+'Seamless tileable pale warm gray cast concrete wall surface covering approximately 2 by 2 meters. Subtle cement mottling, limestone aggregate, tiny bugholes, faint formwork impressions and occasional fine hairline cracks. Clean enough for a maintained facility. Uniform density and scale. No panel joints, no large cracks, no stripes, no graffiti, no metal. Opposite edges must match seamlessly.'},
+  {id:'floor',size:1024,prompt:common+'Seamless tileable worn graphite gray epoxy-coated industrial concrete floor covering approximately 2 by 2 meters. A slightly desaturated blue-gray neutral surface, subtle fine anti-slip aggregate, irregular scuff marks, faint rubber shoe wear and very subtle dust deposits. Medium-light gray value so the floor remains readable indoors. No tile seams, no grid, no diamond plate, no puddles, no road markings, no large stains, no objects. Opposite edges must match seamlessly.'},
+  {id:'gunmetal',size:1024,prompt:common+'Seamless tileable dark charcoal graphite Cerakote coating on precision machined firearm steel and aluminum. Micro-grain matte coating, subtle manufacturing tool marks, extremely fine scattered hairline abrasions revealing tiny amounts of gunmetal underneath. Mostly intact dark finish, no dramatic scratches, no camouflage, no graphics, no weapon silhouette, no raised mechanical parts. A close surface scan covering 25 by 25 centimeters. Opposite edges must match seamlessly.'},
+  {id:'fabric',size:1024,prompt:common+'Seamless tileable olive drab military ripstop nylon combat uniform textile close scan covering 35 by 35 centimeters. Fine visible interwoven thread fibers, regular subtle ripstop reinforcement grid every 8 millimeters, restrained irregular muted olive khaki and dark sage camouflage patches in a modern military palette. Flat unstretched fabric, no folds, no stitching seams, no pockets, no garment silhouette. Opposite edges must match seamlessly.'},
+  {id:'service-panel',size:1024,prompt:common+'A single square industrial electrical service cabinet front panel filling the whole image, orthographic front view. Flat graphite blue-gray powder-coated steel, recessed rectangular access plate, four realistic small corner screws, a horizontal group of narrow dark ventilation slots in the upper half, a recessed pull handle lower right, small rectangular blank beige equipment label lower left, two tiny cyan and amber status LEDs. Restrained greasy wear near handle, believable subtle scratches, no protruding pipes, no text, no perspective, no surrounding wall. Maintain the surface as a mostly flat game-ready texture with details contained inside a generous continuous plain steel edge.'}
+];
+const id=process.argv[2];const asset=assets.find(a=>a.id===id);if(!asset)throw new Error('Choose one asset: '+assets.map(a=>a.id).join(', '));
+const directory=path.resolve('artifacts/ai-source');await mkdir(directory,{recursive:true});
+const marker=path.join(directory,`${id}.json`);
+if(existsSync(marker)){console.log(`Already generated ${id}; retained original.`);process.exit(0);}
+let env={};if(existsSync('C:/project/image/.env'))env=parseEnv(await readFile('C:/project/image/.env','utf8'));
+const headers={'Content-Type':'application/json'};const key=process.env.LOCAL_API_KEY||env.LOCAL_API_KEY;if(key)headers.Authorization=`Bearer ${key}`;
+console.log(`Generating ${id} through local image service…`);
+const response=await fetch('http://127.0.0.1:3000/generate',{method:'POST',headers,body:JSON.stringify({prompt:asset.prompt,n:1}),signal:AbortSignal.timeout(200000)});
+const result=await response.json();
+if(!response.ok){const message=String(result.error?.message||'Generation failed').replaceAll(env.RELAY_API_KEY||'__no_key__','[redacted]').replaceAll(key||'__no_local_key__','[redacted]');throw new Error(`HTTP ${response.status}: ${message.slice(0,800)}`);}
+const image=result.data?.[0];let bytes;
+if(image?.b64_json)bytes=Buffer.from(image.b64_json,'base64');
+else if(image?.url){const imageResponse=await fetch(image.url,{signal:AbortSignal.timeout(60000)});if(!imageResponse.ok)throw new Error(`Image download HTTP ${imageResponse.status}`);bytes=Buffer.from(await imageResponse.arrayBuffer());}
+else throw new Error('Response contains no supported image payload');
+const ext=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'png':bytes[0]===255&&bytes[1]===216?'jpg':bytes.toString('ascii',0,4)==='RIFF'?'webp':null;
+if(!ext)throw new Error('Image response format not recognized');
+const file=`${id}-${Date.now()}.${ext}`;await writeFile(path.join(directory,file),bytes);
+await writeFile(marker,JSON.stringify({id,prompt:asset.prompt,file,createdAt:new Date().toISOString(),bytes:bytes.length,source:'User-authorized local text-to-image service',requestedCount:1},null,2));
+console.log(`Saved ${id}: ${file} (${bytes.length} bytes)`);
