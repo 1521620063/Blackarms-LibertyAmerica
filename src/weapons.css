@@ -1,0 +1,35 @@
+#menu:has(#armory:not([hidden])){overflow-y:auto;padding-bottom:35px;background:linear-gradient(110deg,#09110ff8,#09110fe0)}
+#menu:has(#armory:not([hidden])) .menu-copy,#menu:has(#armory:not([hidden])) .map-caption,#menu:has(#armory:not([hidden])) footer{display:none}
+#armory{width:min(1080px,91vw);margin:24px auto 0}
+.armory-layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center}
+#armory .weapon-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 18px}
+#armory .weapon-cards button{padding:13px 15px;min-height:91px;border-radius:3px}
+#armory .weapon-cards strong{font-size:12px;margin-top:6px}
+#armory .weapon-cards small{font-size:8px;margin-top:0}
+#armory .weapon-cards p{font-size:10px;margin-top:7px}
+.weapon-inspect{min-width:0;border:1px solid var(--line);background:radial-gradient(ellipse at 50% 36%,#40524955,transparent 70%);padding:16px}
+#weapon-preview{display:block;width:100%;aspect-ratio:640/300;touch-action:none;cursor:grab}
+#weapon-preview:active{cursor:grabbing}
+.weapon-inspect>small{color:var(--muted);font-size:8px}
+.weapon-inspect h3{font-size:18px;font-weight:500;margin:14px 0 9px}
+.weapon-inspect p{font-size:11px;line-height:1.9;color:var(--muted);min-height:40px}
+#inspect-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:15px}
+#inspect-stats span{font-size:10px;color:var(--muted)}
+#inspect-stats b{float:right;font-weight:400;color:var(--signal)}
+#prepare-weapons{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#hud{z-index:3;isolation:isolate}
+#weapon-slots{position:absolute;right:35px;bottom:157px;display:flex;gap:4px}
+#weapon-slots>span{display:grid;grid-template-columns:auto 1fr;gap:3px;align-items:center;font-size:8px;color:#a2b0a5;background:#10201bd9;border:1px solid #adbd9b22;border-radius:2px;padding:6px 7px;min-width:55px}
+#weapon-slots>span.selected{color:var(--signal);border-color:#d5dfa6aa;background:#34412ade}
+#weapon-slots kbd{font-size:8px;margin:0;padding:1px 3px}
+#weapon-slots small{grid-column:2;font:10px monospace;letter-spacing:0;opacity:.7}
+#scope-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;z-index:-1}
+.scope-lens{position:relative;width:min(82vh,82vw);height:min(82vh,82vw);border-radius:50%;border:3px solid #111817;box-shadow:0 0 0 100vmax #040707,inset 0 0 38px 12px #06140eaa;background:radial-gradient(circle,transparent 44%,#0b1d1720 65%,#0009 100%)}
+.scope-horizontal,.scope-vertical{position:absolute;background:#111b14;display:block}
+.scope-horizontal{left:4%;right:4%;height:1px;top:50%}
+.scope-vertical{top:4%;bottom:4%;width:1px;left:50%}
+.scope-dot{position:absolute;left:calc(50% - 2px);top:calc(50% - 2px);width:4px;height:4px;background:#e76b4c;border-radius:50%;box-shadow:0 0 3px #e76b4c88}
+.scope-mil{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);white-space:pre;font:12px monospace;color:#152118}
+#scope-label{position:absolute;bottom:12%;left:50%;transform:translateX(-50%);font:10px monospace;color:#b8c8a3;letter-spacing:.15em;background:#10201777;padding:5px 9px}
+@media(max-width:800px){.armory-layout{grid-template-columns:1fr}.weapon-inspect{grid-row:1}#weapon-preview{max-height:200px}#weapon-slots{right:20px;bottom:139px;gap:2px}#weapon-slots>span{min-width:0;padding:4px;font-size:7px}#weapon-slots kbd{font-size:7px}#prepare-panel{top:28%}}
+@media(max-height:700px) and (min-width:801px){#armory{margin-top:15px}#armory .weapon-cards button{min-height:73px;padding:9px 12px}.weapon-inspect{padding:12px}#weapon-preview{max-height:190px}#armory .armory-foot{margin:12px 0}#armory>.wide{margin-top:9px;padding:12px}}

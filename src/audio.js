@@ -1,12 +1,18 @@
+import { WEAPONS } from './shared/data.js';
+
 // Layered, cached weapon reports. No network assets or runtime oscillators per shot.
 const REPORTS={
   rifle:{duration:.62,punch:112,weight:.54,crack:.85,decay:.055,action:.078},
   scatter:{duration:.9,punch:69,weight:.95,crack:.68,decay:.105,action:.19},
-  pistol:{duration:.44,punch:165,weight:.32,crack:.78,decay:.037,action:.065}
+  pistol:{duration:.44,punch:165,weight:.32,crack:.78,decay:.037,action:.065},
+  smg:{duration:.36,punch:175,weight:.25,crack:.7,decay:.03,action:.055},
+  dmr:{duration:.75,punch:95,weight:.7,crack:.96,decay:.075,action:.095},
+  lmg:{duration:.7,punch:83,weight:.8,crack:.78,decay:.07,action:.09},
+  sniper:{duration:1.35,punch:53,weight:1.15,crack:1.1,decay:.14,action:.41,returnDelay:.4}
 };
 
 export class AudioEngine {
-  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};}
+  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];}
   unlock(){
     if(!this.ctx){
       this.ctx=new AudioContext();this.setup();
@@ -51,7 +57,7 @@ export class AudioEngine {
       const actionTime=t-p.action;
       const action=actionTime>0?(n-mid)*.13*Math.exp(-actionTime/.012):0;
       // A second brief metal return follows the bolt, especially audible on the SG-6.
-      const returnTime=t-p.action-.047;
+      const returnTime=t-p.action-(p.returnDelay??.047);
       const bolt=returnTime>0?(Math.sin(returnTime*2*Math.PI*2150)*.035+(n-mid)*.075)*Math.exp(-returnTime/.009):0;
       data[i]=(crack+blast+body+tail+action+bolt)*attack*Math.min(1,(p.duration-t)/.02);
       peak=Math.max(peak,Math.abs(data[i]));
@@ -76,6 +82,7 @@ export class AudioEngine {
     g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(volume,t+.001);g.gain.exponentialRampToValueAtTime(.0001,t+duration);
     s.connect(f);f.connect(g);g.connect(this.master);s.start(t,Math.random()*.04);s.stop(t+duration);
     s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
+    return s;
   }
   shot(type,volume=1,pan=0,distance=0){
     if(!this.ctx||this.ctx.state!=='running')return;
@@ -94,10 +101,14 @@ export class AudioEngine {
     const volume=local?1:.62/(1+dist*.12);
     const pan=!local&&a&&me?((a.x-me.x)*Math.cos(me.yaw||0)-(a.z-me.z)*Math.sin(me.yaw||0))/Math.max(1,dist):0;
     if(e.type==='shot')this.shot(e.weapon,volume,pan,local?0:dist);
+    if(e.type==='switch'&&local){
+      for(const source of this.reloadSounds)source?.stop();this.reloadSounds=[];
+      this.burst(.065,.12,1600);this.burst(.04,.09,3200,(e.duration||.32)*.75);
+    }
     if(e.type==='reload'&&local){
-      this.burst(.045,.22,2400);this.burst(.08,.15,850,.13);
-      const reload=e.duration||({rifle:2.1,scatter:2.6,pistol:1.5}[a?.weapon]||1.5);
-      this.burst(.055,.24,3100,reload*.68);this.burst(.055,.18,4200,reload*.86);
+      for(const source of this.reloadSounds)source?.stop();
+      const reload=e.duration||WEAPONS[e.weapon||a?.weapon]?.reload||1.5;
+      this.reloadSounds=[this.burst(.045,.22,2400),this.burst(.08,.15,850,.13),this.burst(.055,.24,3100,reload*.68),this.burst(.055,.18,4200,reload*.86)];
     }
     if(e.type==='damage'&&e.source===player){
       this.burst(.045,.25,1700,0,1);this.burst(.023,.12,4800,.008,1);

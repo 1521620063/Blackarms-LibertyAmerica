@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Match } from '../src/shared/match.js';
+import { PRIMARY_WEAPONS } from '../src/shared/data.js';
 
 const send=(ws,data)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<1e6)ws.send(JSON.stringify(data));};
 export function attachLAN(server) {
@@ -65,7 +66,7 @@ export function attachLAN(server) {
           broadcast(room,{type:'started',state:room.match.snapshot()});
         } else if(msg.type==='input'&&room.match)room.match.setInput(peer.id,msg.input);
         else if(msg.type==='loadout') {
-          const primary=msg.primary==='scatter'?'scatter':'rifle',armor=msg.armor==='heavy'?'heavy':'light';
+          const primary=PRIMARY_WEAPONS.includes(msg.primary)?msg.primary:'rifle',armor=msg.armor==='heavy'?'heavy':'light';
           peer.primary=primary;peer.armor=armor;room.match?.setLoadout(peer.id,primary,armor);
         }
       }catch(error){send(ws,{type:'error',message:error.message});}

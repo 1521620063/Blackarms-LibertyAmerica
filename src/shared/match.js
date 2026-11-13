@@ -1,4 +1,4 @@
-import { RULES, OBJECTIVE, WEAPONS, ARMOR, DIFFICULTY, SPAWNS, ORDERS, BOXES, clamp, distance, direction, rng } from './data.js';
+import { RULES, OBJECTIVE, WEAPONS, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, SPAWNS, ORDERS, BOXES, clamp, distance, direction, rng } from './data.js';
 import { move, walkable, findPath, visible, wallHit, raySphere } from './geometry.js';
 
 const ACTIVE = new Set(['preparation','combat']);
@@ -8,13 +8,13 @@ const finite = (v,min,max) => Number.isFinite(v) ? clamp(v,min,max) : 0;
 export function sanitizeInput(value={}) {
   return { forward:finite(value.forward,-1,1), strafe:finite(value.strafe,-1,1), yaw:finite(value.yaw,-1e5,1e5), pitch:finite(value.pitch,-1.4,1.4),
     fire:!!value.fire, aim:!!value.aim, interact:!!value.interact, sprint:!!value.sprint, crouch:!!value.crouch,
-    jump:!!value.jump, reload:!!value.reload, weapon:['rifle','scatter','pistol'].includes(value.weapon)?value.weapon:null,
+    jump:!!value.jump, reload:!!value.reload, weapon:Object.hasOwn(WEAPONS,value.weapon)?value.weapon:null,
     order:Object.hasOwn(ORDERS,value.order)?value.order:null, drop:!!value.drop, ready:!!value.ready };
 }
 export class Match {
   constructor(config={}, humans=[{id:'player',squad:0,name:'先锋 / YOU'}]) {
     this.config={mode:config.mode==='core'?'core':'elimination', teamSize:[1,2,3].includes(+config.teamSize)?+config.teamSize:3,
-      difficulty:Object.hasOwn(DIFFICULTY,config.difficulty)?config.difficulty:'normal', primary:config.primary==='scatter'?'scatter':'rifle', armor:config.armor==='heavy'?'heavy':'light'};
+      difficulty:Object.hasOwn(DIFFICULTY,config.difficulty)?config.difficulty:'normal', primary:PRIMARY_WEAPONS.includes(config.primary)?config.primary:'rifle', armor:config.armor==='heavy'?'heavy':'light'};
     this.rules={...RULES[this.config.teamSize]}; this.random=rng(config.seed??4207);
     this.time=0; this.round=1; this.scores=[0,0]; this.attackSquad=0; this.actors=[];
     this.events=[]; this.eventId=0; this.history=[]; this.orders=[null,null]; this.phase='preparation'; this.result=null;
@@ -22,7 +22,7 @@ export class Match {
       const h=humans.filter(p=>p.squad===squad)[slot];
       const id=h?.id||`bot-${squad}-${slot}`;
       this.actors.push({id,squad,slot,name:h?.name||`${squad===0?'ALPHA':'BRAVO'} ${['先锋','支援','哨兵'][slot]}`, bot:!h,
-        armor:h?.armor||this.config.armor, primary:h?.primary||this.config.primary,
+        armor:h?.armor||this.config.armor, primary:PRIMARY_WEAPONS.includes(h?.primary)?h.primary:this.config.primary,
         kills:0,deaths:0,damage:0,contribution:0,headshots:0, input:emptyInput(),lastInput:{},ready:false});
     }
     this.resetRound();
@@ -39,7 +39,7 @@ export class Match {
       const p=SPAWNS[this.side(a)][a.slot];
       Object.assign(a,{...p,y:0,vy:0,yaw:this.side(a)==='attack'?-Math.PI/2:Math.PI/2,pitch:0,hp:100,alive:true,
         weapon:a.primary,ammo:Object.fromEntries(Object.entries(WEAPONS).map(([k,w])=>[k,{mag:w.mag,reserve:w.reserve}])),
-        reload:0,cooldown:0,shotHeat:0,interact:0,ready:a.bot,heard:null,target:null,memory:null,reaction:0,path:[],pathTimer:0,routeStage:0,cover:null,coverCheck:0,stuck:0,lastPos:{...p},
+        reload:0,switchTime:0,cooldown:0,shotHeat:0,interact:0,ready:a.bot,heard:null,target:null,memory:null,reaction:0,path:[],pathTimer:0,routeStage:0,cover:null,coverCheck:0,stuck:0,lastPos:{...p},
         input:emptyInput(),lastInput:{},crouch:false,aim:false,sprinting:false,interactionOrigin:null});
     }
     const carrier=this.actors.find(a=>a.squad===this.attackSquad);
@@ -54,7 +54,7 @@ export class Match {
   setLoadout(id,primary,armor) {
     const a=this.actors.find(a=>a.id===id);
     if(!a||this.phase!=='preparation') return false;
-    if(['rifle','scatter'].includes(primary)) {a.primary=primary; a.weapon=primary;}
+    if(PRIMARY_WEAPONS.includes(primary)) {a.primary=primary; a.weapon=primary; a.reload=0; a.switchTime=0;}
     if(Object.hasOwn(ARMOR,armor)) a.armor=armor;
     return true;
   }
@@ -81,6 +81,7 @@ export class Match {
     }
     for(const a of this.actors) {
       if(!a.alive) continue;
+      a.switchTime=Math.max(0,a.switchTime-dt);
       a.cooldown=Math.max(0,a.cooldown-dt); a.shotHeat=Math.max(0,a.shotHeat-dt*1.8);
       if(a.reload>0) {
         a.reload=Math.max(0,a.reload-dt);
@@ -105,7 +106,10 @@ export class Match {
     const i=a.input,last=a.lastInput;
     a.yaw=i.yaw; a.pitch=i.pitch; a.aim=i.aim; a.crouch=i.crouch;
     a.sprinting=i.sprint&&!i.aim&&!i.fire&&!i.crouch&&i.forward>0;
-    if(i.weapon&&i.weapon!==a.weapon) {a.weapon=i.weapon; a.reload=0; this.emit('switch',{actor:a.id});}
+    if(i.weapon&&i.weapon!==a.weapon) {
+      a.weapon=i.weapon;a.reload=0;a.switchTime=WEAPONS[a.weapon].equip??.32;
+      this.emit('switch',{actor:a.id,weapon:a.weapon,duration:a.switchTime});
+    }
     if(i.reload&&!last.reload) this.reloadWeapon(a);
     if(i.drop&&!last.drop) this.dropCore(a);
     if(i.order&&i.order!==last.order) this.order(a,i.order);
@@ -114,25 +118,26 @@ export class Match {
     let dx=-Math.sin(a.yaw)*i.forward+Math.cos(a.yaw)*i.strafe;
     let dz=-Math.cos(a.yaw)*i.forward-Math.sin(a.yaw)*i.strafe;
     const len=Math.hypot(dx,dz); if(len>1) {dx/=len;dz/=len;}
-    const speed=3.5*ARMOR[a.armor].speed*(a.sprinting?1.5:a.crouch?.5:a.aim?.72:1);
+    const speed=3.5*ARMOR[a.armor].speed*(WEAPONS[a.weapon].move??1)*(a.sprinting?1.5:a.crouch?.5:a.aim?.72:1);
     move(a,dx*dt*speed,dz*dt*speed);
-    if(i.fire&&!i.interact&&!a.sprinting) this.shoot(a);
+    if(i.fire&&!i.interact&&!a.sprinting&&(a.bot||!WEAPONS[a.weapon].semi||!last.fire)) this.shoot(a);
     if(i.interact&&!i.fire&&!a.sprinting) this.interact(a,dt);
     else if(this.core.interactor===a.id) this.cancelInteraction();
     a.lastInput={...i};
   }
   reloadWeapon(a) {
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
-    if(a.reload>0||am.mag===w.mag||am.reserve<=0) return false;
-    a.reload=w.reload; this.emit('reload',{actor:a.id}); return true;
+    if(a.reload>0||a.switchTime>0||am.mag===w.mag||am.reserve<=0) return false;
+    a.reload=w.reload; this.emit('reload',{actor:a.id,weapon:a.weapon,duration:w.reload}); return true;
   }
   shoot(a) {
-    if(this.phase!=='combat'||!a.alive||a.reload>0||a.cooldown>0) return false;
+    if(this.phase!=='combat'||!a.alive||a.reload>0||a.switchTime>0||a.cooldown>0) return false;
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
     if(am.mag<=0) {if(!this.reloadWeapon(a)&&a.weapon!=='pistol') a.input.weapon='pistol'; return false;}
     am.mag--; a.cooldown=60/w.rpm*(a.bot?1.25:1); a.shotHeat=Math.min(1,a.shotHeat+.22);
     const origin={x:a.x,y:(a.crouch?1.07:1.57)+a.y,z:a.z};
-    const spread=w.spread*(a.aim?.32:1)*(1+a.shotHeat*.7)+(a.bot?DIFFICULTY[this.config.difficulty].error:0);
+    const accuracy=a.weapon==='sniper'?(a.aim?.025:1):(a.aim?.32:1);
+    const spread=w.spread*accuracy*(1+a.shotHeat*(a.weapon==='lmg'?2:.7))+(a.bot?DIFFICULTY[this.config.difficulty].error:0);
     const traces=[];
     for(let pellet=0;pellet<w.pellets;pellet++) {
       const dir=direction(a.yaw+(this.random()-.5)*spread*2,a.pitch+(this.random()-.5)*spread*2);

@@ -17,11 +17,14 @@ try{
     const {AudioEngine}=await import('/src/audio.js');
     const audio=new AudioEngine({volume:.8});audio.unlock();await audio.ctx.resume();
     const me={id:'me',x:0,z:0,yaw:0,weapon:'rifle'},enemy={id:'enemy',x:8,z:-8,weapon:'scatter'},state={actors:[me,enemy]};
-    for(const weapon of ['rifle','scatter','pistol']){
+    for(const weapon of Object.keys(audio.reports)){
       audio.event({type:'shot',actor:'me',weapon},'me',state);
       audio.event({type:'shot',actor:'enemy',weapon},'me',state);
     }
     audio.event({type:'reload',actor:'me'},'me',state);
+    audio.event({type:'switch',actor:'me',weapon:'sniper',duration:.65},'me',state);
+    audio.event({type:'reload',actor:'me',weapon:'sniper',duration:3.1},'me',state);
+    audio.event({type:'switch',actor:'me',weapon:'smg',duration:.25},'me',state);
     audio.event({type:'damage',actor:'enemy',source:'me',part:'weakpoint'},'me',state);
     const reports={};
     for(const [type,variants] of Object.entries(audio.reports)){
@@ -52,6 +55,7 @@ try{
     assert.ok(report.attack>report.tail*4,'reports have a strong attack and decaying tail');
     writeFileSync(`artifacts/audio-${type}.wav`,Buffer.from(report.wav,'base64'));delete report.wav;
   }
+  assert.equal(Object.keys(result).length,7);assert.ok(result.sniper.duration>result.scatter.duration);
   assert.ok(result.scatter.duration>result.rifle.duration&&result.rifle.duration>result.pistol.duration);
   assert.deepEqual(errors,[]);
   writeFileSync('artifacts/audio-report.json',JSON.stringify({passed:true,reports:result,errors},null,2));

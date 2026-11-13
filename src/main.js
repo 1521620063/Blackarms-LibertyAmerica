@@ -1,8 +1,10 @@
 import './style.css';
+import './weapons.css';
 import { Match } from './shared/match.js';
-import { RULES, WEAPONS, ARMOR, DIFFICULTY, BOXES, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
+import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
 import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
+import { WeaponPreview } from './visual/weapon-preview.js';
 
 const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
@@ -23,6 +25,26 @@ let lastEvent=0,lastRound='',lastPhase='',spectate=null,socket=null,networkId=nu
 let accumulator=0,lastTime=performance.now(),lastNetwork=0,lastHUD=0,fps=60,frames=0,fpsAt=performance.now(),lastAnnouncement=0,damage=0,hit=0,radioUntil=0;
 const keys=new Set(),mouse={fire:false,aim:false};let commands={};
 const feed=[];
+const weaponNotes={
+  rifle:['KESTREL','全自动精准火力，沙色机匣与镂空护木。'],
+  pistol:['EP–12','随身副武器，轻巧灵活。'],
+  scatter:['BREACHER','八枚鹿弹近距压制，黑色隔热罩与备用霰弹。'],
+  smg:['SWIFT','850 RPM，紧凑枪身与直弹匣，适合室内突击。'],
+  dmr:['FALCON','半自动重击，2.25×低倍镜，稳住准星再点射。'],
+  lmg:['IRONCURTAIN','60 发持续压制，箱式弹匣；移动与换弹较慢。'],
+  sniper:['RAVEN','栓动狙击枪，5×瞄准镜；重击后需拉栓，腰射精度低。']
+};
+let weaponPreview;
+function inspectWeapon(type){
+  const w=WEAPONS[type];text('inspect-name',w.name);text('inspect-desc',weaponNotes[type][1]);
+  $('inspect-stats').innerHTML=`<span>弹匣 <b>${w.mag}</b></span><span>射速 <b>${w.rpm} RPM</b></span><span>换弹 <b>${w.reload}s</b></span><span>瞄具 <b>${w.zoom?`${w.zoom}×`:'红点 / 机瞄'}</b></span>`;
+  weaponPreview?.select(type);
+}
+const armoryGroup=document.querySelector('[data-group="primary"]');
+armoryGroup.innerHTML=PRIMARY_WEAPONS.map(type=>`<button data-value="${type}" class="${type===config.primary?'selected':''}"><small>${weaponNotes[type][0]} / ${WEAPON_ORDER.indexOf(type)+1}</small><strong>${WEAPONS[type].name}</strong><p>${WEAPONS[type].mag} 发 · ${WEAPONS[type].semi?'单发':'连发'}${WEAPONS[type].zoom?` · ${WEAPONS[type].zoom}×`:''}</p></button>`).join('');
+$('prepare-weapons').innerHTML=PRIMARY_WEAPONS.map(type=>`<button data-loadout="${type}">${WEAPON_ORDER.indexOf(type)+1} / ${WEAPONS[type].short}</button>`).join('');
+$('weapon-slots').innerHTML=WEAPON_ORDER.map((type,i)=>`<span data-slot="${type}"><kbd>${i+1}</kbd>${WEAPONS[type].short}<small></small></span>`).join('');
+inspectWeapon(config.primary);
 function safeStore(){try{localStorage.setItem('bla.settings',JSON.stringify(settings));}catch{}}
 function applySettings(){
   document.body.classList.toggle('colorblind',settings.colorblind);
@@ -46,6 +68,7 @@ for(const b of document.querySelectorAll('[data-back]'))b.onclick=()=>tab('opera
 for(const group of document.querySelectorAll('[data-group]'))for(const b of group.querySelectorAll('[data-value]'))b.onclick=()=>{
   config[group.dataset.group]=group.dataset.group==='teamSize'?+b.dataset.value:b.dataset.value;
   for(const other of group.querySelectorAll('button'))other.classList.toggle('selected',b===other);
+  if(group.dataset.group==='primary')inspectWeapon(b.dataset.value);
   const rule=RULES[config.teamSize];text('rule-time',`${rule.combat} 秒 / 回合`);text('rule-wins',`先赢 ${rule.wins} 回合`);
   text('mode-desc',config.mode==='core'?'携带核心，按住 E 安装并保护上传；防守方阻止安装或拆除核心。':'每回合一条命。歼灭敌方队伍，赢下整场比赛。');
 };
@@ -81,6 +104,12 @@ function loadout(primary,armor){
   if(online)send({type:'loadout',primary,armor});else match.setLoadout(playerId,primary,armor);
   radio(`${WEAPONS[primary].name} / ${ARMOR[armor].name}`,'装备确认');
 }
+function selectWeapon(type){
+  const a=state?.actors.find(a=>a.id===playerId);
+  if(!active||paused||!a?.alive||!WEAPON_ORDER.includes(type))return;
+  if(state.phase==='preparation'){if(PRIMARY_WEAPONS.includes(type))loadout(type,null);}
+  else if(state.phase==='combat')commands.weapon=type;
+}
 function changeSpectator(delta){const allies=state?.actors.filter(a=>a.alive&&a.squad===state.actors.find(b=>b.id===playerId)?.squad)||[];if(!allies.length){spectate=null;return;}let index=allies.findIndex(a=>a.id===spectate);spectate=allies[(index+delta+allies.length)%allies.length].id;}
 function getInput(){
   const allowed=active&&!paused&&!document.querySelector('dialog[open]');
@@ -99,8 +128,7 @@ window.addEventListener('keydown',e=>{
   if(e.repeat)return;
   if(e.code==='Escape'){if(paused)lock();else pauseGame();return;}
   if(e.code==='Enter'&&state.phase==='preparation'){ready();return;}
-  if(e.code==='Digit1') {if(state.phase==='preparation')loadout('rifle',null);else commands.weapon=state.actors.find(a=>a.id===playerId).primary;}
-  if(e.code==='Digit2') {if(state.phase==='preparation')loadout('scatter',null);else commands.weapon='pistol';}
+  if(/^Digit[1-7]$/.test(e.code))selectWeapon(WEAPON_ORDER[Number(e.code.slice(-1))-1]);
   if(e.code==='KeyG')commands.drop=true;
   const orders={F1:'follow',F2:'hold',F3:'attack',F4:'retreat'};if(orders[e.code])commands.order=orders[e.code];
   if(e.code==='ArrowLeft')changeSpectator(-1);if(e.code==='ArrowRight')changeSpectator(1);
@@ -111,7 +139,12 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&active)pau
 $('view').addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('mousedown',e=>{if(!document.pointerLockElement)return;if(e.button===0)mouse.fire=true;if(e.button===2)mouse.aim=true;});
 window.addEventListener('mouseup',e=>{if(e.button===0)mouse.fire=false;if(e.button===2)mouse.aim=false;});
-window.addEventListener('mousemove',e=>{if(document.pointerLockElement&&active&&!paused){inputYaw-=e.movementX*.002*settings.sensitivity;inputPitch=clamp(inputPitch-e.movementY*.002*settings.sensitivity,-1.4,1.4);}});
+window.addEventListener('mousemove',e=>{if(document.pointerLockElement&&active&&!paused){const a=state?.actors.find(a=>a.id===playerId),zoom=a?.aim&&!a.reload&&!a.switchTime?(WEAPONS[a.weapon].zoom??1):1;inputYaw-=e.movementX*.002*settings.sensitivity/zoom;inputPitch=clamp(inputPitch-e.movementY*.002*settings.sensitivity/zoom,-1.4,1.4);}});
+window.addEventListener('wheel',e=>{
+  if(!active||paused||!document.pointerLockElement||!e.deltaY)return;
+  e.preventDefault();const current=commands.weapon||state.actors.find(a=>a.id===playerId)?.weapon;
+  selectWeapon(WEAPON_ORDER[(WEAPON_ORDER.indexOf(current)+Math.sign(e.deltaY)+WEAPON_ORDER.length)%WEAPON_ORDER.length]);
+},{passive:false});
 document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&active&&state?.phase==='combat'&&state.actors.find(a=>a.id===playerId)?.alive&&!document.querySelector('dialog[open]'))pauseGame();});
 $('view').addEventListener('click',()=>{if(active&&!paused)lock();});
 window.addEventListener('resize',()=>view.resize());
@@ -205,7 +238,13 @@ function renderHUD(now){
   show('core-carrier',state.core.carrier===subject.id);text('weapon-label',WEAPONS[subject.weapon].name);
   text('ammo',subject.ammo[subject.weapon].mag);text('reserve',subject.ammo[subject.weapon].reserve);
   $('ammo').parentElement.parentElement.classList.toggle('low',subject.ammo[subject.weapon].mag<5);
-  text('reload-label',subject.reload>0?`换弹中 · ${subject.reload.toFixed(1)}s`:'1 主武器　2 副武器　R 换弹');
+  text('reload-label',subject.switchTime>0?'切换武器…':subject.reload>0?`换弹中 · ${subject.reload.toFixed(1)}s`:subject.weapon==='sniper'&&subject.cooldown>0?'拉栓中…':'1–7 / 滚轮 切枪　R 换弹');
+  for(const slot of document.querySelectorAll('[data-slot]')){
+    slot.classList.toggle('selected',slot.dataset.slot===subject.weapon);
+    slot.querySelector('small').textContent=subject.ammo[slot.dataset.slot].mag;
+  }
+  const scoped=subject.alive&&state.phase==='combat'&&subject.aim&&WEAPONS[subject.weapon].zoom>1&&!subject.reload&&!subject.switchTime;
+  show('scope-overlay',scoped);text('scope-label',`${WEAPONS[subject.weapon].short} / ${WEAPONS[subject.weapon].zoom??1}×`);
   text('side-label',`${me.squad===state.attackSquad?'攻击方':'防守方'} / ${me.squad===0?'ALPHA':'BRAVO'}`);
   text('objective-title',state.config.mode==='core'?(me.squad===state.attackSquad?'安装并保护数据核心':'阻止核心上传'):'歼灭敌方队伍');
   text('objective-sub',state.config.mode==='core'?`核心 · ${CORE_LABELS[state.core.state]}${['uploading','defusing'].includes(state.core.state)?` / ${Math.ceil(state.core.upload)}s`:''}`:`敌方存活 ${state.actors.filter(a=>a.squad!==me.squad&&a.alive).length} / ${state.config.teamSize} · 先赢 ${state.rules.wins} 回合`);
@@ -214,7 +253,7 @@ function renderHUD(now){
   for(const b of document.querySelectorAll('[data-loadout]'))b.classList.toggle('selected',b.dataset.loadout===me.primary);
   text('toggle-armor',ARMOR[me.armor].name+' ↔');
   const order=state.orders[me.squad];text('order-label',order&&order.until>state.time?ORDERS[order.type]:'自主行动');
-  show('crosshair',settings.crosshair&&me.alive&&state.phase==='combat');$('crosshair').style.setProperty('--gap',`${7+me.shotHeat*15-(me.aim?4:0)}px`);
+  show('crosshair',settings.crosshair&&me.alive&&state.phase==='combat'&&!scoped);$('crosshair').style.setProperty('--gap',`${7+me.shotHeat*15-(me.aim?4:0)}px`);
   const c=state.core;let hint='';
   if(me.alive&&state.phase==='combat'&&state.config.mode==='core'){
     if(c.carrier===me.id&&distance(me,OBJECTIVE)<OBJECTIVE.radius)hint='原地按住 E · 安装核心';
@@ -257,6 +296,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 view.ready.then(()=>{
+  weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);inspectWeapon(config.primary);
   lastTime=performance.now();show('boot',false);requestAnimationFrame(frame);
   if(debug){
     window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get errors(){return errors;},get paused(){return paused;},config,settings,

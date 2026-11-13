@@ -6,13 +6,15 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { BOXES, OBJECTIVE, rng } from './shared/data.js';
+import { BOXES, OBJECTIVE, WEAPONS, rng } from './shared/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
 import { CombatEffects } from './visual/effects.js';
 import { loadGeneratedArt } from './visual/generated-art.js';
 import { facilityDecals } from './visual/decals.js';
+
+export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T.MathUtils.degToRad(fov)/2)/zoom));
 
 export class WorldView {
   constructor(canvas,settings){
@@ -183,7 +185,7 @@ export class WorldView {
   }
   event(e,playerId){
     if(e.type==='shot'){
-      if(e.actor===playerId){const kick=e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063;this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=e.weapon==='scatter'?.065:.04;}
+      if(e.actor===playerId){const kick=WEAPONS[e.weapon]?.kick??(e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063);this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=e.weapon==='scatter'?.065:.04;}
       this.fx.shot(e,e.actor===playerId);
     }
     if(e.type==='damage'&&e.actor===playerId)this.shake=.045;
@@ -215,18 +217,22 @@ export class WorldView {
       this.camera.position.copy(this.smoothPos);this.camera.position.x+=(Math.random()-.5)*this.shake;
       const pitch=view.pitch??follow.pitch,yaw=view.yaw??follow.yaw;
       this.camera.rotation.set(pitch+this.recoil*.17,yaw,0);
-      this.camera.fov=T.MathUtils.lerp(this.camera.fov,this.settings.fov*(follow.aim?.8:1),1-Math.exp(-dt*12));this.camera.updateProjectionMatrix();
+      const zoom=follow.aim&&!follow.reload&&!follow.switchTime?(WEAPONS[follow.weapon].zoom??1.25):1;
+      this.camera.fov=T.MathUtils.lerp(this.camera.fov,settingsFov(this.settings.fov,zoom),1-Math.exp(-dt*12));this.camera.updateProjectionMatrix();
       if(this.weaponType!==follow.weapon)this.makeGun(follow.weapon);
       const model=this.models.get(follow.id),moving=Math.min(1,(model?.userData.speed||0)/2);this.moveBlend=T.MathUtils.damp(this.moveBlend,moving,8,dt);
       if(this.lastLook){this.sway.x=T.MathUtils.damp(this.sway.x,T.MathUtils.clamp(yaw-this.lastLook.yaw,-.1,.1),10,dt);this.sway.y=T.MathUtils.damp(this.sway.y,T.MathUtils.clamp(pitch-this.lastLook.pitch,-.1,.1),10,dt);}this.lastLook={yaw,pitch};
       const bob=(follow.sprinting?.02:.008)*this.moveBlend,aim=follow.aim;
-      const target=new T.Vector3((aim?0:.24)-this.sway.x*.7,(follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
-      this.gun.position.lerp(target,1-Math.exp(-dt*18));this.gun.rotation.set(this.recoil*.8+(follow.sprinting?-.12:0),follow.reload>0?-.55:0,follow.reload>0?-.6:-.025+Math.cos(time*8)*bob);
+      this.kit.animateWeapon(this.weapon,follow);
+      const swapping=follow.switchTime>0;
+      const target=new T.Vector3((aim?0:.24)-this.sway.x*.7,(swapping?-.65:follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
+      this.gun.position.lerp(target,1-Math.exp(-dt*18));this.gun.rotation.set(this.recoil*.8+(follow.sprinting?-.12:0),follow.reload>0?-.55:0,swapping?-.35:follow.reload>0?-.6:-.025+Math.cos(time*8)*bob);
       if(aim)this.gun.rotation.z=T.MathUtils.damp(this.gun.rotation.z,0,25,dt);
       this.muzzle.visible=this.shotTimer>0;this.muzzle.material.rotation=time*31;this.muzzle.scale.setScalar((this.weaponType==='scatter'?.34:.18)+Math.random()*.1);this.flash.intensity=this.muzzle.visible?7:0;this.gun.updateMatrixWorld(true);this.muzzle.getWorldPosition(this.flash.position);
     }else{
       this.smoothPos=null;this.lastLook=null;this.camera.fov=65;this.camera.updateProjectionMatrix();this.camera.position.set(10.2+Math.sin(time*.07)*.4,3.4,4.6);this.camera.lookAt(1.5,1.2,-3);
     }
-    this.weaponPass.enabled=!!follow?.alive&&state?.phase!=='matchResult'&&state?.phase!=='roundResult';this.grade.uniforms.time.value=time;this.composer.render(dt);this.renderer.autoClear=true;
+    const scoped=follow?.aim&&WEAPONS[follow.weapon].zoom>1&&!follow.reload&&!follow.switchTime;
+    this.weaponPass.enabled=!!follow?.alive&&!scoped&&state?.phase!=='matchResult'&&state?.phase!=='roundResult';this.grade.uniforms.time.value=time;this.composer.render(dt);this.renderer.autoClear=true;
   }
 }

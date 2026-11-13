@@ -37,6 +37,7 @@ export class SoldierModels {
     const move=a.alive?Math.min(1,u.speed/.8):0,run=a.sprinting?move:Math.max(0,(u.speed-3)/3);
     u.actions.Idle.setEffectiveWeight(1-move);u.actions.Walk.setEffectiveWeight(move*(1-run));u.actions.Run.setEffectiveWeight(run);
     u.actions.Walk.setEffectiveTimeScale(Math.max(.6,u.speed/2));u.actions.Run.setEffectiveTimeScale(Math.max(.7,u.speed/4.5));u.mixer.update(dt);
+    this.kit.animateWeapon(u.weapon,a);
     if(a.weapon!==u.weaponType){u.aim.remove(u.weapon);u.weapon=this.kit.weapon(a.weapon,u.aim);u.weapon.scale.setScalar(.78);u.weaponType=a.weapon;}
     u.death=T.MathUtils.damp(u.death,a.alive?0:1,8,dt);
     u.body.rotation.z=-u.death*Math.PI*.49;u.body.position.y=u.death*.23;

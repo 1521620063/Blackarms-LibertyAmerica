@@ -23,8 +23,16 @@ test('real WebSockets: room codes, host authority, roster, loadout, inputs, disc
     const started=await a.wait(m=>m.type==='started');await b.wait(m=>m.type==='started');
     assert.equal(started.state.actors.length,4);assert.equal(started.state.actors.filter(p=>!p.bot).length,2);
     const room=lan.rooms.get(created.code),guest=room.match.actors.find(p=>p.id===bh.id);assert.equal(guest.primary,'scatter');
+    for(const primary of ['smg','dmr','lmg','sniper']){
+      b.send({type:'loadout',primary,armor:'heavy'});
+      await b.wait(m=>m.type==='state'&&m.state.actors.some(p=>p.id===bh.id&&p.weapon===primary));
+      assert.equal(guest.primary,primary);
+    }
     a.send({type:'input',input:{ready:true,yaw:-Math.PI/2}});b.send({type:'input',input:{ready:true}});
     await a.wait(m=>m.type==='state'&&m.state.phase==='combat');
+    b.send({type:'input',input:{weapon:'smg'}});
+    await b.wait(m=>m.type==='state'&&m.state.phase==='combat'&&m.state.actors.some(p=>p.id===bh.id&&p.weapon==='smg'));
+    assert.equal(guest.ammo.sniper.mag,5);assert.equal(guest.ammo.smg.mag,32);
     const host=room.match.actors.find(p=>p.id===ah.id),before=host.x;
     a.send({type:'input',input:{forward:1,yaw:-Math.PI/2,x:999,hp:999,damage:999}});await tick();
     assert.ok(host.x>before);assert.ok(host.x<16);assert.ok(host.hp<=100);

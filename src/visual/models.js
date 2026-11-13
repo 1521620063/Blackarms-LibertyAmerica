@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { expandedWeapon } from './arsenal.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // Share immutable geometry across weapons, characters and scenery.
@@ -30,6 +31,8 @@ export class ModelKit {
       for(let i=0;i<8;i++){b(.123,.052,.006,0,.025,.015+i*.009,'rubber',0);}
       b(.008,.035,.065,.062,.01,-.06,'edge',.002);
       this.trigger(root,0,-.1,-.08,.075);
+    }else if(['smg','dmr','lmg','sniper'].includes(type)){
+      expandedWeapon(this,type,root);
     }else{
       this.primaryWeapon(root,scatter,b,barrel);
     }
@@ -38,9 +41,16 @@ export class ModelKit {
       this.glove(root,.025,-.155,.09,.03);
       if(!pistol){this.limb(root,[-.32,-.31,.18],[-.11,-.14,-.3],.073,'olive');this.glove(root,-.055,-.1,-.29,-.55);}
     }
-    root.userData.muzzle=new T.Vector3(0,.016,pistol?-.35:scatter?-.855:-.83);
-    root.userData.design=pistol?'EP-12':scatter?'SG-6 BREACHER':'PR-24 KESTREL';
+    root.userData.muzzle??=new T.Vector3(0,.016,pistol?-.35:scatter?-.855:-.83);
+    root.userData.design??=pistol?'EP-12':scatter?'SG-6 BREACHER':'PR-24 KESTREL';
     return root;
+  }
+  animateWeapon(root,actor){
+    const bolt=root?.userData.bolt;if(!bolt)return;
+    const elapsed=60/42-actor.cooldown;
+    const lift=actor.cooldown>0?Math.max(0,Math.min(1,(elapsed-.2)/.14,(1.15-elapsed)/.16)):0;
+    const travel=actor.cooldown>0?Math.max(0,Math.min(1,(elapsed-.38)/.18,(.98-elapsed)/.2)):0;
+    bolt.rotation.z=-lift*.8;bolt.position.z=travel*.115;
   }
   primaryWeapon(root,scatter,b,barrel){
     const shell=scatter?'gunmetal':'cerakote';

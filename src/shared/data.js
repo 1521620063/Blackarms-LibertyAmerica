@@ -9,7 +9,14 @@ export const WEAPONS = {
   pistol: { name: 'EP–12 能量手枪', short: 'EP–12', mag: 12, reserve: 48, damage: 24, rpm: 300, reload: 1.5, spread: .008, range: 70, pellets: 1, falloff: .5 },
   rifle: { name: 'PR–24 游隼战术步枪', short: 'PR–24', mag: 24, reserve: 120, damage: 23, rpm: 600, reload: 2.1, spread: .012, range: 100, pellets: 1, falloff: .45 },
   scatter: { name: 'SG–6 破门者霰弹枪', short: 'SG–6', mag: 6, reserve: 30, damage: 13, rpm: 90, reload: 2.6, spread: .075, range: 28, pellets: 8, falloff: .85 },
+  smg: { name: 'VX–9 雨燕冲锋枪', short: 'VX–9', mag: 32, reserve: 160, damage: 17, rpm: 850, reload: 1.8, spread: .018, range: 55, pellets: 1, falloff: .72, equip: .25, move: 1.08, kick: .038 },
+  dmr: { name: 'MR–18 隼眼射手步枪', short: 'MR–18', mag: 10, reserve: 50, damage: 52, rpm: 240, reload: 2.4, spread: .006, range: 130, pellets: 1, falloff: .28, equip: .45, move: .93, zoom: 2.25, semi: true, kick: .09 },
+  lmg: { name: 'LM–60 铁幕轻机枪', short: 'LM–60', mag: 60, reserve: 180, damage: 25, rpm: 540, reload: 4.2, spread: .022, range: 100, pellets: 1, falloff: .45, equip: .6, move: .82, kick: .075 },
+  sniper: { name: 'SR–7 寒鸦狙击枪', short: 'SR–7', mag: 5, reserve: 25, damage: 115, rpm: 42, reload: 3.1, spread: .055, range: 180, pellets: 1, falloff: .18, equip: .65, move: .88, zoom: 5, semi: true, kick: .19 },
 };
+// Stable slots are shared by keyboard, wheel, HUD and equipment menus.
+export const WEAPON_ORDER = ['rifle','pistol','scatter','smg','dmr','lmg','sniper'];
+export const PRIMARY_WEAPONS = WEAPON_ORDER.filter(type=>type!=='pistol');
 export const ARMOR = { light: { name: '轻型护甲', protection: .15, speed: 1 }, heavy: { name: '重型护甲', protection: .32, speed: .83 } };
 export const DIFFICULTY = {
   easy: { name: '简单', reaction: .65, error: .11, delay: .28, hearing: 11 },

@@ -27,7 +27,7 @@ try{
     const image=await page.evaluate(mode=>{
       const g=window.__BLA,v=g.view,p=g.match.actors[0];
       if(mode==='shot')v.event({type:'shot',actor:p.id,weapon:'rifle',origin:{x:p.x,y:1.57,z:p.z},traces:[{end:{x:-2.21,y:1.4,z:4.5},hit:false}]},p.id);
-      if(mode==='pistol'||mode==='scatter'){p.weapon=mode;g.step(0);}
+      if(['pistol','scatter','smg','dmr','lmg','sniper'].includes(mode)){p.weapon=mode;g.step(0);}
       v.smoothPos=null;v.render(g.state,g.playerId,1/60,20,{yaw:-Math.PI/2,pitch:0});
       if(mode==='portrait'){
         v.weaponPass.enabled=false;v.camera.position.set(-11.4,1.45,5.4);v.camera.lookAt(-9.1,1.1,5.5);v.composer.render();
@@ -37,6 +37,7 @@ try{
     writeFileSync(`artifacts/${name}.png`,Buffer.from(image.split(',')[1],'base64'));
   };
   await capture('visual-combat','rifle');await capture('visual-soldier','portrait');await capture('visual-shot','shot');await capture('visual-pistol','pistol');await capture('visual-scatter','scatter');
+  for(const type of ['smg','dmr','lmg','sniper'])await capture(`visual-${type}`,type);
   const checks=await page.evaluate(()=>{
     const g=window.__BLA,v=g.view,a=g.match.actors[1],model=v.models.get(a.id),u=model.userData;
     const leg=()=>{let q;u.skin.traverse(o=>{if(o.isBone&&o.name.endsWith('LeftUpLeg'))q=o.quaternion.toArray();});return q;};
