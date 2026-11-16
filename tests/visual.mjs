@@ -22,11 +22,12 @@ try{
     g.step(0);v.smoothPos=null;
     for(let frame=0;frame<90;frame++)v.render(g.state,g.playerId,1/60,20+frame/60,{yaw:-Math.PI/2,pitch:0});
     const actors=[...v.models.values()],human=actors.map(model=>{let skins=0,bones=0;model.userData.skin.traverse(o=>{if(o.isSkinnedMesh)skins++;if(o.isBone)bones++;});return {skins,bones,animations:Object.keys(model.userData.actions)};});
-    return {human,source:v.characters.template.userData.source,blendedVertices:v.characters.template.userData.blendedVertices,sharedSkeleton:actors[0].userData.arms[0].upper===actors[1].userData.arms[0].upper,staticBatches:v.facility.children.filter(o=>o.isMesh&&!o.material.transparent).length};
+    return {human,designs:v.characters.templates.map(t=>t.userData.design),source:v.characters.template.userData.source,blendedVertices:v.characters.template.userData.blendedVertices,sharedSkeleton:actors[0].userData.arms[0].upper===actors[1].userData.arms[0].upper,staticBatches:v.facility.children.filter(o=>o.isMesh&&!o.material.transparent).length};
   });
   for(const actor of setup.human){assert.equal(actor.skins,11,'character batches eleven surface materials');assert.equal(actor.bones,33,'original skeleton contains 33 authored joints');assert.deepEqual(actor.animations.sort(),['Idle','Run','Walk']);}
   assert.ok(setup.blendedVertices>5000,'elbows, shoulders and knees use blended skin weights');
   assert.equal(setup.source,'original-procedural');assert.deepEqual(characterRequests,[],'characters load without any imported model file');
+  assert.notEqual(setup.designs[0],setup.designs[1],'factions have separate equipment designs');
   assert.equal(setup.sharedSkeleton,false,'actors animate independently');assert.ok(setup.staticBatches<40,'static scenery is batched by material');
   const capture=async(name,mode)=>{
     const image=await page.evaluate(mode=>{
@@ -93,18 +94,21 @@ try{
     v.characters.animate(actors[1],{x:.52,y:0,z:0,alive:true,weapon:'rifle',pitch:0,crouch:true,sprinting:false,cooldown:0},0);
     camera.position.set(1.4,1.4,-3.9);camera.lookAt(0,.97,0);v.renderer.render(scene,camera);const crouch=v.renderer.domElement.toDataURL('image/png');
     const poses=[];
-    for(const weapon of ['rifle','pistol','scatter','smg','dmr','lmg','sniper'])for(const pitch of [-.35,0,.35])for(const crouch of [false,true]){
-      const actor=actors[0],u=actor.userData;
-      v.characters.animate(actor,{x:-.52,y:0,z:0,alive:true,weapon,pitch,crouch,sprinting:false,cooldown:0},0);
+    for(const actor of actors)for(const weapon of ['rifle','pistol','scatter','smg','dmr','lmg','sniper'])for(const pitch of [-.35,0,.35])for(const crouch of [false,true]){
+      const u=actor.userData;
+      v.characters.animate(actor,{x:actor.position.x,y:0,z:0,alive:true,weapon,pitch,crouch,sprinting:false,cooldown:0},0);
       const vec=()=>camera.position.clone().set(0,0,0);
       const support=weapon==='pistol'?[-.065,-.115,.07]:[-.072,-.105,weapon==='sniper'?-.32:weapon==='lmg'?-.31:-.29];
       const targets=[support,[.054,-.1,weapon==='pistol'?.07:.135]];
-      poses.push({weapon,pitch,crouch,errors:u.arms.map((arm,i)=>{
+      poses.push({side:actor.userData.side,weapon,pitch,crouch,errors:u.arms.map((arm,i)=>{
         const target=u.aim.localToWorld(vec().fromArray(targets[i]).multiplyScalar(.78));
         return arm.hand.getWorldPosition(vec()).distanceTo(target);
       })});
     }
     const result={front,back,profile,closeup,crouch,poses,calls,triangles:actors.map(actor=>{let n=0;actor.userData.skin.traverse(o=>{if(o.isSkinnedMesh)n+=o.geometry.attributes.position.count/3;});return n;}),palettes:actors.map(actor=>{const result={};actor.userData.skin.traverse(o=>{if(o.isMesh)result[o.material.userData.role]=o.material.color.getHexString();});return result;})};
+    const actor=actors[0],name=actor.userData.name,oldSkin=actor.userData.skin;
+    v.characters.setSide(actor,1);v.characters.animate(actor,{x:-.52,y:0,z:0,alive:true,weapon:'rifle',pitch:.35,crouch:true,sprinting:false,cooldown:0},0);
+    result.sideSwitch={side:actor.userData.side,name:actor.userData.name,preservedName:actor.userData.name===name,replacedBody:actor.userData.skin!==oldSkin,design:actor.userData.skin.userData.design};
     for(const actor of actors){scene.remove(actor);v.characters.release(actor);}groundMaterial.dispose();return result;
   });
   writeFileSync('artifacts/original-soldiers-front.png',Buffer.from(showcase.front.split(',')[1],'base64'));
@@ -113,6 +117,8 @@ try{
   writeFileSync('artifacts/original-soldier-crouch.png',Buffer.from(showcase.crouch.split(',')[1],'base64'));
   writeFileSync('artifacts/original-soldier-profile.png',Buffer.from(showcase.profile.split(',')[1],'base64'));
   delete showcase.front;delete showcase.back;delete showcase.profile;delete showcase.closeup;delete showcase.crouch;
+  assert.equal(showcase.sideSwitch.preservedName,true);assert.equal(showcase.sideSwitch.replacedBody,true);assert.equal(showcase.sideSwitch.design,setup.designs[1]);
+  assert.ok(showcase.calls<100,'two equipped soldiers stay below 100 draw calls');
   const misplacedHands=showcase.poses.filter(p=>p.errors.some((error,i)=>!Number.isFinite(error)||error>=(i===0?.03:.01)));
   assert.deepEqual(misplacedHands,[],'hands stay within 3 cm of the support grip and 1 cm of the firing grip');
   assert.notEqual(showcase.palettes[0].cloth,showcase.palettes[1].cloth,'factions use distinct uniform palettes');
@@ -127,13 +133,16 @@ try{
     a.crouch=true;v.characters.animate(model,a,1/60);const feetCrouched=footPositions();a.crouch=false;
     const aim=v.camera.position.clone();u.aim.getWorldDirection(aim);
     const facing=aim.x*Math.sin(a.yaw)+aim.z*Math.cos(a.yaw);
-    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});}
+    const qualities=[];
+    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});qualities.push({quality,samples:v.composer.renderTarget1.samples,ao:v.occlusion.enabled,atmosphere:v.atmosphere.enabled,weaponShadows:v.gunLight.castShadow,localShadows:v.localLights.filter(light=>light.castShadow).length});}
     const e={type:'shot',actor:a.id,weapon:'scatter',origin:{x:-13.4,y:1.57,z:4.5},traces:Array.from({length:8},()=>({end:{x:-2.21,y:1.4,z:4.5},hit:false}))};
     for(let i=0;i<120;i++)v.fx.shot(e,false);
     const limits={decals:v.fx.decals.length,traces:v.fx.traces.length,shells:v.fx.shells.length};v.fx.update(5);
     const expired=v.fx.traces.length===0&&v.fx.shells.every(p=>p.life<=0);
-    v.fx.clear();return {before,after,runWeight,feetBefore,feetCrouched,facing,limits,expired,errors:g.errors,geometries:v.renderer.info.memory.geometries};
+    v.fx.clear();return {before,after,runWeight,feetBefore,feetCrouched,facing,qualities,limits,expired,errors:g.errors,geometries:v.renderer.info.memory.geometries};
   });
+  assert.deepEqual(checks.qualities.map(q=>[q.ao,q.atmosphere,q.weaponShadows,q.localShadows]),[[false,false,false,0],[true,true,true,1],[true,true,true,2]],'quality settings disable expensive lighting on low and enable local contact shadows on medium/high');
+  assert.equal(checks.qualities[0].samples,0);assert.ok(checks.qualities[2].samples>=checks.qualities[1].samples,'high quality preserves multisample antialiasing');
   assert.notDeepEqual(checks.before,checks.after,'walking animates leg bones');assert.ok(checks.runWeight>.5,'sprinting blends into run animation');
   assert.ok(checks.feetBefore.every((y,i)=>Math.abs(y-checks.feetCrouched[i])<.04),'crouching bends the legs and keeps feet grounded');
   assert.ok(checks.facing>.99,'weapon forward matches actor yaw');

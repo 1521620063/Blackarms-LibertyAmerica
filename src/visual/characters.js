@@ -1,20 +1,18 @@
 import * as T from 'three';
-import { createOriginalSoldier, originalSoldierMaterials, loadOriginalSoldierSurfaces } from './original-soldier.js';
+import { createOriginalSoldier, loadOriginalSoldierSurfaces } from './original-soldier.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 
 // Original locally generated humans, with independently cloned skeletons for every actor.
 export class SoldierModels {
   constructor(kit){this.kit=kit;this.ready=Promise.resolve().then(async()=>{
-    const gltf=createOriginalSoldier();
-    this.template=gltf.scene;this.clips=gltf.animations;
-    const box=new T.Box3().setFromObject(this.template);this.scale=1.86/box.getSize(new T.Vector3()).y;
-    this.floor=-box.min.y*this.scale;
-    const defending=originalSoldierMaterials(1);
-    this.sideMaterials=[0,1].map(side=>{
-      const mats=new Map();this.template.traverse(o=>{if(o.isMesh&&!mats.has(o.material)){
-        const m=side===0?o.material:defending.find(m=>m.userData.role===o.material.userData.role);
-        m.envMapIntensity=1;mats.set(o.material,m);
-      }});return mats;
+    const assets=[createOriginalSoldier(0),createOriginalSoldier(1)];
+    this.templates=assets.map(asset=>asset.scene);this.template=this.templates[0];this.clips=assets[0].animations;
+    this.scales=this.templates.map(template=>1.86/new T.Box3().setFromObject(template).getSize(new T.Vector3()).y);
+    this.floors=this.templates.map((template,i)=>-new T.Box3().setFromObject(template).min.y*this.scales[i]);
+    this.scale=this.scales[0];this.floor=this.floors[0];
+    // Match by surface role, since each faction has its own authored geometry.
+    this.sideMaterials=this.templates.map(template=>{
+      const mats=new Map();template.traverse(o=>{if(o.isMesh){o.material.envMapIntensity=.75;mats.set(o.material.userData.role,o.material);}});return mats;
     });
     this.surfaceAssets=await loadOriginalSoldierSurfaces(this.sideMaterials);
     const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const ctx=canvas.getContext('2d');
@@ -25,8 +23,8 @@ export class SoldierModels {
   create(side,name){
     const root=new T.Group(),body=new T.Group();root.add(body);
     const contact=new T.Mesh(this.contactGeometry,this.contactMaterial);contact.rotation.x=-Math.PI/2;contact.position.set(0,.005,-.04);root.add(contact);
-    const skin=clone(this.template);skin.scale.setScalar(this.scale);skin.position.y=this.floor;body.add(skin);
-    const originals=new Map();skin.traverse(o=>{if(o.isMesh){originals.set(o,o.material);o.material=this.sideMaterials[side].get(o.material);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;}});
+    const skin=clone(this.templates[side]);skin.scale.setScalar(this.scales[side]);skin.position.y=this.floors[side];body.add(skin);
+    const originals=new Map();skin.traverse(o=>{if(o.isMesh){originals.set(o,o.material.userData.role);o.material=this.sideMaterials[side].get(o.material.userData.role);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;}});
     const mixer=new T.AnimationMixer(skin),actions={};
     for(const clip of this.clips)if(clip.name!=='TPose')actions[clip.name]=mixer.clipAction(clip).play();
     actions.Idle.setEffectiveWeight(1);actions.Walk.setEffectiveWeight(0);actions.Run.setEffectiveWeight(0);mixer.update(0);
@@ -37,10 +35,17 @@ export class SoldierModels {
     const arms=['Left','Right'].map(prefix=>({upper:skin.getObjectByName(`mixamorig${prefix}Arm`)||findBone(skin,`${prefix}Arm`),lower:findBone(skin,`${prefix}ForeArm`),hand:findBone(skin,`${prefix}Hand`)}));
     const legs=['Left','Right'].map(prefix=>({upper:findBone(skin,`${prefix}UpLeg`),lower:findBone(skin,`${prefix}Leg`),foot:findBone(skin,`${prefix}Foot`)}));
     const animationPose=[];skin.traverse(bone=>{if(bone.isBone)animationPose.push({bone,position:bone.position.clone(),quaternion:bone.quaternion.clone()});});
-    root.userData={body,contact,skin,originals,mixer,actions,animationPose,aim,weapon,weaponType:'rifle',marker,side,arms,legs,hips:findBone(skin,'Hips'),chest:findBone(skin,'Spine2'),neck:findBone(skin,'Neck'),head:findBone(skin,'Head'),speed:0,death:0,gait:0,lastPosition:null};
+    root.userData={name,scale:this.scales[side],floor:this.floors[side],body,contact,skin,originals,mixer,actions,animationPose,aim,weapon,weaponType:'rifle',marker,side,arms,legs,hips:findBone(skin,'Hips'),chest:findBone(skin,'Spine2'),neck:findBone(skin,'Neck'),head:findBone(skin,'Head'),speed:0,death:0,gait:0,lastPosition:null};
     return root;
   }
-  setSide(root,side){const u=root.userData;for(const [mesh,original] of u.originals)mesh.material=this.sideMaterials[side].get(original);u.side=side;}
+  setSide(root,side){
+    // Swap the body and skeleton as well as the palette at halftime. Keep the
+    // root group, world transform and visibility owned by WorldView intact.
+    const fresh=this.create(side,root.userData.name);this.release(root);
+    for(const child of [...root.children])root.remove(child);
+    for(const child of [...fresh.children])root.add(child);
+    root.userData=fresh.userData;
+  }
   animate(root,a,dt){
     const u=root.userData,p=new T.Vector3(a.x,a.y,a.z),travel=u.lastPosition?Math.hypot(p.x-u.lastPosition.x,p.z-u.lastPosition.z):0;
     u.lastPosition=p;const speed=Math.min(6,travel/Math.max(dt,.001));u.speed=T.MathUtils.lerp(u.speed,speed,1-Math.exp(-dt*12));
@@ -55,7 +60,7 @@ export class SoldierModels {
     if(a.weapon!==u.weaponType){u.aim.remove(u.weapon);u.weapon=this.kit.weapon(a.weapon,u.aim);u.weapon.scale.setScalar(.78);u.weaponType=a.weapon;}
     u.death=T.MathUtils.damp(u.death,a.alive?0:1,8,dt);
     u.body.rotation.z=-u.death*Math.PI*.49;u.body.position.y=u.death*.23;
-    u.skin.position.y=this.floor;u.aim.position.y=1.49-(a.crouch?.37:0);
+    u.skin.position.y=u.floor;u.aim.position.y=1.49-(a.crouch?.37:0);
     u.chest.rotation.set((a.pitch||0)*.35,-.1,0);
     u.neck.rotation.set((a.pitch||0)*.3-.07,.1,-.08);
     u.head.rotation.set((a.pitch||0)*.35,0,0);
@@ -72,7 +77,7 @@ export class SoldierModels {
       if(a.crouch&&u.hips){
         const feet=u.legs.map(leg=>leg.foot.getWorldPosition(new T.Vector3()));
         const rotations=u.legs.map(leg=>leg.foot.getWorldQuaternion(new T.Quaternion()));
-        u.hips.position.y-=.37/this.scale;root.updateMatrixWorld(true);
+        u.hips.position.y-=.37/u.scale;root.updateMatrixWorld(true);
         u.legs.forEach((leg,i)=>{
           const pole=root.localToWorld(new T.Vector3(i===0?-.15:.15,.4,-.5));
           solveLimb(leg.upper,leg.lower,leg.foot,feet[i],pole);

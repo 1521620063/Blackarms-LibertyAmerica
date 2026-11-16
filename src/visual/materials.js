@@ -1,5 +1,7 @@
 import * as T from 'three';
 import { rng } from '../shared/data.js';
+import { tacticalFinish } from './tactical-gear.js';
+import { microSurface } from './micro-surface.js';
 
 // Procedural placeholders are replaced with the locally generated material pack at boot.
 export function surface(kind,seed,size=512) {
@@ -55,7 +57,17 @@ export function makeMaterials(){
   for(const t of Object.values(floor))t.repeat.set(16,10);
   const m=(color,roughness=.75,metalness=.1,maps={})=>new T.MeshStandardMaterial({color,roughness,metalness,...maps});
   const painted=(color)=>m(color,.72,.35,{...metal,normalScale:new T.Vector2(.35,.35)});
-  return {
+  const finish=tacticalFinish('metal',418),polymer=tacticalFinish('polymer',912),fabric=tacticalFinish('fabric',291);
+  const coated=color=>m(color,.76,.24,{...finish,normalScale:new T.Vector2(.16,.16)});
+  const materials={
+    containerRed:coated(0x78493a),containerGreen:coated(0x4f6056),containerEdge:coated(0x776b57),
+    rack:coated(0x424c4d),hvac:coated(0x999c8e),caseShell:coated(0x656c54),worktop:m(0x737c7d,.48,.68,finish),
+    crane:coated(0xa78b43),conduit:coated(0x6c7571),stagingFloor:m(0x414a46,.92,.02),
+    window:m(0x9baeb2,.28,.15,{emissive:0x869fa5,emissiveIntensity:.45}),
+    status:m(0x78b995,.55,.05,{emissive:0x68ab83,emissiveIntensity:.7}),
+    glove:m(0x292d28,.93,0,{...polymer,normalScale:new T.Vector2(.18,.18)}),
+    glovePanel:m(0x56594a,.9,0,{...fabric,normalScale:new T.Vector2(.2,.2)}),gloveSeam:m(0x85816a,.95,0),
+    sleeve:m(0x686e5c,.96,0,{...fabric,normalScale:new T.Vector2(.28,.28)}),
     concrete:m(0x9d9d90,.95,0,{...concrete,normalScale:new T.Vector2(.7,.7)}),
     wall:m(0xc1c2b2,.95,0,{...concrete,normalScale:new T.Vector2(.6,.6)}),
     floor:m(0xabb7b4,.65,.35,{...floor,normalScale:new T.Vector2(.6,.6)}),
@@ -64,8 +76,8 @@ export function makeMaterials(){
     polymer:m(0x7c826c,.94,.05,{normalScale:new T.Vector2(.18,.18)}),
     panel:m(0x687a7d,.82,.35,{normalScale:new T.Vector2(.15,.15)}),
     paintedWall:m(0x485750,.91,.05),floorPaint:m(0xb5b6a1,.92,.02),
-    gunmetal:m(0x242c32,.32,.82,metal),cerakote:m(0x88775b,.62,.32,{...metal,normalScale:new T.Vector2(.15,.15)}),
-    titanium:m(0x68747c,.29,.88,metal),carbon:m(0x22272b,.76,.12),
+    gunmetal:m(0x252b2d,.65,.82,{...finish,normalScale:new T.Vector2(.2,.2)}),cerakote:m(0x68573f,.88,.05,{...finish,normalScale:new T.Vector2(.19,.19)}),
+    titanium:m(0x747c7d,.38,.85,{...finish,normalScale:new T.Vector2(.12,.12)}),carbon:m(0x242928,.88,.04,{...polymer,normalScale:new T.Vector2(.2,.2)}),
     weaponAccent:m(0xb84b2d,.42,.6),
     rubber:m(0x191d1d,.98,0),armor:painted(0x323e3b),yellow:painted(0xd4a847),
     blue:m(0x389aa8,.45,.5,{emissive:0x257c8d,emissiveIntensity:.35}),orange:m(0xc08043,.5,.4,{emissive:0x8d431e,emissiveIntensity:.25}),
@@ -76,6 +88,8 @@ export function makeMaterials(){
     optic:new T.MeshPhysicalMaterial({color:0x98bdc3,transparent:true,opacity:.19,metalness:.1,roughness:.08,clearcoat:1,depthWrite:false}),
     skin:m(0x99785c,.83,0),brass:m(0xbe9453,.3,.8),screen:m(0x3b8998,.4,.3,{emissive:0x2a9eaf,emissiveIntensity:1.7})
   };
+  for(const name of ['gunmetal','cerakote','titanium','carbon','containerRed','containerGreen','containerEdge','rack','hvac','caseShell','crane'])microSurface(materials[name],{wear:name==='cerakote'?.22:.14,grain:.055});
+  return materials;
 }
 
 export function labelTexture(title,subtitle='',color='#d2e3df',width=1024,height=256){

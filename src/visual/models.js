@@ -1,6 +1,8 @@
 import * as T from 'three';
 import { expandedWeapon } from './arsenal.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { firstPersonArms, tacticalGlove } from './tactical-gear.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Share immutable geometry across weapons, characters and scenery.
 export class ModelKit {
@@ -8,11 +10,13 @@ export class ModelKit {
   geometry(key,create){if(!this.geometries.has(key))this.geometries.set(key,create());return this.geometries.get(key);}
   mesh(geometry,material,parent,x=0,y=0,z=0){const mesh=new T.Mesh(geometry,typeof material==='string'?this.materials[material]:material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
   box(parent,w,h,d,x,y,z,mat='steel',radius=0){
+    if(this.weaponWidths){w*=.68;x*=.68;}
     const r=Math.min(radius,w*.22,h*.22,d*.22),key=`b:${w}:${h}:${d}:${r}`;
     return this.mesh(this.geometry(key,()=>r?new RoundedBoxGeometry(w,h,d,2,r):new T.BoxGeometry(w,h,d)),mat,parent,x,y,z);
   }
-  cylinder(parent,r,rt,h,x,y,z,mat='steel',segments=16){return this.mesh(this.geometry(`c:${r}:${rt}:${h}:${segments}`,()=>new T.CylinderGeometry(r,rt,h,segments)),mat,parent,x,y,z);}
+  cylinder(parent,r,rt,h,x,y,z,mat='steel',segments=16){if(this.weaponWidths){r*=.78;rt*=.78;x*=.68;}return this.mesh(this.geometry(`c:${r}:${rt}:${h}:${segments}`,()=>new T.CylinderGeometry(r,rt,h,segments)),mat,parent,x,y,z);}
   sphere(parent,x,y,z,sx,sy,sz,mat='olive'){
+    if(this.weaponWidths){x*=.68;sx*=.78;sy*=.78;sz*=.78;}
     const mesh=this.mesh(this.geometry('sphere',()=>new T.SphereGeometry(1,20,14)),mat,parent,x,y,z);mesh.scale.set(sx,sy,sz);return mesh;
   }
   limb(parent,start,end,r,mat){
@@ -20,6 +24,10 @@ export class ModelKit {
     mesh.position.copy(a.add(b).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(...end).sub(new T.Vector3(...start)).normalize());return mesh;
   }
   weapon(type,parent,firstPerson=false){
+    this.weaponKit??=Object.assign(Object.create(this),{weaponWidths:true,armKit:this});
+    return this.weaponKit.buildWeapon(type,parent,firstPerson);
+  }
+  buildWeapon(type,parent,firstPerson=false){
     const root=new T.Group();parent.add(root);const pistol=type==='pistol',scatter=type==='scatter';
     const b=(w,h,d,x,y,z,mat='dark',r=.012)=>this.box(root,w,h,d,x,y,z,mat,r);
     const barrel=(radius,length,z,y=0,mat='steel')=>{const m=this.cylinder(root,radius,radius,length,0,y,z,mat,20);m.rotation.x=Math.PI/2;return m;};
@@ -36,14 +44,64 @@ export class ModelKit {
     }else{
       this.primaryWeapon(root,scatter,b,barrel);
     }
-    if(firstPerson){
-      this.limb(root,[.13,-.33,.55],[.07,-.22,.11],.078,'olive');
-      this.glove(root,.025,-.155,.09,.03);
-      if(!pistol){this.limb(root,[-.32,-.31,.18],[-.11,-.14,-.3],.073,'olive');this.glove(root,-.055,-.1,-.29,-.55);}
-    }
+    if(firstPerson)firstPersonArms(this.armKit||this,root,pistol);
+    this.weaponDetail(root,type);
     root.userData.muzzle??=new T.Vector3(0,.016,pistol?-.35:scatter?-.855:-.83);
     root.userData.design??=pistol?'EP-12':scatter?'SG-6 BREACHER':'PR-24 KESTREL';
+    this.batchWeapon(root,`${type}:${firstPerson}`);
     return root;
+  }
+  batchWeapon(root,key){
+    root.updateWorldMatrix(true,true);
+    const inverse=root.matrixWorld.clone().invert(),groups=new Map(),bolt=root.userData.bolt;
+    root.traverse(mesh=>{
+      if(!mesh.isMesh||mesh.material.transparent)return;
+      for(let parent=mesh;parent&&parent!==root;parent=parent.parent)if(parent===bolt)return;
+      if(!groups.has(mesh.material))groups.set(mesh.material,[]);groups.get(mesh.material).push(mesh);
+    });
+    for(const [material,meshes] of groups){
+      const geometry=this.geometry(`weaponBatch:${key}:${material.uuid}`,()=>{
+        const parts=meshes.map(mesh=>{
+          const g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();
+          g.applyMatrix4(new T.Matrix4().multiplyMatrices(inverse,mesh.matrixWorld));return g;
+        });
+        const merged=mergeGeometries(parts,false);for(const g of parts)g.dispose();return merged;
+      });
+      for(const mesh of meshes)mesh.removeFromParent();
+      const merged=this.mesh(geometry,material,root);merged.castShadow=meshes.some(mesh=>mesh.castShadow);merged.receiveShadow=meshes.some(mesh=>mesh.receiveShadow);
+    }
+  }
+  weaponDetail(root,type){
+    const pistol=type==='pistol',long=['dmr','sniper','lmg'].includes(type);
+    // Machined pins, selector detents and a folded sling loop are visible at
+    // gameplay distance. Keep optics and muzzle coordinates shared with ADS.
+    for(const side of [-1,1]){
+      const pin=this.cylinder(root,.006,.006,.006,side*(pistol?.062:.078),-.025,.095,'titanium',12);pin.rotation.z=Math.PI/2;
+      const loop=this.mesh(this.geometry('slingEye',()=>new T.TorusGeometry(.016,.0035,6,16)), 'gunmetal',root,side*.075*.68,-.021,pistol?.055:.16);loop.rotation.y=Math.PI/2;
+      if(!pistol){
+        const selector=this.box(root,.012,.014,.041,side*.08,-.052,.101,'titanium',.003);selector.rotation.x=-.55;
+        this.box(root,.004,.004,.006,side*.088,-.033,.094,'weaponAccent',.001);
+        for(let i=0;i<4;i++)this.box(root,.002,.002,.007,side*.077,.057,-.055+i*.012,'edge',0);
+      }
+    }
+    if(['rifle','scatter','smg'].includes(type)){
+      const z=type==='scatter'?-.44:type==='smg'?-.28:-.385;
+      this.box(root,.027,.026,.078,.083,.028,z,'carbon',.005);
+      const lamp=this.cylinder(root,.018,.018,.088,.096,.015,z,'gunmetal',20);lamp.rotation.x=Math.PI/2;
+      const lens=this.cylinder(root,.013,.013,.003,.096,.015,z-.046,'glass',20);lens.rotation.x=Math.PI/2;
+      const cable=new T.CatmullRomCurve3([new T.Vector3(.092,.025,z+.025),new T.Vector3(.095,.069,z+.067),new T.Vector3(.052,.081,z+.1)]);
+      this.mesh(this.geometry(`pressureCable:${type}`,()=>new T.TubeGeometry(cable,14,.002,5,false).scale(.68,1,1)),'rubber',root);
+    }
+    if(!pistol&&!long){
+      this.box(root,.046,.008,.042,0,.097,-.445,'carbon',.003);
+      for(const side of [-1,1])this.box(root,.008,.036,.012,side*.018,.116,-.445,'gunmetal',.002);
+    }
+    // A matte bore and a thin annular crown avoid the old solid silver muzzle.
+    const muzzle=root.userData.muzzle||new T.Vector3(0,.016,pistol?-.35:type==='scatter'?-.855:-.83);
+    if(['pistol','rifle','scatter'].includes(type)){
+      const rim=this.mesh(this.geometry(`muzzleRim:${type}`,()=>new T.TorusGeometry(pistol?.024:type==='scatter'?.038:.028,.003,8,24)),'gunmetal',root,0,muzzle.y,muzzle.z+.003);
+      rim.castShadow=false;
+    }
   }
   animateWeapon(root,actor){
     const bolt=root?.userData.bolt;if(!bolt)return;
@@ -55,6 +113,7 @@ export class ModelKit {
   primaryWeapon(root,scatter,b,barrel){
     const shell=scatter?'gunmetal':'cerakote';
     const profile=(key,width,points,mat)=>{
+      width*=.68;
       const geometry=this.geometry(key,()=>{
         const shape=new T.Shape();points.forEach(([z,y],i)=>i?shape.lineTo(-z,y):shape.moveTo(-z,y));shape.closePath();
         const g=new T.ExtrudeGeometry(shape,{depth:width-.008,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.004,bevelThickness:.004});
@@ -153,7 +212,7 @@ export class ModelKit {
       const polygon=(points)=>{const path=new T.Shape();points.forEach(([x,y],i)=>i?path.lineTo(x,y):path.moveTo(x,y));path.closePath();return path;};
       const shape=polygon([[-.055,-.035],[.055,-.035],[.055,.028],[.037,.049],[-.037,.049],[-.055,.028]]);
       shape.holes.push(polygon([[-.039,-.023],[-.039,.022],[-.027,.034],[.027,.034],[.039,.022],[.039,-.023]]));
-      const g=new T.ExtrudeGeometry(shape,{depth:.043,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.003,bevelThickness:.003});g.translate(0,0,-.025);return g;
+      const g=new T.ExtrudeGeometry(shape,{depth:.043,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.003,bevelThickness:.003});g.translate(0,0,-.025);g.scale(.68,1,1);return g;
     });
     this.mesh(hood,shell,optic);
     this.box(optic,.078,.061,.004,0,.004,-.022,'optic',.002);
@@ -169,7 +228,7 @@ export class ModelKit {
       return new T.MeshBasicMaterial({map,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
     });
     for(const side of [-1,1]){
-      const plate=this.mesh(this.geometry('weaponMarkPlane',()=>new T.PlaneGeometry(.145,.036)),marking,root,side*.0745,.042,.045);
+      const plate=this.mesh(this.geometry('weaponMarkPlane',()=>new T.PlaneGeometry(.145,.036)),marking,root,side*.0745*.68,.042,.045);
       plate.rotation.y=side*Math.PI/2;plate.castShadow=false;
     }
   }
@@ -178,11 +237,5 @@ export class ModelKit {
     for(const dz of [-size*.45,size*.45])this.box(parent,.018,.06,.012,x-size*.35,y-.023,z+dz,'steel',.002);
     this.box(parent,.015,.044,.013,x-size*.35,y-.016,z,'rubber',.003).rotation.x=-.25;
   }
-  glove(parent,x,y,z,rotation){
-    const hand=new T.Group();hand.position.set(x,y,z);hand.rotation.z=rotation;parent.add(hand);
-    this.box(hand,.113,.085,.14,0,0,0,'rubber',.025);this.box(hand,.095,.025,.085,0,.046,0,'armor',.012);
-    for(let i=0;i<4;i++){this.box(hand,.022,.06,.05,-.039+i*.026,-.03,-.045,'rubber',.009);this.box(hand,.021,.02,.03,-.039+i*.026,.041,-.03,'steel',.005);}
-    this.box(hand,.043,.045,.075,.065,-.015,.015,'rubber',.015).rotation.z=-.35;
-    return hand;
-  }
+  glove(parent,x,y,z,rotation){return tacticalGlove(this,parent,x,y,z,rotation);}
 }

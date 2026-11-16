@@ -1,26 +1,32 @@
 import * as T from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { microSurface } from './micro-surface.js';
+import { sweptGeometry } from './tactical-gear.js';
 
 // Original, authored ring surfaces and skin weights; no imported character data.
 const PALETTES=[
-  {cloth:0x858875,armor:0x706b56,webbing:0x585545,rubber:0x242721,metal:0x50564d,visor:0x17221e,mark:0x8b886f,skin:0xa68a71,mask:0x494c3e,shell:0x646452,insignia:0xffffff},
-  {cloth:0x59646d,armor:0x3d464c,webbing:0x303a40,rubber:0x191e21,metal:0x485056,visor:0x14252b,mark:0x868c8b,skin:0xa68a71,mask:0x343c43,shell:0x3b454b,insignia:0xffffff}
+  {cloth:0x7b8067,armor:0x716b50,webbing:0x595c44,rubber:0x292d29,metal:0x62645b,visor:0x354848,mark:0xa4a28a,skin:0xb79b7b,mask:0x63634d,shell:0x686c51,insignia:0xffffff},
+  {cloth:0x545f63,armor:0x3a4447,webbing:0x303d3f,rubber:0x222a2b,metal:0x626e72,visor:0x314951,mark:0x829497,skin:0xb49a7c,mask:0x394548,shell:0x3c4a4d,insignia:0xffffff}
 ];
 function clothTexture(side){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
   const c=canvas.getContext('2d');c.fillStyle='#e8e9e0';c.fillRect(0,0,512,512);
   let seed=1729;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  const colors=['#939a80','#d4cdb1','#66715e','#b7b698'];
-  // Broad, irregular fabric pattern, without the old toy-like pixel blocks.
-  for(let i=0;i<(side?0:100);i++){
-    const x=random()*512,y=random()*512,r=8+random()*33;
+  const colors=side?['#a7b0ad','#c2c5be','#879598','#a5adaa']:['#a4a88e','#c9c3a0','#7f896e','#b0ae92'];
+  // Layered curved shapes soften the camouflage without outlining every patch.
+  c.globalAlpha=side?.5:.8;
+  for(let i=0;i<(side?50:110);i++){
+    const x=random()*512,y=random()*512,r=12+random()*32;
     const points=Array.from({length:9},(_,j)=>{const a=j/9*Math.PI*2,s=r*(.45+random()*.75);return [Math.cos(a)*s,Math.sin(a)*s*.55];});
     c.fillStyle=colors[i%colors.length];
     for(const dx of [-512,0,512])for(const dy of [-512,0,512]){
-      c.beginPath();for(const [j,p] of points.entries())j?c.lineTo(x+dx+p[0],y+dy+p[1]):c.moveTo(x+dx+p[0],y+dy+p[1]);c.closePath();c.fill();
+      c.beginPath();
+      const last=points.at(-1),first=points[0];c.moveTo(x+dx+(last[0]+first[0])/2,y+dy+(last[1]+first[1])/2);
+      for(let j=0;j<points.length;j++){const p=points[j],next=points[(j+1)%points.length];c.quadraticCurveTo(x+dx+p[0],y+dy+p[1],x+dx+(p[0]+next[0])/2,y+dy+(p[1]+next[1])/2);}c.closePath();c.fill();
     }
   }
+  c.globalAlpha=1;
   const pixels=c.getImageData(0,0,512,512);
   for(let i=0;i<pixels.data.length;i+=4){const n=(random()-.5)*9;for(let j=0;j<3;j++)pixels.data[i+j]+=n;}
   c.putImageData(pixels,0,0);
@@ -30,7 +36,9 @@ function clothTexture(side){
 }
 export function originalSoldierMaterials(side){
   return Object.entries(PALETTES[side]).map(([role,color])=>{
-    const m=new T.MeshStandardMaterial({color,vertexColors:true,roughness:role==='visor'?.2:role==='metal'?.58:role==='shell'?.83:.94,metalness:role==='metal'?.35:role==='visor'?.3:0});
+    const textile=['cloth','armor','webbing','mask'].includes(role);
+    const m=new T.MeshPhysicalMaterial({color,vertexColors:true,roughness:role==='visor'?.13:role==='metal'?.48:role==='shell'?.72:.95,metalness:role==='metal'?.65:role==='visor'?.15:0,sheen:textile?.55:0,sheenColor:new T.Color(color).multiplyScalar(.5),sheenRoughness:.85,clearcoat:role==='visor'?1:0,clearcoatRoughness:.1});
+    if(role==='shell'||role==='metal')microSurface(m,{wear:.12,grain:.04});
     m.name=`original-${side}-${role}`;m.userData.role=role;
     if(role==='cloth')m.map=clothTexture(side);
     if(role==='insignia'){
@@ -70,9 +78,9 @@ export async function loadOriginalSoldierSurfaces(sideMaterials){
   }
   return Object.keys(maps).sort();
 }
-export function createOriginalSoldier(){
-  const scene=new T.Group();scene.name='BLA Original Sentinel';
-  scene.userData={design:'BLA SENTINEL',source:'original-procedural',version:3};
+export function createOriginalSoldier(side=0){
+  const scene=new T.Group();scene.name=side?'BLA Warden / Urban':'BLA Sentinel / Recon';
+  scene.userData={design:side?'BLA WARDEN':'BLA SENTINEL',source:'original-procedural',version:5,side};
   const bones=[],byName={};
   const joint=(name,parent,x,y,z)=>{
     const bone=new T.Bone();bone.name=`bla${name}`;bone.position.set(x,y,z);parent.add(bone);bones.push(bone);byName[name]=bone;return bone;
@@ -89,7 +97,7 @@ export function createOriginalSoldier(){
     const foot=joint(`${side}Foot`,shin,0,-.43,0);joint(`${side}ToeBase`,foot,0,-.025,-.15);
   }
   scene.updateMatrixWorld(true);
-  const materials=originalSoldierMaterials(0),parts=materials.map(()=>[]),roles=Object.keys(PALETTES[0]);
+  const materials=originalSoldierMaterials(side),parts=materials.map(()=>[]),roles=Object.keys(PALETTES[side]);
   const indexOf=name=>bones.indexOf(byName[name]);
   function add(geometry,role,bone,x=0,y=0,z=0,rx=0,ry=0,rz=0){
     if(geometry.index){const indexed=geometry;geometry=indexed.toNonIndexed();indexed.dispose();}
@@ -142,13 +150,14 @@ export function createOriginalSoldier(){
         // Broad compression folds concentrate at bent joints; fine ripples stay subtle.
         const jointZone=axis==='x'?Math.exp(-(((v-.55)/.2)**2)):Math.exp(-(((v-.6)/.19)**2));
         const crease=Math.sin(v*46+Math.sin(a*2)*1.6+seed);
-        const ripple=wrinkles*envelope*((.3+.7*jointZone)*crease+.15*Math.sin(v*113+a*3+seed));
+        const compression=Math.sin(v*31+Math.cos(a*3+seed)*2.3+seed);
+        const ripple=wrinkles*envelope*((.2+.55*jointZone)*crease+.45*jointZone*compression+.12*Math.sin(v*113+a*3+seed));
         const u=Math.cos(a)*(r1+ripple),w=Math.sin(a)*(r2+ripple*.75);
         const p=axis==='x'?[cx,cy+u,cz+w]:[cx+u,cy,cz+w];if(shape)shape(p,a,v);vertices.push(...p);
         const length=axis==='x'?Math.abs(dense.at(-1)[0]-dense[0][0]):Math.abs(dense.at(-1)[1]-dense[0][1]);
         const repeat=role==='cloth'?1.35:role==='mask'?1.6:1;
         uv.push(j/segments*repeat,v*(role==='cloth'?length/.45:1));
-        const seam=Math.exp(-((Math.sin(a)/.045)**2)),creaseShade=wrinkles?Math.min(0,crease)*.055:0;
+        const seam=Math.exp(-((Math.sin(a)/.045)**2)),creaseShade=wrinkles?Math.min(0,crease)*.1:0;
         const shade=role==='cloth'?.94-seam*.13+creaseShade:1;colors.push(shade,shade,shade);
         const links=weights(p,v),pairs=links.slice(0,4);while(pairs.length<4)pairs.push([links[0][0],0]);
         skin.push(...pairs.map(pair=>indexOf(pair[0])));influence.push(...pairs.map(pair=>pair[1]));
@@ -230,6 +239,27 @@ export function createOriginalSoldier(){
   }
   box('metal','Head',.034,.036,.015,0,1.803,-.112,.004);
   box('rubber','Head',.035,.021,.028,0,1.83,-.11,.004,-.3);
+  // Recon wears a folded dual-tube optic; Warden has a lower face guard
+  // and shoulder protection. Equipment is authored into each skinned mesh.
+  if(side===0){
+    box('metal','Head',.039,.055,.021,0,1.825,-.12,.005);
+    box('rubber','Head',.065,.018,.031,0,1.862,-.128,.004,-.35);
+    for(const sign of [-1,1]){
+      box('metal','Head',.018,.025,.046,sign*.028,1.864,-.109,.004);
+      const tube=new T.CylinderGeometry(.019,.021,.076,16);add(tube,'rubber','Head',sign*.031,1.885,-.085,-.45);
+      const cap=new T.CylinderGeometry(.021,.021,.013,16);add(cap,'metal','Head',sign*.031,1.917,-.1,-.45);
+      sphere('visor','Head',.03,.008,.025,sign*.031,1.925,-.104);
+    }
+    surface('cloth',[[0,1.535,.012,.083,.078],[0,1.556,.01,.092,.084],[0,1.583,.007,.082,.077],[0,1.61,.004,.067,.069]],'y',p=>blend('Neck','Head',smooth(1.57,1.64,p[1])),{wrinkles:.002,segments:28});
+  }else{
+    for(const sign of [-1,1]){
+      box('shell',`${sign<0?'Left':'Right'}Arm`,.12,.022,.13,sign*.287,1.529,.002,.015);
+      box('webbing',`${sign<0?'Left':'Right'}Arm`,.094,.01,.099,sign*.287,1.545,.001,.009);
+      box('shell','Head',.022,.054,.052,sign*.093,1.659,-.056,.007,0,sign*.3);
+      cable('metal','Head',[[sign*.096,1.667,-.067],[sign*.067,1.637,-.098],[sign*.024,1.634,-.103]],.004);
+    }
+    box('shell','Head',.088,.025,.018,0,1.635,-.104,.006);
+  }
   const mic=new T.CatmullRomCurve3([new T.Vector3(-.114,1.685,-.004),new T.Vector3(-.124,1.656,-.06),new T.Vector3(-.07,1.65,-.108)]);
   add(new T.TubeGeometry(mic,10,.003,5,false),'metal','Head');sphere('rubber','Head',.02,.012,.014,-.067,1.65,-.109);
   // Contoured plate carriers: clipped shoulders, thin layered fabric, no cuboid body shell.
@@ -252,6 +282,22 @@ export function createOriginalSoldier(){
   plate('armor','Spine1',plateOutline,.039,-.201);
   plate('armor','Spine1',plateOutline,.038,.143);
   cable('webbing','Spine1',[[-.142,1.108,-.208],[-.159,1.17,-.208],[-.16,1.345,-.208],[-.108,1.42,-.208],[.108,1.42,-.208],[.16,1.345,-.208],[.159,1.17,-.208],[.142,1.108,-.208]],.0025);
+  // Admin pocket, emergency pull tab and cable guides soften the plate silhouette.
+  box('armor','Spine1',.128,.074,.022,0,1.281,-.217,.009);
+  box('webbing','Spine1',.126,.014,.026,0,1.314,-.222,.004);
+  for(let i=0;i<8;i++)box('mark','Spine1',.002,.002,.002,-.049+i*.014,1.315,-.238,.0005);
+  box('webbing','Spine1',.032,.07,.018,.136,1.371,-.183,.004);
+  cable('rubber','Spine1',[[.116,1.382,-.205],[.139,1.396,-.196],[.153,1.38,-.178]],.002);
+  if(side===0){
+    box('armor','Hips',.128,.109,.061,-.126,.98,.142,.014);
+    for(const dx of [-.043,.043])box('webbing','Hips',.014,.1,.065,-.126+dx,.98,.145,.004);
+    box('mark','Hips',.038,.01,.004,-.126,1.01,.176,.002);
+    box('mark','Hips',.01,.038,.004,-.126,1.01,.177,.002);
+  }else{
+    box('armor','Spine1',.16,.13,.046,0,1.34,.227,.012);
+    box('rubber','Spine1',.12,.008,.013,0,1.405,.254,.003);
+    for(const sign of [-1,1])box('webbing','Spine1',.019,.1,.053,sign*.054,1.34,.234,.004);
+  }
   // Side panels and curved straps follow the rib cage instead of a floating belt.
   surface('webbing',[[0,1.129,.004,.189,.146],[0,1.169,.004,.197,.153],[0,1.223,.004,.198,.157],[0,1.241,.004,.195,.154]],'y',rigid('Spine1'),{segments:40});
   for(const sign of [-1,1]){
@@ -312,7 +358,7 @@ export function createOriginalSoldier(){
       [.535,1.456,0,.064,.063],[.585,1.456,0,.068,.064],[.645,1.456,-.002,.059,.056],
       [.708,1.456,-.002,.047,.047],[.743,1.456,-.003,.041,.042],[.758,1.456,-.003,.04,.041]
     ].map(([x,...rest])=>[sign*x,...rest]);
-    surface('cloth',armRows,'x',sleeveWeight,{wrinkles:.007,seed:side==='Left'?2:7});
+    surface('cloth',armRows,'x',sleeveWeight,{wrinkles:.011,seed:side==='Left'?2:7});
     // Small fabric sleeve pocket and subdued unit patch, without glowing armbands.
     box('cloth',`${side}Arm`,.111,.013,.102,sign*.33,1.534,.002,.012);
     box('webbing',`${side}Arm`,.079,.004,.058,sign*.33,1.543,.002,.004);
@@ -320,10 +366,14 @@ export function createOriginalSoldier(){
     cable('webbing',`${side}Arm`,[[sign*.284,1.54,-.039],[sign*.33,1.544,-.043],[sign*.377,1.533,-.037]],.0017);
     box('webbing',`${side}ForeArm`,.029,.083,.083,sign*.738,1.456,-.003,.006);
     // Anatomical glove: tapered palm, thumb and folded fingers around the weapon grip.
-    surface('rubber',[[sign*.748,1.456,-.003,.037,.038],[sign*.78,1.451,-.006,.036,.041],[sign*.817,1.445,-.011,.031,.037],[sign*.845,1.433,-.017,.025,.029],[sign*.852,1.424,-.021,.012,.018]],'x',rigid(`${side}Hand`),{segments:16});
-    for(let finger=0;finger<4;finger++)sphere('rubber',`${side}Hand`,.042,.015,.032,sign*.828,1.421+finger*.014,-.036);
-    sphere('rubber',`${side}Hand`,.04,.032,.06,sign*.784,1.422,-.042);
-    for(let knuckle=0;knuckle<3;knuckle++)sphere('webbing',`${side}Hand`,.018,.01,.015,sign*(.79+knuckle*.018),1.486,-.015);
+    surface('rubber',[[sign*.748,1.456,-.003,.037,.038],[sign*.78,1.451,-.006,.036,.041],[sign*.812,1.445,-.011,.031,.037],[sign*.832,1.437,-.017,.024,.029]],'x',rigid(`${side}Hand`),{segments:24});
+    for(let finger=0;finger<4;finger++){
+      const y=1.478-finger*.018,length=[.037,.05,.047,.037][finger];
+      add(sweptGeometry([[sign*.811,y,-.012],[sign*(.824+length*.55),y-.003,-.019],[sign*(.831+length*.6),y-.013,-.041],[sign*(.818+length*.35),y-.019,-.059]],[.0105,.0105,.009,.0065],{segments:18,sides:12,elliptic:.88}),'rubber',`${side}Finger${finger+1}`);
+      sphere('webbing',`${side}Hand`,.018,.014,.015,sign*.831,y+.005,.001);
+    }
+    add(sweptGeometry([[sign*.775,1.427,.018],[sign*.796,1.407,-.002],[sign*.822,1.411,-.027],[sign*.829,1.424,-.046]],[.016,.014,.011,.008],{segments:20,sides:14}),'rubber',`${side}Finger0`);
+    cable('webbing',`${side}Hand`,[[sign*.764,1.485,.014],[sign*.789,1.482,.027],[sign*.816,1.474,.022]],.0014);
     const legWeight=p=>{
       const y=p[1];
       if(y>.85)return blend('Hips',`${side}UpLeg`,1-smooth(.86,1.01,y));
@@ -338,7 +388,7 @@ export function createOriginalSoldier(){
       [sign*.112,.39,.015,.085,.086],[sign*.11,.30,.017,.078,.077],
       [sign*.108,.22,.009,.064,.065],[sign*.108,.178,.003,.061,.062]
     ];
-    surface('cloth',legRows,'y',legWeight,{wrinkles:.007,seed:side==='Left'?0:4});
+    surface('cloth',legRows,'y',legWeight,{wrinkles:.0115,seed:side==='Left'?0:4});
     // Shaped inset reinforcement and low-profile articulated kneepad.
     const kx=sign*.114,kneeOutline=[[-.044,-.068],[.044,-.068],[.061,-.038],[.059,.038],[.038,.069],[-.038,.069],[-.059,.038],[-.061,-.038]].map(([x,y])=>[x+kx,y+.531]);
     plate('webbing',`${side}Leg`,kneeOutline,.014,-.096);
@@ -380,7 +430,7 @@ export function createOriginalSoldier(){
     const a=landmarks[i],b=landmarks[i+1],slope=(b[1]-a[1])/(b[0]-a[0]);return [a[1]+(y-a[0])*slope,slope];
   }
   const authored=bones.map(b=>b.getWorldPosition(new T.Vector3()));
-  const armLength=(x,y)=>y>1.3&&y<1.6&&Math.abs(x)>.235?Math.sign(x)*(.235+(Math.abs(x)-.235)*1.1):x;
+  const armLength=(x,y)=>y>1.3&&y<1.6&&Math.abs(x)>.235?Math.sign(x)*(.235+(Math.abs(x)-.235)*1.15):x;
   bones.forEach((bone,i)=>{
     const p=authored[i].clone();p.x=armLength(p.x,p.y);p.y=anatomy(p.y)[0];
     bone.parent.worldToLocal(p);bone.position.copy(p);bone.updateMatrixWorld(true);

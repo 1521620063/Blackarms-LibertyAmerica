@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-import { existsSync,readFileSync,writeFileSync,mkdirSync } from 'node:fs';
+import { existsSync,readFileSync,writeFileSync,mkdirSync,statSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from '../server/index.js';
 
@@ -16,15 +16,17 @@ try{
   await page.goto(`${base}/?debug=1`);await page.waitForFunction(()=>window.__BLA);
   const materials=await page.evaluate(()=>{
     const v=window.__BLA.view;
-    return {assets:v.artAssets,materials:['wall','concrete','floor','steel','dark','edge','armor','olive','sand','panel'].map(name=>{
+    return {assets:v.artAssets,scannedAssets:v.scannedAssets,environment:v.environment.userData.source,materials:['wall','concrete','floor','steel','dark','edge','armor','olive','sand','panel'].map(name=>{
       const m=v.materials[name];return {name,maps:[m.map,m.normalMap,m.roughnessMap].map(t=>({name:t.name,width:t.image.width,height:t.image.height,colorSpace:t.colorSpace,source:t.userData.source})),repeat:m.map.repeat.toArray()};
     })};
   });
-  assert.deepEqual(materials.assets,['concrete','fabric','floor','gunmetal','service-panel']);
+  assert.deepEqual(materials.assets,['fabric','gunmetal','service-panel']);
+  assert.deepEqual(materials.scannedAssets,['concrete_floor_02','concrete_wall_008','empty_warehouse_01']);assert.equal(materials.environment,'cc0-hdr');
   for(const material of materials.materials)for(const [i,map] of material.maps.entries()){
-    assert.equal(map.source,'generated-art');assert.equal(map.width,1024);assert.equal(map.height,1024);assert.equal(map.colorSpace,i===0?'srgb':'');
+    const scanned=['wall','concrete','floor'].includes(material.name),size=scanned?2048:1024;
+    assert.equal(map.source,scanned?'scanned-cc0':'generated-art');assert.equal(map.width,size);assert.equal(map.height,size);assert.equal(map.colorSpace,i===0?'srgb':'');
   }
-  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[28,18]);
+  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[14,9]);
   const characterMaterials=await page.evaluate(()=>{
     const characters=window.__BLA.view.characters;
     const palettes=characters.sideMaterials.map(palette=>[...palette.values()]
@@ -50,11 +52,25 @@ try{
     if(check.tileable)assert.ok(check.decodedEdgeMean<5,`${id}: compressed edges should remain smooth (${check.decodedEdgeMean})`);
     checks.push(check);
   }
+  const scannedChecks=await page.evaluate(async()=>{
+    const v=window.__BLA.view,checks=[];
+    for(const name of ['floor','wall']){
+      const image=v.materials[name].normalMap.image,canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+      const c=canvas.getContext('2d',{willReadFrequently:true});c.drawImage(image,0,0);const pixels=c.getImageData(0,0,canvas.width,canvas.height).data;
+      let deviation=0,z=0,count=0;for(let y=32;y<canvas.height;y+=64)for(let x=32;x<canvas.width;x+=64){const i=(y*canvas.width+x)*4,n=[pixels[i]/127.5-1,pixels[i+1]/127.5-1,pixels[i+2]/127.5-1];deviation+=Math.abs(Math.hypot(...n)-1);z+=n[2];count++;}
+      checks.push({name,meanLengthError:deviation/count,meanZ:z/count});
+    }
+    const adapter=await navigator.gpu?.requestAdapter();return {checks,webgpu:!!navigator.gpu,adapter:!!adapter};
+  });
+  for(const check of scannedChecks.checks){assert.ok(check.meanLengthError<.08,`${check.name}: normals remain normalized`);assert.ok(check.meanZ>.5,`${check.name}: normals face out of the surface`);}
+  const scannedManifest=JSON.parse(readFileSync('public/art/scanned/manifest.json','utf8'));
+  assert.equal(scannedManifest.license,'CC0-1.0');
+  const scannedBytes=scannedManifest.assets.reduce((sum,a)=>sum+(a.file?statSync(`public/art/scanned/${a.file}`).size:Object.values(a.channels).reduce((n,file)=>n+statSync(`public/art/scanned/${file}`).size,0)),0);
   await page.screenshot({path:'artifacts/generated-art-menu.png'});
   await page.locator('#start-offline').click();await page.locator('#ready').click();await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   await page.evaluate(()=>window.__BLA.pause());await page.screenshot({path:'artifacts/generated-art-gameplay.png'});
   assert.deepEqual(errors,[]);assert.deepEqual(external,[],'runtime uses local assets and does not call the image service');
   const bytes=Object.values(allAssets).reduce((sum,a)=>sum+Object.values(a.channels).reduce((s,c)=>s+c.bytes,0),0);
-  writeFileSync('artifacts/generated-art-report.json',JSON.stringify({passed:true,materials,characterMaterials,checks,bytes,errors,external},null,2));
-  console.log(`Generated art acceptance passed: 7 source assets / 21 maps, sRGB and linear data, decoded tile edges, local runtime, no browser errors. Total ${(bytes/1024/1024).toFixed(2)} MiB.`);
+  writeFileSync('artifacts/generated-art-report.json',JSON.stringify({passed:true,materials,characterMaterials,scannedChecks,scannedBytes,checks,bytes,errors,external},null,2));
+  console.log(`Art acceptance passed: generated surfaces, 2K CC0 scan normals, HDR reflections, sRGB and linear data, local runtime, no browser errors. Scanned pack ${(scannedBytes/1024/1024).toFixed(2)} MiB; generated pack ${(bytes/1024/1024).toFixed(2)} MiB.`);
 }finally{await browser?.close();await app.close();}
