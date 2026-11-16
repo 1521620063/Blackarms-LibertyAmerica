@@ -12,7 +12,8 @@
     "test:visual": "node tests/visual.mjs",
     "test:audio": "node tests/audio.mjs",
     "test:arsenal": "node tests/arsenal.mjs",
-    "test:art": "node tests/art.mjs"
+    "test:art": "node tests/art.mjs",
+    "test:muzzle": "node tests/muzzle-flash.mjs"
   },
   "dependencies": {
     "three": "0.180.0",
