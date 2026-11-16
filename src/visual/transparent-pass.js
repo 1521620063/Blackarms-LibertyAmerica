@@ -1,5 +1,9 @@
 import { Color, PassNode } from 'three/webgpu';
-import { nodeObject } from 'three/tsl';
+import { nodeObject, vec4 } from 'three/tsl';
+
+// Render targets already contain alpha-weighted surface colors plus additive
+// light. Preserve that light even where the overlay's coverage is zero.
+export const compositeOverlay=(background,overlay,visible)=>vec4(background.rgb.mul(overlay.a.mul(visible).oneMinus()).add(overlay.rgb.mul(visible)),1);
 
 // Postprocessing nodes can evaluate their input scene passes while the renderer
 // has an opaque black clear color (SMAA resets it this way). An overlay must own

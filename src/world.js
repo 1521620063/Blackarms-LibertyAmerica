@@ -4,7 +4,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
-import { transparentPass } from './visual/transparent-pass.js';
+import { transparentPass, compositeOverlay } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
 import { renderPixelRatio } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -239,7 +239,7 @@ export class WorldView {
     this.weaponVisible=uniform(0);this.qualityEffects=uniform(1);this.gradeTime=uniform(0);
     const weapon=this.weaponPass.node.getTextureNode(),world=this.atmosphere.node;
     const shaded=vec4(world.rgb.mul(mix(1,this.occlusion.getTextureNode().r,this.qualityEffects)),1);
-    const composed=vec4(mix(shaded.rgb,weapon.rgb,weapon.a.mul(this.weaponVisible)),1);
+    const composed=compositeOverlay(shaded,weapon,this.weaponVisible);
     this.bloom=bloom(composed,.1,.55,1.4);
     const color=composed.rgb.add(this.bloom.rgb.mul(this.qualityEffects));
     const vignette=float(1).sub(smoothstep(.16,.82,distance(uv(),vec2(.5))));
@@ -250,7 +250,7 @@ export class WorldView {
     this.smaa=smaa(vec4(graded,1));
     this.highQualityOutput=renderOutput(this.smaa,this.renderer.toneMapping,this.renderer.outputColorSpace);
     this.mediumQualityOutput=fxaa(renderOutput(vec4(graded,1),this.renderer.toneMapping,this.renderer.outputColorSpace));
-    const simple=vec4(mix(this.worldPass.getTextureNode().rgb,weapon.rgb,weapon.a.mul(this.weaponVisible)),1);
+    const simple=compositeOverlay(this.worldPass.getTextureNode(),weapon,this.weaponVisible);
     this.lowQualityOutput=fxaa(renderOutput(simple,this.renderer.toneMapping,this.renderer.outputColorSpace));
     this.composer=new T.PostProcessing(this.renderer,this.highQualityOutput);this.composer.outputColorTransform=false;
   }
