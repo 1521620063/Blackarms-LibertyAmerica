@@ -134,7 +134,7 @@ try{
     const aim=v.camera.position.clone();u.aim.getWorldDirection(aim);
     const facing=aim.x*Math.sin(a.yaw)+aim.z*Math.cos(a.yaw);
     const qualities=[];
-    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});qualities.push({quality,samples:v.composer.renderTarget1.samples,ao:v.occlusion.enabled,atmosphere:v.atmosphere.enabled,weaponShadows:v.gunLight.castShadow,localShadows:v.localLights.filter(light=>light.castShadow).length});}
+    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});qualities.push({quality,samples:v.composer.renderTarget1.samples,ao:v.occlusion.enabled,atmosphere:v.atmosphere.enabled,weaponShadows:v.gunLight.castShadow,localShadows:v.localLights.filter(light=>light.castShadow).length,reflections:v.wetFloor.visible,reflectionSize:v.wetFloor.getRenderTarget().width});}
     const e={type:'shot',actor:a.id,weapon:'scatter',origin:{x:-13.4,y:1.57,z:4.5},traces:Array.from({length:8},()=>({end:{x:-2.21,y:1.4,z:4.5},hit:false}))};
     for(let i=0;i<120;i++)v.fx.shot(e,false);
     const limits={decals:v.fx.decals.length,traces:v.fx.traces.length,shells:v.fx.shells.length};v.fx.update(5);
@@ -142,6 +142,7 @@ try{
     v.fx.clear();return {before,after,runWeight,feetBefore,feetCrouched,facing,qualities,limits,expired,errors:g.errors,geometries:v.renderer.info.memory.geometries};
   });
   assert.deepEqual(checks.qualities.map(q=>[q.ao,q.atmosphere,q.weaponShadows,q.localShadows]),[[false,false,false,0],[true,true,true,1],[true,true,true,2]],'quality settings disable expensive lighting on low and enable local contact shadows on medium/high');
+  assert.deepEqual(checks.qualities.map(q=>[q.reflections,q.reflectionSize]),[[false,512],[true,512],[true,768]],'damp-floor reflections scale with quality and are disabled on low');
   assert.equal(checks.qualities[0].samples,0);assert.ok(checks.qualities[2].samples>=checks.qualities[1].samples,'high quality preserves multisample antialiasing');
   assert.notDeepEqual(checks.before,checks.after,'walking animates leg bones');assert.ok(checks.runWeight>.5,'sprinting blends into run animation');
   assert.ok(checks.feetBefore.every((y,i)=>Math.abs(y-checks.feetCrouched[i])<.04),'crouching bends the legs and keeps feet grounded');

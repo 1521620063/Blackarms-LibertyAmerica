@@ -62,7 +62,7 @@ export function makeMaterials(){
   const materials={
     containerRed:coated(0x78493a),containerGreen:coated(0x4f6056),containerEdge:coated(0x776b57),
     rack:coated(0x424c4d),hvac:coated(0x999c8e),caseShell:coated(0x656c54),worktop:m(0x737c7d,.48,.68,finish),
-    crane:coated(0xa78b43),conduit:coated(0x6c7571),stagingFloor:m(0x414a46,.92,.02),
+    crane:coated(0xa78b43),conduit:coated(0x6c7571),ceiling:coated(0x737d7b),stagingFloor:m(0x414a46,.92,.02),
     window:m(0x9baeb2,.28,.15,{emissive:0x869fa5,emissiveIntensity:.45}),
     status:m(0x78b995,.55,.05,{emissive:0x68ab83,emissiveIntensity:.7}),
     glove:m(0x292d28,.93,0,{...polymer,normalScale:new T.Vector2(.18,.18)}),

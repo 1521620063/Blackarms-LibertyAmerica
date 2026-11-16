@@ -155,6 +155,28 @@ export function facilityArchitecture(view){
   for(const x of [-22,0,22]){
     const marking=new T.Mesh(new T.PlaneGeometry(3.8,1.9),paint);marking.rotation.x=-Math.PI/2;marking.position.set(x,.022,-15.8);root.add(marking);
   }
+  // Roof seams and ventilator trunks give shaded ceiling panels readable scale.
+  for(let z=-16.8;z<=16.8;z+=1.4){
+    box(MAP.width-.5,.022,.032,0,5.495,z,'conduit');
+  }
+  for(const x of [-11,11]){
+    box(.62,.22,MAP.depth-.8,x,5.2,0,'hvac',.02);
+    for(let z=-16;z<=16;z+=2){
+      box(.66,.027,.045,x,5.075,z,'titanium',.005);
+      for(const dx of [-.27,.27])box(.018,.33,.025,x+dx,5.35,z,'steel');
+    }
+  }
+  // Shallow service stations on exterior walls stay against solid collision.
+  for(const z of [-17.77,17.77])for(const x of [-22,-14,-6,6,14,22]){
+    const facing=z<0?1:-1,front=z+facing*.045;
+    box(.72,.48,.055,x,2.42,z,'hvac',.014);
+    box(.62,.37,.012,x,2.42,front,'rack',.009);
+    for(let vent=0;vent<5;vent++)box(.48,.013,.014,x,2.31+vent*.053,front+facing*.012,'rubber');
+    box(.028,.9,.028,x+.4,2.86,z,'conduit',.006);
+    box(.84,.035,.035,x,3.3,z,'conduit',.006);
+    for(const dx of [-.31,.31])box(.018,.018,.014,x+dx,2.61,front+facing*.012,'titanium',.004);
+    view.sign(`${z<0?'F':'S'} / ${String(Math.abs(x)+10).padStart(2,'0')}`,'FACILITY SERVICES',.64,x,1.7,front,z<0?0:Math.PI,z<0?'#91b7bd':'#c8ad7d');
+  }
   // Flat skid marks and wall-edge dirt provide contact without adding obstacles.
   const dirtCanvas=document.createElement('canvas');dirtCanvas.width=512;dirtCanvas.height=128;
   const dc=dirtCanvas.getContext('2d');

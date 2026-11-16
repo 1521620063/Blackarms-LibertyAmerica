@@ -151,6 +151,96 @@
         }
       },
       "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "facility-epoxy": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable industrial warehouse resin epoxy floor, medium neutral slate gray, a surface scan covering 3 by 3 meters. Fine mineral aggregate under worn satin resin, subtle irregular broad patches where forklift wheels polished the surface, faint overlapping rubber scuffs and small dry dust deposits. Mostly clean intact coating with softly varying sheen, credible maintained logistics terminal. No puddles, no reflections, no seams, no grid, no markings, no large cracks. Matching opposite edges.",
+      "createdAt": "2026-11-16T03:33:21.553Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/facility-epoxy-albedo.webp",
+          "bytes": 347784,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/facility-epoxy-normal.webp",
+          "bytes": 397702,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/facility-epoxy-roughness.webp",
+          "bytes": 130370,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "facility-paint": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable neutral medium gray painted industrial steel coating, close surface scan covering 1 by 1 meter. Subtle powder-coat orange peel, fine scattered scratches, small chips showing dark steel, very restrained tiny oxidation flecks and faint grime variation. Predominantly intact even neutral gray finish suitable for tinting to muted red, green or ochre in game. No corrugations, no panels, no rivets, no seams, no graphics, no large rust patches. Matching opposite edges.",
+      "createdAt": "2026-11-16T03:35:55.853Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/facility-paint-albedo.webp",
+          "bytes": 431656,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/facility-paint-normal.webp",
+          "bytes": 434046,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/facility-paint-roughness.webp",
+          "bytes": 204258,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "facility-plaster": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable industrial painted concrete wall, neutral medium light gray latex paint over fine cement plaster. Surface scan covering 2 by 2 meters, fine stippled roller finish, scattered tiny paint chips, subtle uneven wear, faint broad dusty smudges. Maintained factory interior, realistic restrained surface variation, mostly intact neutral gray for tinting sage green in game. No tiles, no panel borders, no vertical streaks, no graffiti, no text, no objects. Matching opposite edges.",
+      "createdAt": "2026-11-16T03:37:39.532Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/materials/facility-plaster-albedo.webp",
+          "bytes": 408850,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/materials/facility-plaster-normal.webp",
+          "bytes": 546568,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/materials/facility-plaster-roughness.webp",
+          "bytes": 170006,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
     }
   }
 }

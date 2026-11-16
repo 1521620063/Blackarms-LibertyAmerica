@@ -17,6 +17,8 @@ import { facilityDecals } from './visual/decals.js';
 import { buildCover, facilityArchitecture } from './visual/facility-detail.js';
 import { loadScannedSurfaces } from './visual/scanned-surfaces.js';
 import { atmospherePass } from './visual/atmosphere.js';
+import { loadFacilitySurfaces } from './visual/facility-surfaces.js';
+import { createWetFloor } from './visual/wet-floor.js';
 
 export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T.MathUtils.degToRad(fov)/2)/zoom));
 
@@ -29,9 +31,9 @@ export class WorldView {
     this.camera=new T.PerspectiveCamera(settings.fov,1,.035,110);this.camera.rotation.order='YXZ';
     this.models=new Map();this.recoil=0;this.shake=0;this.shotTimer=0;this.weaponType='';this.smoothPos=null;this.lastRound='';this.sway=new T.Vector2();this.lastLook=null;this.moveBlend=0;
     const pmrem=new T.PMREMGenerator(this.renderer),room=new RoomEnvironment();this.environment=pmrem.fromScene(room,.04).texture;room.dispose();pmrem.dispose();
-    this.scene.environment=this.environment;this.scene.environmentIntensity=.65;
-    this.scene.add(new T.HemisphereLight(0xc1d3de,0x4c4337,.48));
-    this.sun=new T.DirectionalLight(0xffe4b4,3.1);this.sun.position.set(-12,18,-22);this.sun.castShadow=true;this.sun.shadow.mapSize.set(4096,4096);
+    this.scene.environment=this.environment;this.scene.environmentIntensity=.48;
+    this.scene.add(new T.HemisphereLight(0xc1d3de,0x4c4337,.62));
+    this.sun=new T.DirectionalLight(0xffdfac,4.2);this.sun.position.set(-16,20,-13);this.sun.castShadow=true;this.sun.shadow.mapSize.set(4096,4096);
     Object.assign(this.sun.shadow.camera,{left:-35,right:35,top:28,bottom:-28,near:.5,far:90});this.sun.shadow.camera.updateProjectionMatrix();this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.009;this.scene.add(this.sun);
     this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();facilityArchitecture(this);facilityDecals(this.facility);this.batchFacility();
     this.characters=new SoldierModels(this.kit);
@@ -41,6 +43,7 @@ export class WorldView {
       this.materials.sleeve.dispose();this.materials.sleeve=sleeve;
       const nylon=this.characters.sideMaterials[0].get('webbing');for(const key of ['map','normalMap','roughnessMap'])this.materials.glovePanel[key]=nylon[key];this.materials.glovePanel.needsUpdate=true;
       this.scannedAssets=await loadScannedSurfaces(this);
+      this.facilityAssets=await loadFacilitySurfaces(this);
     });
     this.gunScene=new T.Scene();this.gunScene.environment=this.environment;this.gunScene.environmentIntensity=.65;
     this.gunScene.add(new T.HemisphereLight(0xc1d4dd,0x484536,.55));const gunLight=new T.DirectionalLight(0xffe2b6,2.2);gunLight.position.set(-2,3,1);gunLight.target.position.set(0,-.1,-.8);gunLight.castShadow=true;gunLight.shadow.mapSize.set(2048,2048);
@@ -48,7 +51,7 @@ export class WorldView {
     this.gunCamera=new T.PerspectiveCamera(65,1,.01,10);this.gun=new T.Group();this.gun.scale.setScalar(.82);this.gunScene.add(this.gun);
     this.flash=new T.PointLight(0xffbc75,0,4,2);this.gunScene.add(this.flash);
     this.fx=new CombatEffects(this.scene,settings);this.effects=this.fx.traces;
-    this.createPostprocessing();this.createDust();this.resize();
+    this.createPostprocessing();this.createDust();this.wetFloor=createWetFloor(this);this.resize();
   }
   box(w,h,d,x,y,z,material,parent=this.facility,r=0){return this.kit.box(parent,w,h,d,x,y,z,material,r);}
   cylinder(r,rt,h,x,y,z,material,parent=this.facility,segments=16){return this.kit.cylinder(parent,r,rt,h,x,y,z,material,segments);}
@@ -62,7 +65,7 @@ export class WorldView {
     for(const [index,b] of BOXES.entries()){
       const wall=b.h>=3.9,thin=b.w<.6||b.d<.6;
       if(!wall&&!thin){buildCover(this,b,index);continue;}
-      this.box(b.w,b.h,b.d,b.x,b.h/2,b.z,wall?'wall':b.h<1?'paintedWall':thin?'concrete':'steel',this.facility,wall?0:.035);
+      this.box(b.w,b.h,b.d,b.x,b.h/2,b.z,wall?'wall':b.h<1?'paintedWall':thin?'concrete':'steel',this.facility,wall?.018:.035);
       this.box(b.w+.018,.14,b.d+.018,b.x,.16,b.z,'dark');
       if(wall){
         this.box(b.w+.018,.84,b.d+.018,b.x,.59,b.z,'paintedWall');
@@ -87,11 +90,11 @@ export class WorldView {
         const glazed=Math.abs(z)===5&&Math.round(x+26)%8===0;
         if(glazed){
           // Roof panels surround an actual aperture; glass transmits sunlight.
-          for(const dx of [-1.725,1.725])this.box(.55,.08,5,x+1.9+dx,5.55,z,'dark');
-          for(const dz of [-1.6125,1.6125])this.box(2.9,.08,1.775,x+1.9,5.55,z+dz,'dark');
-          this.box(2.9,.025,1.45,x+1.9,5.54,z,'window');
-          for(let i=0;i<5;i++)this.box(.025,.07,1.48,x+.7+i*.6,5.5,z,'steel');
-        }else this.box(4,.08,5,x+1.9,5.55,z,'dark');
+          for(const dx of [-1.85,1.85])this.box(.3,.08,5,x+1.9+dx,5.55,z,'ceiling');
+          for(const dz of [-1.925,1.925])this.box(3.4,.08,1.15,x+1.9,5.55,z+dz,'ceiling');
+          this.box(3.4,.025,2.7,x+1.9,5.54,z,'window');
+          for(let i=0;i<6;i++)this.box(.035,.09,2.73,x+.4+i*.6,5.5,z,'steel');
+        }else this.box(4,.08,5,x+1.9,5.55,z,'ceiling');
       }
       for(const z of [-14,0,14]){
         this.box(1.8,.14,.36,x,4.77,z,'steel',this.facility,.025);this.box(1.57,.025,.23,x,4.69,z,'lamp');
@@ -99,8 +102,8 @@ export class WorldView {
       }
     }
     this.localLights=[];
-    for(const [x,z] of [[-23,0],[-12,0],[5,0],[23,0],[-17,-14],[0,-14],[17,-14],[-15,14],[0,14],[15,14]]){
-      const light=new T.SpotLight(z<0?0xc1dce9:z>0?0xffdcad:0xdce8eb,28,18,1.15,.45,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
+    for(const [x,z] of [[-22,0],[-10,0],[6,0],[22,0],[-18,-14],[-2,-14],[18,-14],[-14,14],[2,14],[14,14]]){
+      const light=new T.SpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?105:145,17,1.06,.72,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
       light.shadow.mapSize.set(1024,1024);light.shadow.camera.near=.2;light.shadow.camera.far=18;light.shadow.bias=-.00015;light.shadow.normalBias=.006;
       this.scene.add(light,light.target);this.localLights.push(light);
     }
@@ -182,11 +185,12 @@ export class WorldView {
         for(let i=0;i<uv.count;i++)uv.setXY(i,(tile.x+.5+uv.getX(i)*511)/width,1-(tile.y+.5+(1-uv.getY(i))*127)/height);
       }
       geometry.applyMatrix4(mesh.matrixWorld);
-      if(mesh.material===this.materials.concrete||mesh.material===this.materials.wall){
+      if(mesh.material===this.materials.concrete||mesh.material===this.materials.wall||['paintedWall','stagingFloor','containerRed','containerGreen','containerEdge','rack','hvac','caseShell','crane','conduit','ceiling'].some(name=>mesh.material===this.materials[name])){
         const positions=geometry.attributes.position,normals=geometry.attributes.normal,uv=geometry.attributes.uv;
+        const scale=mesh.material===this.materials.concrete||mesh.material===this.materials.wall?.25:mesh.material===this.materials.stagingFloor?1/3:mesh.material===this.materials.paintedWall?.5:1;
         for(let i=0;i<positions.count;i++){
           const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
-          uv.setXY(i,(Math.abs(normals.getX(i))>.5?z:x)*.25,(Math.abs(normals.getY(i))>.5?z:y)*.25);
+          uv.setXY(i,(Math.abs(normals.getX(i))>.5?z:x)*scale,(Math.abs(normals.getY(i))>.5?z:y)*scale);
         }
       }
       list.push(geometry);old.push(mesh);
@@ -196,7 +200,7 @@ export class WorldView {
   }
   createPostprocessing(){
     this.composer=new EffectComposer(this.renderer);this.worldPass=new RenderPass(this.scene,this.camera);this.composer.addPass(this.worldPass);
-    this.occlusion=new GTAOPass(this.scene,this.camera,1,1,undefined,{radius:.48,thickness:.55,distanceFallOff:1,scale:1.15,samples:16},{radius:5,samples:16});this.occlusion.blendIntensity=.85;this.composer.addPass(this.occlusion);
+    this.occlusion=new GTAOPass(this.scene,this.camera,1,1,undefined,{radius:.65,thickness:.65,distanceFallOff:1.2,scale:1.3,samples:16},{radius:5,samples:16});this.occlusion.blendIntensity=.95;this.composer.addPass(this.occlusion);
     this.atmosphere=atmospherePass(this);this.composer.addPass(this.atmosphere);
     this.weaponPass=new RenderPass(this.gunScene,this.gunCamera);this.weaponPass.clear=false;this.weaponPass.clearDepth=true;this.composer.addPass(this.weaponPass);
     this.bloom=new UnrealBloomPass(new T.Vector2(1,1),.24,.55,1.4);this.composer.addPass(this.bloom);
@@ -221,6 +225,9 @@ export class WorldView {
     const samples=quality==='high'?Math.min(4,this.renderer.capabilities.maxSamples):quality==='medium'?Math.min(2,this.renderer.capabilities.maxSamples):0;
     for(const target of [this.composer.renderTarget1,this.composer.renderTarget2])if(target.samples!==samples){target.samples=samples;target.dispose();}
     this.gunLight.castShadow=quality!=='low';this.atmosphere.enabled=quality!=='low';
+    this.wetFloor.visible=quality!=='low';
+    const reflectionSize=quality==='high'?768:512,reflectionTarget=this.wetFloor.getRenderTarget();
+    if(reflectionTarget.width!==reflectionSize){reflectionTarget.setSize(reflectionSize,reflectionSize);this.wetFloor.material.uniforms.texel.value.setScalar(1/reflectionSize);}
     const atmosphereSteps=quality==='high'?24:16;
     if(this.atmosphere.material.defines.ATMOSPHERE_STEPS!==atmosphereSteps){this.atmosphere.material.defines.ATMOSPHERE_STEPS=atmosphereSteps;this.atmosphere.material.needsUpdate=true;}
     this.renderer.shadowMap.enabled=quality!=='low';this.occlusion.enabled=quality!=='low';this.bloom.enabled=quality!=='low';this.bloom.strength=quality==='high'?.15:.1;this.grade.enabled=quality!=='low';this.dust.visible=quality!=='low';
@@ -236,6 +243,7 @@ export class WorldView {
   }
   render(state,playerId,dt,time,view={}){
     this.recoil=Math.max(0,this.recoil-dt*.65);this.shake=Math.max(0,this.shake-dt*.2);this.shotTimer=Math.max(0,this.shotTimer-dt);this.fx.update(dt);
+    this.wetFloor.material.uniforms.time.value=time;
     let follow=null,player=null;
     if(state){
       const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;}

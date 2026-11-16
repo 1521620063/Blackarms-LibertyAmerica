@@ -16,15 +16,17 @@ try{
   await page.goto(`${base}/?debug=1`);await page.waitForFunction(()=>window.__BLA);
   const materials=await page.evaluate(()=>{
     const v=window.__BLA.view;
-    return {assets:v.artAssets,scannedAssets:v.scannedAssets,environment:v.environment.userData.source,materials:['wall','concrete','floor','steel','dark','edge','armor','olive','sand','panel'].map(name=>{
+    return {assets:v.artAssets,facilityAssets:v.facilityAssets,scannedAssets:v.scannedAssets,environment:v.environment.userData.source,materials:['wall','concrete','floor','steel','dark','edge','armor','olive','sand','panel','stagingFloor','paintedWall','containerRed','containerGreen','rack','hvac','crane'].map(name=>{
       const m=v.materials[name];return {name,maps:[m.map,m.normalMap,m.roughnessMap].map(t=>({name:t.name,width:t.image.width,height:t.image.height,colorSpace:t.colorSpace,source:t.userData.source})),repeat:m.map.repeat.toArray()};
     })};
   });
   assert.deepEqual(materials.assets,['fabric','gunmetal','service-panel']);
+  assert.deepEqual(materials.facilityAssets,['facility-epoxy','facility-paint','facility-plaster']);
   assert.deepEqual(materials.scannedAssets,['concrete_floor_02','concrete_wall_008','empty_warehouse_01']);assert.equal(materials.environment,'cc0-hdr');
   for(const material of materials.materials)for(const [i,map] of material.maps.entries()){
     const scanned=['wall','concrete','floor'].includes(material.name),size=scanned?2048:1024;
-    assert.equal(map.source,scanned?'scanned-cc0':'generated-art');assert.equal(map.width,size);assert.equal(map.height,size);assert.equal(map.colorSpace,i===0?'srgb':'');
+    const facility=['stagingFloor','paintedWall','containerRed','containerGreen','rack','hvac','crane'].includes(material.name);
+    assert.equal(map.source,scanned?'scanned-cc0':facility?'generated-facility-art':'generated-art');assert.equal(map.width,size);assert.equal(map.height,size);assert.equal(map.colorSpace,i===0?'srgb':'');
   }
   assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[14,9]);
   const characterMaterials=await page.evaluate(()=>{
