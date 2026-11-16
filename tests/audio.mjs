@@ -46,6 +46,23 @@ try{
       for(let i=0;i<left.length;i++){view.setInt16(44+i*4,Math.max(-1,Math.min(1,left[i]))*32767,true);view.setInt16(46+i*4,Math.max(-1,Math.min(1,right[i]))*32767,true);}
       let binary='';const array=new Uint8Array(bytes);for(let i=0;i<array.length;i+=8192)binary+=String.fromCharCode(...array.subarray(i,i+8192));reports[type].wav=btoa(binary);
     }
+    // Exercise footsteps at frame rate: sampling must accumulate movement across frames.
+    audio.reset();
+    const heard=[],originalFoley=audio.foleySound;
+    audio.foleySound=(...args)=>{heard.push(args);};
+    const walking={actors:[{...me,alive:true},{...enemy,alive:true}],phase:'combat',round:1,time:0,core:{state:'idle'}};
+    for(let frame=0;frame<61;frame++){
+      walking.time=frame/60;walking.actors[1].x=8+walking.time*2;
+      audio.update(walking,walking.actors[0],false);
+    }
+    if(!heard.some(args=>args[0]==='step'&&args[2]?.id==='enemy'))throw new Error('Moving enemies must produce footsteps at 60 FPS');
+    audio.foleySound=originalFoley;
+    audio.settings.volume=.25;audio.update(walking,walking.actors[0],false);
+    audio.burst(.2,.1);audio.setPaused(true);
+    if(audio.voices.size!==0||audio.burst(.1,.1)!==undefined)throw new Error('Pause must stop and suppress burst sounds');
+    audio.setPaused(false);
+    audio.listener=null;audio.event({type:'shot',actor:'enemy',weapon:'rifle'},'me',state);
+    if(audio.listener!==me)throw new Error('Events must refresh listener before spatial playback');
     await audio.ctx.close();return reports;
   });
   for(const [type,report] of Object.entries(result)){

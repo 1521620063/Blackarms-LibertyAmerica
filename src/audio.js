@@ -1,4 +1,6 @@
-import { WEAPONS } from './shared/data.js';
+import { WEAPONS, BOXES } from './shared/data.js';
+import { wallHit } from './shared/geometry.js';
+import { makeFoley, makeAmbience, FOLEY_NAMES } from './audio-synthesis.js';
 
 // Layered, cached weapon reports. No network assets or runtime oscillators per shot.
 const REPORTS={
@@ -12,7 +14,7 @@ const REPORTS={
 };
 
 export class AudioEngine {
-  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];}
+  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];this.voices=new Set();this.walkers=new Map();this.listener=null;this.round=null;this.foley={};this.duckUntil=0;this.paused=false;}
   unlock(){
     if(!this.ctx){
       this.ctx=new AudioContext();this.setup();
@@ -26,6 +28,8 @@ export class AudioEngine {
     this.limiter=ctx.createDynamicsCompressor();this.limiter.threshold.value=-9;this.limiter.knee.value=8;
     this.limiter.ratio.value=5;this.limiter.attack.value=.002;this.limiter.release.value=.12;
     this.master.connect(this.limiter);this.limiter.connect(ctx.destination);
+    this.worldBus=ctx.createGain();this.worldBus.connect(this.master);
+    this.ambientGain=ctx.createGain();this.ambientGain.gain.value=0;this.ambientGain.connect(this.master);
     this.room=ctx.createConvolver();
     const impulse=ctx.createBuffer(2,Math.ceil(ctx.sampleRate*.38),ctx.sampleRate);
     for(let c=0;c<2;c++){
@@ -40,6 +44,8 @@ export class AudioEngine {
     this.noise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.4),ctx.sampleRate);
     const values=this.noise.getChannelData(0);for(let i=0;i<values.length;i++)values[i]=Math.random()*2-1;
     for(const [type,profile] of Object.entries(REPORTS))this.reports[type]=Array.from({length:5},()=>this.makeReport(profile));
+    for(const name of FOLEY_NAMES)this.foley[name]=Array.from({length:4},()=>makeFoley(ctx,name));
+    this.ambient=ctx.createBufferSource();this.ambient.buffer=makeAmbience(ctx);this.ambient.loop=true;this.ambient.connect(this.ambientGain);this.ambient.start();
   }
   makeReport(p){
     const rate=this.ctx.sampleRate,buffer=this.ctx.createBuffer(1,Math.ceil(rate*p.duration),rate),data=buffer.getChannelData(0);
@@ -65,64 +71,106 @@ export class AudioEngine {
     const gain=.88/Math.max(peak,.001);for(let i=0;i<data.length;i++)data[i]*=gain;
     return buffer;
   }
-  tone(freq,duration,volume=.1,type='sine',end=null){
+  cancelReload(){for(const source of this.reloadSounds)try{source?.stop();}catch{}this.reloadSounds=[];}
+  reset(){this.cancelReload();for(const voice of this.voices)try{voice.stop();}catch{}this.voices.clear();this.walkers.clear();this.lastBeep=-Infinity;this.duckUntil=0;}
+  setPaused(value){this.paused=!!value;if(value)this.reset();if(this.ctx)this.ambientGain.gain.setTargetAtTime(0,this.ctx.currentTime,.08);}
+  spatial(pos){
+    const me=this.listener;if(!pos||!me)return {volume:1,pan:0,distance:0,occluded:false};
+    const dx=pos.x-me.x,dy=(pos.y||0)-((me.y||0)+1.4),dz=pos.z-me.z,distance=Math.hypot(dx,dy,dz);
+    const occluded=distance>1&&wallHit({x:me.x,y:(me.y||0)+1.4,z:me.z},{x:dx/distance,y:dy/distance,z:dz/distance})<distance-.35;
+    return {volume:1/(1+Math.max(0,distance-2)*.1)*(occluded?.4:1),pan:(dx*Math.cos(me.yaw||0)-dz*Math.sin(me.yaw||0))/Math.max(1,distance),distance,occluded};
+  }
+  playBuffer(buffer,{volume=1,pan=0,distance=0,occluded=false,delay=0,wet=.15,pitch=1}={}){
+    if(!this.ctx||this.ctx.state!=='running'||this.paused||!buffer)return;
+    if(this.voices.size>=48){const oldest=this.voices.values().next().value;oldest.stop();this.voices.delete(oldest);}
+    const ctx=this.ctx,source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter(),panner=ctx.createStereoPanner(),send=ctx.createGain();
+    source.buffer=buffer;source.playbackRate.value=pitch;filter.type='lowpass';filter.frequency.value=occluded?1100:Math.max(1500,16500/(1+distance*.09));
+    gain.gain.value=volume;panner.pan.value=Math.max(-1,Math.min(1,pan));send.gain.value=wet;
+    source.connect(filter);filter.connect(gain);gain.connect(panner);panner.connect(this.worldBus);panner.connect(send);send.connect(this.room);
+    this.voices.add(source);source.onended=()=>{this.voices.delete(source);for(const node of [source,gain,filter,panner,send])node.disconnect();};source.start(ctx.currentTime+delay);return source;
+  }
+  foleySound(name,volume=.2,pos=null,delay=0,pitch=1){const variants=this.foley[name],spatial=this.spatial(pos);return this.playBuffer(variants?.[Math.floor(Math.random()*variants.length)],{...spatial,volume:volume*spatial.volume,delay,pitch:pitch*(.97+Math.random()*.06),wet:pos?.25:.08});}
+  cue(notes,volume=.07){notes.forEach(([freq,delay,duration=.12])=>this.tone(freq,duration,volume,'sine',null,delay));}
+  tone(freq,duration,volume=.1,type='sine',end=null,delay=0){
     if(!this.ctx||this.ctx.state!=='running')return;
     this.master.gain.value=this.settings.volume*.7;
-    const o=this.ctx.createOscillator(),g=this.ctx.createGain(),t=this.ctx.currentTime;
+    if(this.paused)return;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain(),t=this.ctx.currentTime+delay;
+    this.voices.add(o);
     o.type=type;o.frequency.setValueAtTime(freq,t);if(end)o.frequency.exponentialRampToValueAtTime(end,t+duration);
     g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(volume,t+.002);g.gain.exponentialRampToValueAtTime(.001,t+duration);
-    o.connect(g);g.connect(this.master);o.start();o.stop(t+duration);
-    o.onended=()=>{o.disconnect();g.disconnect();};
+    o.connect(g);g.connect(this.master);o.start(t);o.stop(t+duration);
+    o.onended=()=>{this.voices.delete(o);o.disconnect();g.disconnect();};
   }
   burst(duration,volume,filter=2000,delay=0,highpass=0){
-    if(!this.ctx||this.ctx.state!=='running')return;
+    if(!this.ctx||this.ctx.state!=='running'||this.paused)return;
     this.master.gain.value=this.settings.volume*.7;
     const s=this.ctx.createBufferSource(),g=this.ctx.createGain(),f=this.ctx.createBiquadFilter(),t=this.ctx.currentTime+delay;
     s.buffer=this.noise;f.type=highpass?'bandpass':'lowpass';f.frequency.value=filter;f.Q.value=highpass?.65: .7;
     g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(volume,t+.001);g.gain.exponentialRampToValueAtTime(.0001,t+duration);
     s.connect(f);f.connect(g);g.connect(this.master);s.start(t,Math.random()*.04);s.stop(t+duration);
-    s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
+    this.voices.add(s);
+    s.onended=()=>{this.voices.delete(s);s.disconnect();f.disconnect();g.disconnect();};
     return s;
   }
-  shot(type,volume=1,pan=0,distance=0){
+  shot(type,volume=1,pan=0,distance=0,occluded=false){
     if(!this.ctx||this.ctx.state!=='running')return;
     this.master.gain.value=this.settings.volume*.7;
-    const variants=this.reports[type]||this.reports.rifle,ctx=this.ctx;
-    const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter(),panner=ctx.createStereoPanner();
-    source.buffer=variants[Math.floor(Math.random()*variants.length)];source.playbackRate.value=.985+Math.random()*.03;
-    filter.type='lowpass';filter.frequency.value=Math.max(1700,16500/(1+distance*.13));
-    gain.gain.value=volume*(type==='scatter'?1:.83);panner.pan.value=Math.max(-1,Math.min(1,pan));
-    source.connect(filter);filter.connect(gain);gain.connect(panner);panner.connect(this.master);panner.connect(this.room);
-    source.start();source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();panner.disconnect();};
+    const variants=this.reports[type]||this.reports.rifle;
+    this.playBuffer(variants[Math.floor(Math.random()*variants.length)],{volume:volume*(type==='scatter'?1:.83),pan,distance,occluded,wet:distance? .45:.26,pitch:.985+Math.random()*.03});
+    if(!distance)this.duckUntil=this.ctx.currentTime+.16;
   }
   event(e,player,state){
     const a=state?.actors.find(a=>a.id===e.actor),me=state?.actors.find(a=>a.id===player);
-    const dist=a&&me?Math.hypot(a.x-me.x,a.z-me.z):0,local=e.actor===player;
-    const volume=local?1:.62/(1+dist*.12);
-    const pan=!local&&a&&me?((a.x-me.x)*Math.cos(me.yaw||0)-(a.z-me.z)*Math.sin(me.yaw||0))/Math.max(1,dist):0;
-    if(e.type==='shot')this.shot(e.weapon,volume,pan,local?0:dist);
+    if(me)this.listener=me;
+    const local=e.actor===player;
+    if(e.type==='shot'){
+      const spatial=local?{volume:1,pan:0,distance:0,occluded:false}:this.spatial(e.origin||a);
+      this.shot(e.weapon,local?1:.68*spatial.volume,spatial.pan,spatial.distance,spatial.occluded);
+      if(local&&e.weapon==='scatter')this.foleySound('bolt',.13,null,.17,.75);
+    }
     if(e.type==='switch'&&local){
-      for(const source of this.reloadSounds)source?.stop();this.reloadSounds=[];
-      this.burst(.065,.12,1600);this.burst(.04,.09,3200,(e.duration||.32)*.75);
+      this.cancelReload();this.foleySound('cloth',.13);this.foleySound('bolt',.12,null,(e.duration||.32)*.75);
     }
     if(e.type==='reload'&&local){
-      for(const source of this.reloadSounds)source?.stop();
+      this.cancelReload();
       const reload=e.duration||WEAPONS[e.weapon||a?.weapon]?.reload||1.5;
-      this.reloadSounds=[this.burst(.045,.22,2400),this.burst(.08,.15,850,.13),this.burst(.055,.24,3100,reload*.68),this.burst(.055,.18,4200,reload*.86)];
+      this.reloadSounds=[this.foleySound('magOut',.22,null,.08),this.foleySound('cloth',.11,null,reload*.32),this.foleySound('magIn',.29,null,reload*.68),this.foleySound('bolt',.24,null,reload*.86)];
     }
     if(e.type==='damage'&&e.source===player){
-      this.burst(.045,.25,1700,0,1);this.burst(.023,.12,4800,.008,1);
-      if(e.part==='weakpoint'){this.burst(.075,.18,7200,0,1);this.tone(1760,.045,.055,'sine',920);}
+      this.foleySound('body',.24,null,0,e.part==='weakpoint'?1.3:1);
+      if(e.part==='weakpoint')this.cue([[1760,0,.045],[920,.05,.06]],.04);
     }
-    if(e.type==='damage'&&local){this.burst(.14,.38,430);this.tone(64,.16,.18,'sine',38);}
-    if(e.type==='kill'&&e.source===player){this.burst(.085,.17,2800,0,1);this.tone(880,.1,.08,'sine',440);}
-    if(e.type==='core'){this.tone(660,.2,.15);setTimeout(()=>this.tone(880,.2,.12),150);}
+    if(e.type==='damage'&&local){this.foleySound('hurt',.38);this.tone(64,.16,.12,'sine',38);}
+    if(e.type==='kill'&&e.source===player)this.cue([[880,0,.08],[440,.08,.1]],.045);
+    if(e.type==='core')this.cue(e.state==='defused'||e.state==='completed'?[[660,0,.12],[880,.15,.2],[1100,.32,.23]]:[[660,0,.12],[880,.15,.16]],.11);
     if(e.type==='combat'||e.type==='order')this.tone(430,.11,.15,'triangle',750);
-    if(e.type==='result'){this.tone(330,.5,.15);setTimeout(()=>this.tone(440,.5,.15),180);setTimeout(()=>this.tone(660,.6,.12),360);}
+    if(e.type==='result')this.cue(e.winner===me?.squad?[[440,0,.28],[550,.18,.32],[660,.36,.45]]:[[330,0,.3],[277,.2,.4]],.1);
+    if(e.type==='reloaded'&&local)this.reloadSounds=[];
+    if(e.type==='round'||e.type==='result')this.walkers.clear();
   }
   update(state,actor,moving){
-    if(!state||!actor?.alive)return;
-    if(moving&&state.phase==='combat'&&state.time-this.lastStep>(actor.sprinting?.28:.44)) {this.lastStep=state.time;this.burst(.045,.06,500);}
-    if(['uploading','defusing'].includes(state.core.state)&&state.time-this.lastBeep>(state.core.upload<8?.35:.9)){this.lastBeep=state.time;this.tone(1000,.065,.05);}
+    if(!this.ctx)return;
+    this.master.gain.setTargetAtTime(this.settings.volume*.7,this.ctx.currentTime,.025);
+    const active=!!state&&state.phase==='combat'&&!this.paused;
+    this.ambientGain.gain.setTargetAtTime(active?.12:0,this.ctx.currentTime,.35);
+    this.worldBus.gain.setTargetAtTime(this.ctx.currentTime<this.duckUntil?.73:1,this.ctx.currentTime,.06);
+    if(!state||!actor?.alive||this.paused)return;
+    this.listener=actor;
+    const round=state.round+':'+state.phase;
+    if(round!==this.round){this.round=round;this.walkers.clear();this.lastStep=state.time;this.lastBeep=state.time;}
+    if(moving&&active&&state.time-this.lastStep>(actor.sprinting?.28:.44)){
+      this.lastStep=state.time;const metal=BOXES.some(b=>actor.x>=b.minX-.6&&actor.x<=b.maxX+.6&&actor.z>=b.minZ-.6&&actor.z<=b.maxZ+.6);
+      this.foleySound(metal?'metalStep':'step',actor.sprinting?.13:.09);this.foleySound('cloth',.025);
+    }
+    if(active)for(const other of state.actors){if(other.id===actor.id||!other.alive)continue;
+      const prev=this.walkers.get(other.id);
+      if(prev&&state.time>=prev.time&&state.time-prev.time<.25)continue;
+      this.walkers.set(other.id,{x:other.x,z:other.z,time:state.time});
+      if(!prev||state.time<=prev.time)continue;
+      const speed=Math.hypot(other.x-prev.x,other.z-prev.z)/(state.time-prev.time);
+      if(speed>1&&this.spatial(other).distance<18)this.foleySound('step',Math.min(.1,speed*.02),other);
+    }
+    if(active&&['uploading','defusing'].includes(state.core.state)&&state.time-this.lastBeep>(state.core.upload<8?.35:.9)){this.lastBeep=state.time;this.tone(1000,.065,.05);}
   }
 }
