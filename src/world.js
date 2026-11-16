@@ -12,6 +12,7 @@ import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
 import { CombatEffects } from './visual/effects.js';
+import { createMuzzleFlash, muzzleScale } from './visual/muzzle-flash.js';
 import { loadGeneratedArt } from './visual/generated-art.js';
 import { facilityDecals } from './visual/decals.js';
 import { buildCover, facilityArchitecture } from './visual/facility-detail.js';
@@ -216,11 +217,10 @@ export class WorldView {
     const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));this.dust=new T.Points(geometry,new T.PointsMaterial({color:0xc1d2cf,size:.014,transparent:true,opacity:.35,depthWrite:false}));this.scene.add(this.dust);
   }
   makeGun(type){
-    if(this.weapon){this.gun.remove(this.weapon);this.muzzle.material.map.dispose();this.muzzle.material.dispose();}
+    if(this.weapon){this.gun.remove(this.weapon);this.muzzle.geometry.dispose();this.muzzle.material.dispose();}
+    this.shotTimer=0;
     this.weaponType=type;this.weapon=this.kit.weapon(type,this.gun,true);
-    const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const c=canvas.getContext('2d'),g=c.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(255,255,240,1)');g.addColorStop(.15,'rgba(255,228,157,.95)');g.addColorStop(.4,'rgba(255,131,35,.6)');g.addColorStop(1,'rgba(255,100,20,0)');c.fillStyle=g;c.fillRect(0,0,128,128);
-    c.strokeStyle='rgba(255,224,161,.7)';c.lineWidth=4;for(let i=0;i<6;i++){const a=i*Math.PI/3;c.beginPath();c.moveTo(64,64);c.lineTo(64+Math.cos(a)*50,64+Math.sin(a)*50);c.stroke();}
-    this.muzzle=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(canvas),color:0xffdcb0,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false}));this.muzzle.position.copy(this.weapon.userData.muzzle);this.muzzle.scale.set(.36,.36,1);this.weapon.add(this.muzzle);this.muzzle.visible=false;
+    this.muzzle=createMuzzleFlash();this.muzzle.position.copy(this.weapon.userData.muzzle);this.weapon.add(this.muzzle);
   }
   resize(){
     const w=innerWidth,h=innerHeight,quality=this.settings.quality;
@@ -241,7 +241,7 @@ export class WorldView {
   }
   event(e,playerId){
     if(e.type==='shot'){
-      if(e.actor===playerId){const kick=WEAPONS[e.weapon]?.kick??(e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063);this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=e.weapon==='scatter'?.065:.04;}
+      if(e.actor===playerId){const kick=WEAPONS[e.weapon]?.kick??(e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063);this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=this.flashDuration=e.weapon==='scatter'?.065:.045;this.muzzle.material.uniforms.seed.value=Math.random()*100;this.muzzle.rotation.z=Math.random()*Math.PI*2;this.muzzle.scale.setScalar(muzzleScale(e.weapon)*(.85+Math.random()*.3));}
       this.fx.shot(e,e.actor===playerId);
     }
     if(e.type==='damage'&&e.actor===playerId)this.shake=.045;
@@ -287,7 +287,7 @@ export class WorldView {
       const target=new T.Vector3((aim?0:.24)-this.sway.x*.7,(swapping?-.65:follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
       this.gun.position.lerp(target,1-Math.exp(-dt*18));this.gun.rotation.set(this.recoil*.8+(follow.sprinting?-.12:0),follow.reload>0?-.55:0,swapping?-.35:follow.reload>0?-.6:-.025+Math.cos(time*8)*bob);
       if(aim)this.gun.rotation.z=T.MathUtils.damp(this.gun.rotation.z,0,25,dt);
-      this.muzzle.visible=this.shotTimer>0;this.muzzle.material.rotation=time*31;this.muzzle.scale.setScalar((this.weaponType==='scatter'?.34:.18)+Math.random()*.1);this.flash.intensity=this.muzzle.visible?7:0;this.gun.updateMatrixWorld(true);this.muzzle.getWorldPosition(this.flash.position);
+      this.muzzle.visible=this.shotTimer>0&&!follow.reload&&!swapping;const flashFade=this.muzzle.visible?Math.pow(this.shotTimer/(this.flashDuration||.045),1.5):0;this.muzzle.material.uniforms.intensity.value=flashFade*5;this.flash.intensity=flashFade*9;this.gun.updateMatrixWorld(true);this.muzzle.getWorldPosition(this.flash.position);
     }else{
       this.smoothPos=null;this.lastLook=null;this.camera.fov=65;this.camera.updateProjectionMatrix();this.camera.position.set(10.2+Math.sin(time*.07)*.4,3.4,4.6);this.camera.lookAt(1.5,1.2,-3);
     }

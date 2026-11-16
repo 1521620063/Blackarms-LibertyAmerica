@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { BOXES } from '../shared/data.js';
+import { BOXES, WEAPONS } from '../shared/data.js';
 
 class ParticlePool {
   constructor(scene,count,additive){
@@ -8,7 +8,7 @@ class ParticlePool {
     this.geometry=new T.BufferGeometry();for(const [name,array,size] of [['position',this.positions,3],['color',this.colors,3],['size',this.sizes,1],['alpha',this.alphas,1]])this.geometry.setAttribute(name,new T.BufferAttribute(array,size).setUsage(T.DynamicDrawUsage));
     this.material=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:additive?T.AdditiveBlending:T.NormalBlending,uniforms:{scale:{value:600}},
       vertexShader:'attribute vec3 color; attribute float size; attribute float alpha; varying vec3 vColor; varying float vAlpha; uniform float scale; void main(){vColor=color;vAlpha=alpha;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=clamp(size*scale/max(0.1,-mv.z),1.0,110.0);gl_Position=projectionMatrix*mv;}',
-      fragmentShader:`varying vec3 vColor; varying float vAlpha; void main(){float d=length(gl_PointCoord-.5)*2.0;if(d>1.0)discard;float soft=pow(1.0-d,${additive?'2.0':'1.6'});gl_FragColor=vec4(vColor,vAlpha*soft);}`});
+      fragmentShader:`varying vec3 vColor; varying float vAlpha; void main(){vec2 p=gl_PointCoord-.5;float d=length(p)*2.0;if(d>1.0)discard;float soft=${additive?'pow(1.0-d,2.0)':'(1.0-smoothstep(.12,1.0,d))*(.65+.35*sin(p.x*24.0+sin(p.y*19.0))*sin(p.y*21.0+p.x*9.0))'};gl_FragColor=vec4(vColor,vAlpha*soft);}`});
     this.mesh=new T.Points(this.geometry,this.material);this.mesh.frustumCulled=false;this.mesh.renderOrder=2;scene.add(this.mesh);
   }
   emit(p,v,color,size,life,gravity=0){
@@ -44,7 +44,7 @@ export class CombatEffects {
   shot(e,local){
     const origin=new T.Vector3(e.origin.x,e.origin.y,e.origin.z),end=e.traces[0]?.end;if(!end)return;
     const forward=new T.Vector3(end.x,end.y,end.z).sub(origin).normalize(),right=new T.Vector3(-forward.z,0,forward.x),muzzle=origin.clone().addScaledVector(forward,.65).addScaledVector(right,.1);muzzle.y-=.16;
-    const low=this.settings.quality==='low',n=low?4:10;
+    const low=this.settings.quality==='low',n=local?0:low?4:8;
     for(let i=0;i<n;i++)this.spark.emit(muzzle,{x:forward.x*(3+Math.random()*4)+(Math.random()-.5),y:forward.y*4+(Math.random()-.5),z:forward.z*(3+Math.random()*4)+(Math.random()-.5)},i%2?0xffbc62:0xffedc4,.06+Math.random()*.12,.045+Math.random()*.08);
     this.smoke.emit(muzzle,{x:forward.x*.3,y:.35,z:forward.z*.3},0x8a9696,.13,.65);
     const lamp=this.lights[this.lightCursor++%this.lights.length];lamp.light.position.copy(muzzle);lamp.life=.06;lamp.light.intensity=local?5:8;
@@ -53,17 +53,25 @@ export class CombatEffects {
       const target=new T.Vector3(trace.end.x,trace.end.y,trace.end.z);
       // Short visible tracer segments, rather than solid beams spanning the whole map.
       const dir=target.clone().sub(muzzle),length=dir.length();dir.normalize();
-      const start=target.clone().addScaledVector(dir,-Math.min(length,1.7));
-      const line=new T.Line(new T.BufferGeometry().setFromPoints([start,target]),new T.LineBasicMaterial({color:0xffd49c,transparent:true,opacity:.9,blending:T.AdditiveBlending,depthWrite:false}));this.scene.add(line);this.traces.push({mesh:line,life:.075,max:.075});
+      const start=muzzle.clone();
+      const line=new T.Line(new T.BufferGeometry().setFromPoints([start,start.clone().addScaledVector(dir,Math.min(length,.8))]),new T.LineBasicMaterial({color:0xffd49c,transparent:true,opacity:.9,blending:T.AdditiveBlending,depthWrite:false}));this.scene.add(line);const life=Math.max(.035,length/320);this.traces.push({mesh:line,life,max:life,start,dir,length});
       if(this.traces.length>64)this.removeTrace(0);
-      if(!trace.hit&&length>30)continue;
-      const normal=this.normalAt(target,dir),count=low?3:e.weapon==='scatter'?5:12;
+      const normal=this.normalAt(target,dir);
+      // A range endpoint in empty space is not an impact, including shotgun pellets.
+      if(!trace.hit&&(!normal||origin.distanceTo(target)>=(WEAPONS[e.weapon]?.range||100)-.001))continue;
+      const impactNormal=trace.hit?dir.clone().negate():normal;
+      const box=BOXES.find(b=>target.x>=b.minX-.06&&target.x<=b.maxX+.06&&target.z>=b.minZ-.06&&target.z<=b.maxZ+.06&&target.y<=b.h+.06);
+      const metal=!trace.hit&&box&&/机柜|机组|设备|防爆|货运箱|操作台|维修台/.test(box.name);
+      const count=low?3:e.weapon==='scatter'?5:metal?16:7;
+      target.addScaledVector(impactNormal,.015);
       for(let j=0;j<count;j++){
-        const velocity={x:normal.x*(1+Math.random()*2)+(Math.random()-.5)*3,y:normal.y*2+Math.random()*2,z:normal.z*(1+Math.random()*2)+(Math.random()-.5)*3};
-        this.spark.emit(target,velocity,trace.hit?0xd1c8ad:j%2?0xff9e42:0xffe5a9,.025+Math.random()*.03,.1+Math.random()*.3,5);
+        const velocity=new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).addScaledVector(impactNormal,1.2).normalize().multiplyScalar(metal?2+Math.random()*7:1+Math.random()*2);
+        if(metal)this.spark.emit(target,velocity,j%2?0xff9e42:0xffe5a9,.018+Math.random()*.02,.12+Math.random()*.3,9.8);
+        else this.smoke.emit(target,velocity,trace.hit?0x867968:0xb0aaa0,.025+Math.random()*.035,.16+Math.random()*.28,7);
       }
-      this.smoke.emit(target,{x:normal.x*.2,y:.15,z:normal.z*.2},trace.hit?0x8b8171:0x9a9b91,.18,trace.hit?.3:.65);
-      if(!trace.hit&&normal.lengthSq()>.9)this.decal(target,normal);
+      this.smoke.emit(target,{x:impactNormal.x*.5,y:impactNormal.y*.5+.15,z:impactNormal.z*.5},trace.hit?0x8b8171:metal?0x777d80:0xa5a198,metal?.1:.2,trace.hit?.28:metal?.45:.85);
+      if(metal)this.spark.emit(target,{x:0,y:0,z:0},0xffdf9e,.16,.055);
+      if(!trace.hit)this.decal(target,normal);
     }
   }
   normalAt(point,direction){
@@ -74,7 +82,7 @@ export class CombatEffects {
       for(const [d,x,y,z] of faces)if(d<distance){distance=d;best=new T.Vector3(x,y,z);}
     }
     if(point.y<.07)return new T.Vector3(0,1,0);
-    return best||direction.clone().negate();
+    return best;
   }
   decal(point,normal){
     const mesh=new T.Mesh(this.decalGeometry,this.decalMaterial);mesh.position.copy(point).addScaledVector(normal,.008);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),normal);mesh.rotateZ(Math.random()*6.28);mesh.scale.setScalar(.11+Math.random()*.09);this.scene.add(mesh);this.decals.push(mesh);
@@ -86,11 +94,11 @@ export class CombatEffects {
   }
   pulse(position,color=0x80e8ff){for(let i=0;i<70;i++){const angle=Math.random()*Math.PI*2,r=Math.random()*3;this.spark.emit(position,{x:Math.cos(angle)*r,y:Math.random()*3,z:Math.sin(angle)*r},color,.04+Math.random()*.06,.4+Math.random()*.6,1);}}
   removeTrace(i){const fx=this.traces[i];this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();this.traces.splice(i,1);}
-  clear(){for(let i=this.traces.length-1;i>=0;i--)this.removeTrace(i);for(const d of this.decals)this.scene.remove(d);this.decals.length=0;for(const pool of [this.spark,this.smoke])for(const p of pool.particles)p.life=0;for(const p of this.shells)p.life=0;}
+  clear(){for(let i=this.traces.length-1;i>=0;i--)this.removeTrace(i);for(const d of this.decals)this.scene.remove(d);this.decals.length=0;for(const pool of [this.spark,this.smoke])for(const p of pool.particles)p.life=0;for(const p of this.shells)p.life=0;for(const lamp of this.lights){lamp.life=0;lamp.light.intensity=0;}this.update(0);}
   update(dt){
     this.spark.update(dt);this.smoke.update(dt);
-    for(const lamp of this.lights){lamp.life-=dt;lamp.light.intensity=lamp.life>0?lamp.light.intensity*.7:0;}
-    for(let i=this.traces.length-1;i>=0;i--){const f=this.traces[i];f.life-=dt;if(f.life<=0)this.removeTrace(i);else f.mesh.material.opacity=f.life/f.max;}
+    for(const lamp of this.lights){lamp.life-=dt;lamp.light.intensity=lamp.life>0?lamp.light.intensity*Math.exp(-35*dt):0;}
+    for(let i=this.traces.length-1;i>=0;i--){const f=this.traces[i];f.life-=dt;if(f.life<=0)this.removeTrace(i);else{const head=Math.min(f.length,(1-f.life/f.max)*f.length+.8),tail=Math.max(0,head-2.2),p=f.mesh.geometry.attributes.position;p.setXYZ(0,f.start.x+f.dir.x*tail,f.start.y+f.dir.y*tail,f.start.z+f.dir.z*tail);p.setXYZ(1,f.start.x+f.dir.x*head,f.start.y+f.dir.y*head,f.start.z+f.dir.z*head);p.needsUpdate=true;f.mesh.frustumCulled=false;f.mesh.material.opacity=Math.min(.9,f.life/.025);}}
     for(let i=0;i<this.shells.length;i++){
       const p=this.shells[i];p.life-=dt;
       if(p.life>0){p.vy-=8*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.y<.03){p.y=.03;p.vy=Math.abs(p.vy)*.3;p.vx*=.7;p.vz*=.7;}p.angle+=dt*12;this.dummy.position.set(p.x,p.y,p.z);this.dummy.rotation.set(p.angle,p.angle*.7,1.3);this.dummy.scale.setScalar(Math.min(1,p.life*3));}
