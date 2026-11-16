@@ -14,7 +14,7 @@ const REPORTS={
 };
 
 export class AudioEngine {
-  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];this.voices=new Set();this.walkers=new Map();this.listener=null;this.round=null;this.foley={};this.duckUntil=0;this.paused=false;}
+  constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];this.actorReloads=new Map();this.voices=new Set();this.walkers=new Map();this.listener=null;this.round=null;this.foley={};this.duckUntil=0;this.paused=false;}
   unlock(){
     if(!this.ctx){
       this.ctx=new AudioContext();this.setup();
@@ -72,7 +72,8 @@ export class AudioEngine {
     return buffer;
   }
   cancelReload(){for(const source of this.reloadSounds)try{source?.stop();}catch{}this.reloadSounds=[];}
-  reset(){this.cancelReload();for(const voice of this.voices)try{voice.stop();}catch{}this.voices.clear();this.walkers.clear();this.lastBeep=-Infinity;this.duckUntil=0;}
+  cancelActorReload(id){const sources=this.actorReloads.get(id)||[];for(const source of sources)try{source?.stop();}catch{}this.actorReloads.delete(id);}
+  reset(){this.cancelReload();for(const id of this.actorReloads.keys())this.cancelActorReload(id);for(const voice of this.voices)try{voice.stop();}catch{}this.voices.clear();this.walkers.clear();this.lastBeep=-Infinity;this.duckUntil=0;}
   setPaused(value){this.paused=!!value;if(value)this.reset();if(this.ctx)this.ambientGain.gain.setTargetAtTime(0,this.ctx.currentTime,.08);}
   spatial(pos){
     const me=this.listener;if(!pos||!me)return {volume:1,pan:0,distance:0,occluded:false};
@@ -129,24 +130,32 @@ export class AudioEngine {
       this.shot(e.weapon,local?1:.68*spatial.volume,spatial.pan,spatial.distance,spatial.occluded);
       if(local&&e.weapon==='scatter')this.foleySound('bolt',.13,null,.17,.75);
     }
-    if(e.type==='switch'&&local){
-      this.cancelReload();this.foleySound('cloth',.13);this.foleySound('bolt',.12,null,(e.duration||.32)*.75);
+    if(e.type==='switch'){
+      if(local)this.cancelReload();this.cancelActorReload(e.actor);
+      this.foleySound('cloth',local?.13:.2,local?null:a);this.foleySound('bolt',local?.12:.22,local?null:a,(e.duration||.32)*.75);
     }
-    if(e.type==='reload'&&local){
-      this.cancelReload();
-      const reload=e.duration||WEAPONS[e.weapon||a?.weapon]?.reload||1.5;
-      this.reloadSounds=[this.foleySound('magOut',.22,null,.08),this.foleySound('cloth',.11,null,reload*.32),this.foleySound('magIn',.29,null,reload*.68),this.foleySound('bolt',.24,null,reload*.86)];
+    if(e.type==='reload'){
+      if(local)this.cancelReload();this.cancelActorReload(e.actor);
+      const reload=e.duration||WEAPONS[e.weapon||a?.weapon]?.reload||1.5,pos=local?null:a;
+      const sources=[this.foleySound('magOut',.28,pos,.08),this.foleySound('cloth',.14,pos,reload*.32),this.foleySound('magIn',.34,pos,reload*.68),this.foleySound('bolt',.28,pos,reload*.86)];
+      this.actorReloads.set(e.actor,sources);if(local)this.reloadSounds=sources;
     }
     if(e.type==='damage'&&e.source===player){
       this.foleySound('body',.24,null,0,e.part==='weakpoint'?1.3:1);
       if(e.part==='weakpoint')this.cue([[1760,0,.045],[920,.05,.06]],.04);
     }
     if(e.type==='damage'&&local){this.foleySound('hurt',.38);this.tone(64,.16,.12,'sine',38);}
+    if(e.type==='damage'&&!local&&a){this.foleySound('hurt',.45,a);if(e.source!==player)this.foleySound('body',.26,a);}
+    if(e.type==='kill'){
+      this.cancelActorReload(e.actor);if(local)this.cancelReload();
+      this.foleySound('body',.38,local?null:a,0,.7);this.foleySound('cloth',.26,local?null:a,.12,.8);
+    }
+    if(e.type==='interact'&&a)this.foleySound('cloth',.2,local?null:a);
     if(e.type==='kill'&&e.source===player)this.cue([[880,0,.08],[440,.08,.1]],.045);
     if(e.type==='core')this.cue(e.state==='defused'||e.state==='completed'?[[660,0,.12],[880,.15,.2],[1100,.32,.23]]:[[660,0,.12],[880,.15,.16]],.11);
     if(e.type==='combat'||e.type==='order')this.tone(430,.11,.15,'triangle',750);
     if(e.type==='result')this.cue(e.winner===me?.squad?[[440,0,.28],[550,.18,.32],[660,.36,.45]]:[[330,0,.3],[277,.2,.4]],.1);
-    if(e.type==='reloaded'&&local)this.reloadSounds=[];
+    if(e.type==='reloaded'){this.actorReloads.delete(e.actor);if(local)this.reloadSounds=[];}
     if(e.type==='round'||e.type==='result')this.walkers.clear();
   }
   update(state,actor,moving){
@@ -163,13 +172,22 @@ export class AudioEngine {
       this.lastStep=state.time;const metal=BOXES.some(b=>actor.x>=b.minX-.6&&actor.x<=b.maxX+.6&&actor.z>=b.minZ-.6&&actor.z<=b.maxZ+.6);
       this.foleySound(metal?'metalStep':'step',actor.sprinting?.13:.09);this.foleySound('cloth',.025);
     }
-    if(active)for(const other of state.actors){if(other.id===actor.id||!other.alive)continue;
-      const prev=this.walkers.get(other.id);
-      if(prev&&state.time>=prev.time&&state.time-prev.time<.25)continue;
-      this.walkers.set(other.id,{x:other.x,z:other.z,time:state.time});
+    if(active)for(const other of state.actors){if(!other.alive)continue;
+      const prev=this.walkers.get(other.id),local=other.id===actor.id,pos=local?null:other;
+      const current={x:other.x,z:other.z,y:other.y||0,stride:prev?.stride||0,time:state.time};this.walkers.set(other.id,current);
       if(!prev||state.time<=prev.time)continue;
-      const speed=Math.hypot(other.x-prev.x,other.z-prev.z)/(state.time-prev.time);
-      if(speed>1&&this.spatial(other).distance<18)this.foleySound('step',Math.min(.1,speed*.02),other);
+      const dt=state.time-prev.time,travel=Math.hypot(other.x-prev.x,other.z-prev.z);
+      if(dt>.5||travel>3){current.stride=0;continue;}
+      if(prev.y<=.01&&current.y>.01){this.foleySound('cloth',.16,pos);current.stride=0;}
+      if(prev.y>.01&&current.y<=.01){this.foleySound('step',.3,pos,0,.8);this.foleySound('cloth',.15,pos);current.stride=0;}
+      if(local||current.y>.01||other.crouch||this.spatial(other).distance>28)continue;
+      current.stride+=travel;
+      const stride=other.sprinting?1.35:.95;
+      if(current.stride>=stride){
+        current.stride%=stride;
+        const metal=BOXES.some(b=>other.x>=b.minX-.6&&other.x<=b.maxX+.6&&other.z>=b.minZ-.6&&other.z<=b.maxZ+.6);
+        this.foleySound(metal?'metalStep':'step',other.sprinting?.26:.19,other);this.foleySound('cloth',.065,other);
+      }
     }
     if(active&&['uploading','defusing'].includes(state.core.state)&&state.time-this.lastBeep>(state.core.upload<8?.35:.9)){this.lastBeep=state.time;this.tone(1000,.065,.05);}
   }

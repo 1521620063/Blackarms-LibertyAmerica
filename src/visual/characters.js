@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { createOriginalSoldier, loadOriginalSoldierSurfaces } from './original-soldier.js';
+import { createMuzzleFlash, muzzleScale } from './muzzle-flash.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 
 // Original locally generated humans, with independently cloned skeletons for every actor.
@@ -29,13 +30,14 @@ export class SoldierModels {
     for(const clip of this.clips)if(clip.name!=='TPose')actions[clip.name]=mixer.clipAction(clip).play();
     actions.Idle.setEffectiveWeight(1);actions.Walk.setEffectiveWeight(0);actions.Run.setEffectiveWeight(0);mixer.update(0);
     const aim=new T.Group();aim.position.set(.16,1.49,-.32);body.add(aim);const weapon=this.kit.weapon('rifle',aim);weapon.scale.setScalar(.78);
+    const muzzle=createMuzzleFlash();muzzle.position.copy(weapon.userData.muzzle);weapon.add(muzzle);
     const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');ctx.fillStyle='#d1e9e1';ctx.textAlign='center';ctx.font='600 21px Arial';ctx.fillText('⌄ '+name,128,36);
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
     const marker=new T.Sprite(new T.SpriteMaterial({map:texture,transparent:true,depthTest:true}));marker.position.y=2.18;marker.scale.set(1.45,.36,1);root.add(marker);
     const arms=['Left','Right'].map(prefix=>({upper:skin.getObjectByName(`mixamorig${prefix}Arm`)||findBone(skin,`${prefix}Arm`),lower:findBone(skin,`${prefix}ForeArm`),hand:findBone(skin,`${prefix}Hand`)}));
     const legs=['Left','Right'].map(prefix=>({upper:findBone(skin,`${prefix}UpLeg`),lower:findBone(skin,`${prefix}Leg`),foot:findBone(skin,`${prefix}Foot`)}));
     const animationPose=[];skin.traverse(bone=>{if(bone.isBone)animationPose.push({bone,position:bone.position.clone(),quaternion:bone.quaternion.clone()});});
-    root.userData={name,scale:this.scales[side],floor:this.floors[side],body,contact,skin,originals,mixer,actions,animationPose,aim,weapon,weaponType:'rifle',marker,side,arms,legs,hips:findBone(skin,'Hips'),chest:findBone(skin,'Spine2'),neck:findBone(skin,'Neck'),head:findBone(skin,'Head'),speed:0,death:0,gait:0,lastPosition:null};
+    root.userData={name,scale:this.scales[side],floor:this.floors[side],body,contact,skin,originals,mixer,actions,animationPose,aim,weapon,muzzle,flashTime:0,weaponType:'rifle',marker,side,arms,legs,hips:findBone(skin,'Hips'),chest:findBone(skin,'Spine2'),neck:findBone(skin,'Neck'),head:findBone(skin,'Head'),speed:0,death:0,gait:0,lastPosition:null};
     return root;
   }
   setSide(root,side){
@@ -45,6 +47,11 @@ export class SoldierModels {
     for(const child of [...root.children])root.remove(child);
     for(const child of [...fresh.children])root.add(child);
     root.userData=fresh.userData;
+  }
+  fire(root){
+    const u=root.userData;u.flashTime=.075;
+    u.muzzle.visible=true;u.muzzle.scale.setScalar(muzzleScale(u.weaponType));
+    u.muzzle.material.uniforms.intensity.value=5;u.muzzle.material.uniforms.seed.value=Math.random()*100;
   }
   animate(root,a,dt){
     const u=root.userData,p=new T.Vector3(a.x,a.y,a.z),travel=u.lastPosition?Math.hypot(p.x-u.lastPosition.x,p.z-u.lastPosition.z):0;
@@ -57,7 +64,9 @@ export class SoldierModels {
     u.actions.Walk.setEffectiveTimeScale(Math.max(.6,u.speed/2));u.actions.Run.setEffectiveTimeScale(Math.max(.7,u.speed/4.5));u.mixer.update(dt);
     for(const pose of u.animationPose){pose.position.copy(pose.bone.position);pose.quaternion.copy(pose.bone.quaternion);}
     this.kit.animateWeapon(u.weapon,a);
-    if(a.weapon!==u.weaponType){u.aim.remove(u.weapon);u.weapon=this.kit.weapon(a.weapon,u.aim);u.weapon.scale.setScalar(.78);u.weaponType=a.weapon;}
+    if(a.weapon!==u.weaponType){u.aim.remove(u.weapon);u.weapon=this.kit.weapon(a.weapon,u.aim);u.weapon.scale.setScalar(.78);u.weaponType=a.weapon;u.muzzle.position.copy(u.weapon.userData.muzzle);u.weapon.add(u.muzzle);}
+    u.flashTime=Math.max(0,u.flashTime-dt);u.muzzle.visible=a.alive&&u.flashTime>0&&!a.reload&&!a.switchTime;
+    u.muzzle.material.uniforms.intensity.value=5*u.flashTime/.075;
     u.death=T.MathUtils.damp(u.death,a.alive?0:1,8,dt);
     u.body.rotation.z=-u.death*Math.PI*.49;u.body.position.y=u.death*.23;
     u.skin.position.y=u.floor;u.aim.position.y=1.49-(a.crouch?.37:0);
@@ -100,7 +109,7 @@ export class SoldierModels {
       }
     }
   }
-  release(root){root.userData.mixer.stopAllAction();root.userData.mixer.uncacheRoot(root.userData.skin);root.userData.marker.material.map.dispose();root.userData.marker.material.dispose();}
+  release(root){root.userData.mixer.stopAllAction();root.userData.mixer.uncacheRoot(root.userData.skin);root.userData.marker.material.map.dispose();root.userData.marker.material.dispose();root.userData.muzzle.geometry.dispose();root.userData.muzzle.material.dispose();}
 }
 function findBone(root,suffix){let found;root.traverse(o=>{if(o.isBone&&o.name.endsWith(suffix))found=o;});return found;}
 const origin=new T.Vector3(),inverse=new T.Quaternion(),axis=new T.Vector3(),targetDirection=new T.Vector3();

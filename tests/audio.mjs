@@ -56,7 +56,22 @@ try{
       audio.update(walking,walking.actors[0],false);
     }
     if(!heard.some(args=>args[0]==='step'&&args[2]?.id==='enemy'))throw new Error('Moving enemies must produce footsteps at 60 FPS');
+    for(const id of ['enemy','ally']){
+      const subject={...enemy,id};const scene={actors:[me,subject]};heard.length=0;
+      for(const type of ['reload','switch','damage','kill','interact'])audio.event({type,actor:id,weapon:'rifle',duration:2},'me',scene);
+      for(const name of ['magOut','magIn','bolt','hurt','body','cloth']){
+        if(!heard.some(args=>args[0]===name&&args[2]?.id===id))throw new Error(`${id} missing spatial ${name}`);
+      }
+      if(audio.actorReloads.has(id))throw new Error('Death must cancel actor reload');
+    }
+    heard.length=0;walking.time+=1/60;walking.actors[1].y=.1;audio.update(walking,walking.actors[0],false);
+    walking.time+=1/60;walking.actors[1].y=0;audio.update(walking,walking.actors[0],false);
+    if(!heard.some(args=>args[0]==='step'&&args[2]?.id==='enemy'))throw new Error('Remote landing must produce spatial footsteps');
     audio.foleySound=originalFoley;
+    const stopped=[];audio.actorReloads.set('enemy',[{stop:()=>stopped.push('enemy')}]);
+    audio.actorReloads.set('ally',[{stop:()=>stopped.push('ally')}]);audio.cancelActorReload('enemy');
+    if(stopped.join()!=='enemy'||!audio.actorReloads.has('ally'))throw new Error('Reload cancellation must be actor-specific');
+    audio.reset();if(!stopped.includes('ally'))throw new Error('Reset must cancel every reload');
     audio.settings.volume=.25;audio.update(walking,walking.actors[0],false);
     audio.burst(.2,.1);audio.setPaused(true);
     if(audio.voices.size!==0||audio.burst(.1,.1)!==undefined)throw new Error('Pause must stop and suppress burst sounds');

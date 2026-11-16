@@ -6,8 +6,8 @@ import { sweptGeometry } from './tactical-gear.js';
 
 // Original, authored ring surfaces and skin weights; no imported character data.
 const PALETTES=[
-  {cloth:0x7b8067,armor:0x716b50,webbing:0x595c44,rubber:0x292d29,metal:0x62645b,visor:0x354848,mark:0xa4a28a,skin:0xb79b7b,mask:0x63634d,shell:0x686c51,insignia:0xffffff},
-  {cloth:0x545f63,armor:0x3a4447,webbing:0x303d3f,rubber:0x222a2b,metal:0x626e72,visor:0x314951,mark:0x829497,skin:0xb49a7c,mask:0x394548,shell:0x3c4a4d,insignia:0xffffff}
+  {cloth:0xd4aa68,armor:0xbc8147,webbing:0x91643c,rubber:0x292d29,metal:0x62645b,visor:0x354848,mark:0xffd175,skin:0xb79b7b,mask:0xa77e4e,shell:0xc59450,insignia:0xffffff},
+  {cloth:0x65a8d3,armor:0x367daf,webbing:0x346486,rubber:0x222a2b,metal:0x626e72,visor:0x314951,mark:0x8cddff,skin:0xb49a7c,mask:0x4983a5,shell:0x4b95c1,insignia:0xffffff}
 ];
 function clothTexture(side){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
@@ -38,6 +38,11 @@ export function originalSoldierMaterials(side){
   return Object.entries(PALETTES[side]).map(([role,color])=>{
     const textile=['cloth','armor','webbing','mask'].includes(role);
     const m=new T.MeshPhysicalNodeMaterial({color,vertexColors:true,roughness:role==='visor'?.13:role==='metal'?.48:role==='shell'?.72:.95,metalness:role==='metal'?.65:role==='visor'?.15:0,sheen:textile?.55:0,sheenColor:new T.Color(color).multiplyScalar(.5),sheenRoughness:.85,clearcoat:role==='visor'?1:0,clearcoatRoughness:.1});
+    // A small material light floor preserves faction hues in deep shadow.
+    // Keep it textured so fabric and armor still respond to scene lighting.
+    if(['cloth','armor','webbing','mask','shell','mark'].includes(role)){
+      m.emissive.set(color);m.emissiveIntensity=role==='mark'?.28:.16;
+    }
     if(role==='shell'||role==='metal')microSurface(m,{wear:.12,grain:.04});
     m.name=`original-${side}-${role}`;m.userData.role=role;
     if(role==='cloth')m.map=clothTexture(side);
@@ -83,6 +88,7 @@ export async function loadOriginalSoldierSurfaces(sideMaterials){
       material.map.dispose();material.map=new T.CanvasTexture(canvas);material.map.colorSpace=T.SRGBColorSpace;
       material.map.wrapS=material.map.wrapT=T.RepeatWrapping;material.map.anisotropy=4;material.map.name='uniform-composited-albedo';material.map.userData.source='generated-character-art';
     }else material.map=variant(source,'albedo',repeat);
+    material.emissiveMap=material.map;
     material.normalMap=variant(source,'normal',repeat);
     material.normalScale.setScalar(role==='cloth'?.22:role==='shell'?.14:role==='rubber'?.11:.18);
     material.roughnessMap=variant(source,'roughness',repeat);

@@ -35,9 +35,11 @@ test('quality pixel budgets bound render cost on high resolution displays',()=>{
     for(const [quality,budget] of Object.entries(budgets)){
       const scale=renderPixelRatio(width,height,dpr,quality);
       assert.ok(width*height*scale*scale<=budget+1);
-      assert.ok(scale<=dpr);
+      assert.ok(scale<=(quality==='high'?Math.max(dpr,1.25):dpr));
     }
   }
+  assert.equal(renderPixelRatio(1920,1080,1,'high'),1.25,'high quality supersamples 1x screens');
+  assert.equal(renderPixelRatio(2560,1440,1,'high'),1,'supersampling stays within the pixel budget');
   assert.equal(renderPixelRatio(1280,720,1,'medium'),1);
   assert.equal(renderPixelRatio(3840,2160,2,'medium'),.5);
 });

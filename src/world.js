@@ -3,6 +3,8 @@ import { pass, renderOutput, uniform, vec2, vec3, vec4, float, uv, mix, smoothst
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
+import { smaa } from 'three/addons/tsl/display/SMAANode.js';
+import { transparentPass } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
 import { renderPixelRatio } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -233,7 +235,7 @@ export class WorldView {
     this.worldPass=pass(this.scene,this.camera,{samples:0});
     this.occlusion=ao(this.worldPass.getTextureNode('depth'),null,this.camera);this.occlusion.radius.value=.65;this.occlusion.resolutionScale=.5;
     this.atmosphere=atmospherePass(this,this.worldPass);
-    this.weaponPass={enabled:false,node:pass(this.gunScene,this.gunCamera,{samples:0})};
+    this.weaponPass={enabled:false,node:transparentPass(this.gunScene,this.gunCamera,{samples:0})};
     this.weaponVisible=uniform(0);this.qualityEffects=uniform(1);this.gradeTime=uniform(0);
     const weapon=this.weaponPass.node.getTextureNode(),world=this.atmosphere.node;
     const shaded=vec4(world.rgb.mul(mix(1,this.occlusion.getTextureNode().r,this.qualityEffects)),1);
@@ -243,10 +245,13 @@ export class WorldView {
     const vignette=float(1).sub(smoothstep(.16,.82,distance(uv(),vec2(.5))));
     const grain=fract(sin(dot(uv().add(fract(this.gradeTime).mul(.01)),vec2(12.9898,78.233))).mul(43758.5453));
     const graded=color.mul(mix(.83,1,vignette)).add(grain.sub(.5).mul(.006));
-    // Sampled scene depth must remain single-sampled; antialias the final image.
-    const antialiased=fxaa(renderOutput(vec4(graded,1),this.renderer.toneMapping,this.renderer.outputColorSpace));
+    // Depth effects need a single-sample world pass. SMAA works on linear color
+    // before the output transform; FXAA operates on the final display color.
+    this.smaa=smaa(vec4(graded,1));
+    this.highQualityOutput=renderOutput(this.smaa,this.renderer.toneMapping,this.renderer.outputColorSpace);
+    this.mediumQualityOutput=fxaa(renderOutput(vec4(graded,1),this.renderer.toneMapping,this.renderer.outputColorSpace));
     const simple=vec4(mix(this.worldPass.getTextureNode().rgb,weapon.rgb,weapon.a.mul(this.weaponVisible)),1);
-    this.highQualityOutput=antialiased;this.lowQualityOutput=renderOutput(simple,this.renderer.toneMapping,this.renderer.outputColorSpace);
+    this.lowQualityOutput=fxaa(renderOutput(simple,this.renderer.toneMapping,this.renderer.outputColorSpace));
     this.composer=new T.PostProcessing(this.renderer,this.highQualityOutput);this.composer.outputColorTransform=false;
   }
   createDust(){
@@ -274,15 +279,26 @@ export class WorldView {
     this.wetFloor.userData.reflection.reflector.resolutionScale=(quality==='high'?768:512)/(h*scale);
     if(!this.composer)return;
     this.qualityEffects.value=enabled?1:0;this.atmosphere.enabled.value=enabled?1:0;
-    const output=enabled?this.highQualityOutput:this.lowQualityOutput;
+    const output=quality==='high'?this.highQualityOutput:enabled?this.mediumQualityOutput:this.lowQualityOutput;
     if(this.composer.outputNode!==output){this.composer.outputNode=output;this.composer.needsUpdate=true;}
     this.atmosphere.steps.value=quality==='high'?32:24;
     this.bloom.strength.value=quality==='high'?.15:.1;
 
   }
   event(e,playerId){
+    // Events arrive at simulation frequency; consume short flashes only when a
+    // frame is actually drawn, after old effects have advanced and round cleanup.
+    if(e.type==='shot'){
+      this.pendingShots??=[];this.pendingShots.push({e,playerId});
+      if(this.pendingShots.length>64)this.pendingShots.shift();
+      return;
+    }
+    this.applyEvent(e,playerId);
+  }
+  applyEvent(e,playerId){
     if(e.type==='shot'){
       if(e.actor===playerId){const kick=WEAPONS[e.weapon]?.kick??(e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063);this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=this.flashDuration=e.weapon==='scatter'?.065:.045;this.muzzle.material.uniforms.seed.value=Math.random()*100;this.muzzle.rotation.z=Math.random()*Math.PI*2;this.muzzle.scale.setScalar(muzzleScale(e.weapon)*(.85+Math.random()*.3));}
+      const model=this.models.get(e.actor);if(model)this.characters.fire(model);
       this.fx.shot(e,e.actor===playerId);
     }
     if(e.type==='damage'&&e.actor===playerId)this.shake=.045;
@@ -309,6 +325,12 @@ export class WorldView {
     }else{for(const model of this.models.values())model.visible=false;this.coreGroup.visible=true;this.coreGroup.position.set(6,0,0);this.ring.visible=true;}
     this.coreMesh.rotation.y=time*.6;this.coreMesh.position.y=.6+Math.sin(time*1.8)*.035;this.coreOrbit.rotation.z=time*.35;
     this.ring.material.opacity=.3+Math.sin(time*2)*.1;this.dust.rotation.y=Math.sin(time*.015)*.025;
+    if(this.pendingShots?.length){
+      // Equip first: makeGun resets the muzzle timer when changing weapons.
+      if(follow&&this.weaponType!==follow.weapon)this.makeGun(follow.weapon);
+      for(const {e,playerId:id} of this.pendingShots)this.applyEvent(e,id);
+      this.pendingShots.length=0;this.fx.update(0);
+    }
     if(follow){
       const desired=new T.Vector3(follow.x,(follow.crouch?1.07:1.57)+follow.y,follow.z);
       if(!this.smoothPos||this.smoothPos.distanceTo(desired)>4)this.smoothPos=desired;else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
