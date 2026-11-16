@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, sanitizeInput } from '../src/shared/match.js';
-import { SPAWNS, OBJECTIVE, RULES, WEAPONS, MAP, ZONES } from '../src/shared/data.js';
+import { SPAWNS, OBJECTIVE, RULES, WEAPONS, MAP, ZONES, BOXES, BOT_ROUTES, zoneAt } from '../src/shared/data.js';
 import { findPath, walkable, move, visible } from '../src/shared/geometry.js';
 
 const advance=(m,seconds)=>{for(let i=0;i<Math.ceil(seconds*60);i++)m.step(1/60);};
@@ -11,7 +11,10 @@ function quiet(config={mode:'core',teamSize:1}) {
 test('every protected spawn can reach each route, flank and objective without crossing collision',()=>{
   for(const spawn of [...SPAWNS.attack,...SPAWNS.defense]) for(const target of [OBJECTIVE,{x:-5,z:6},{x:-5,z:0},{x:-5,z:-6},{x:6,z:7.6},
     {x:-18,z:5},{x:18,z:-5},{x:-13,z:-16},{x:0,z:-12},{x:13,z:-12},
-    {x:-13,z:16},{x:-5,z:16},{x:6,z:12},{x:13,z:16}]) {
+    {x:-13,z:16},{x:-5,z:16},{x:6,z:12},{x:13,z:16},
+    ...Object.values(BOT_ROUTES).flatMap(r=>[...r.approach.flat(),...r.patrol]),
+    {x:-28,z:-25},{x:-16,z:-25},{x:0,z:-25},{x:16,z:-21},{x:28,z:-25},
+    ...[-28,-16,0,16,28].map(x=>({x,z:25}))]) {
     assert.ok(walkable(spawn.x,spawn.z));const path=findPath(spawn,target);assert.ok(path.length,JSON.stringify({spawn,target}));
     assert.ok(walkable(target.x,target.z),`destination is open: ${JSON.stringify(target)}`);
     let previous=spawn;
@@ -32,8 +35,14 @@ test('expanded map has no isolated walkable rooms and keeps actors inside its pe
     const x=queue[i].x+dx,z=queue[i].z+dz,k=key(x,z);if(cells.has(k)&&!seen.has(k)){seen.add(k);queue.push({x,z});}
   }
   assert.equal(seen.size,cells.size,'every navigable room connects to the main network');
-  assert.ok(ZONES.length>=14);assert.ok(walkable(-24,12));assert.ok(walkable(24,-12));
-  for(const [x,z,dx,dz] of [[-27,16,-8,0],[27,16,8,0],[20,-17,0,-8],[20,17,0,8]]){
+  assert.equal(MAP.width,80);assert.equal(MAP.depth,56);assert.equal(ZONES.length,30);
+  assert.ok(walkable(-24,12));assert.ok(walkable(24,-12));
+  for(const spawn of [...SPAWNS.attack,...SPAWNS.defense])assert.ok(/[WE]–(17|18)/.test(zoneAt(spawn).code));
+  for(const b of BOXES){
+    assert.ok(b.minX>=-MAP.halfWidth-.21&&b.maxX<=MAP.halfWidth+.21,`${b.name} stays inside map width`);
+    assert.ok(b.minZ>=-MAP.halfDepth-.21&&b.maxZ<=MAP.halfDepth+.21,`${b.name} stays inside map depth`);
+  }
+  for(const [x,z,dx,dz] of [[-39,26,-8,0],[39,26,8,0],[20,-27,0,-8],[20,27,0,8]]){
     const actor={x,z};move(actor,dx,dz);assert.ok(walkable(actor.x,actor.z));assert.ok(Math.abs(actor.x)<MAP.halfWidth&&Math.abs(actor.z)<MAP.halfDepth);
   }
 });

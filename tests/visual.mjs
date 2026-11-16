@@ -47,7 +47,10 @@ try{
   for(const [name,position,target] of [
     ['map-north-freight',[-20,1.65,-16.1],[3,1.4,-13]],
     ['map-south-service',[-7,1.65,16.8],[5,1.3,13]],
-    ['map-staging',[-25,1.65,3],[-16,1.4,-5]]
+    ['map-staging',[-36,1.65,3],[-28,1.4,-5]],
+    ['map-north-power',[-6,1.65,-25],[4,1.4,-21]],
+    ['map-south-laboratory',[-22,1.65,25],[-10,1.4,20]],
+    ['map-outer-gallery',[-36,1.65,16],[-30,1.4,3]]
   ]){
     const image=await page.evaluate(({position,target})=>{
       const v=window.__BLA.view;v.weaponPass.enabled=false;v.camera.position.fromArray(position);v.camera.lookAt(...target);v.composer.render();return v.renderer.domElement.toDataURL('image/png');
@@ -56,20 +59,21 @@ try{
   }
   const overview=await page.evaluate(({map,boxes,spawns,objective,zones})=>{
     const canvas=document.createElement('canvas');canvas.width=1440;canvas.height=1020;const c=canvas.getContext('2d');
-    const scale=23,px=x=>720+x*scale,pz=z=>535+z*scale;
+    const scale=Math.min(1280/map.width,800/map.depth),px=x=>720+x*scale,pz=z=>535+z*scale;
     c.fillStyle='#142027';c.fillRect(0,0,1440,1020);c.fillStyle='#e3ebe4';c.font='bold 32px Arial';c.fillText('BLACKARMS / FACILITY EXPANSION',70,56);
     c.fillStyle='#9eb4b9';c.font='19px Arial';c.fillText(`${map.width} × ${map.depth} m  /  NORTH FREIGHT · CENTRAL CONTROL · SOUTH SERVICE`,70,91);
     for(const zone of zones){c.fillStyle=zone.code.startsWith('N')?'#254653':zone.code.startsWith('S')?'#443c30':'#24343a';c.fillRect(px(zone.x-zone.w/2),pz(zone.z-zone.d/2),zone.w*scale,zone.d*scale);}
     c.strokeStyle='#ffffff0b';c.lineWidth=1;
-    for(let x=-28;x<=28;x+=2){c.beginPath();c.moveTo(px(x),pz(-18));c.lineTo(px(x),pz(18));c.stroke();}
-    for(let z=-18;z<=18;z+=2){c.beginPath();c.moveTo(px(-28),pz(z));c.lineTo(px(28),pz(z));c.stroke();}
+    for(let x=-map.halfWidth;x<=map.halfWidth;x+=2){c.beginPath();c.moveTo(px(x),pz(-map.halfDepth));c.lineTo(px(x),pz(map.halfDepth));c.stroke();}
+    for(let z=-map.halfDepth;z<=map.halfDepth;z+=2){c.beginPath();c.moveTo(px(-map.halfWidth),pz(z));c.lineTo(px(map.halfWidth),pz(z));c.stroke();}
     for(const b of boxes){c.fillStyle=b.h>=3.9?'#a1b4b9':b.h>=1.5?'#597b88':'#9b895c';c.fillRect(px(b.minX),pz(b.minZ),b.w*scale,b.d*scale);}
     for(const [side,points] of Object.entries(spawns))for(const [i,p] of points.entries()){
       c.fillStyle=side==='attack'?'#75d4e8':'#efa97a';c.beginPath();c.arc(px(p.x),pz(p.z),10,0,Math.PI*2);c.fill();c.font='bold 15px Arial';c.fillText(`${side==='attack'?'A':'D'}${i+1}`,px(p.x)+15,pz(p.z)+5);
     }
     c.strokeStyle='#e7d589';c.lineWidth=3;c.beginPath();c.arc(px(objective.x),pz(objective.z),objective.radius*scale,0,Math.PI*2);c.stroke();
     c.fillStyle='#f1df99';c.font='bold 18px Arial';c.fillText('CORE',px(objective.x)-25,pz(objective.z)+7);
-    c.fillStyle='#b5d7de';c.font='bold 19px Arial';c.fillText('NORTH / FREIGHT',px(-6),pz(-17));c.fillStyle='#dfc2a3';c.fillText('SOUTH / SERVICE',px(-6),pz(17.3));
+    c.fillStyle='#b5d7de';c.font='bold 16px Arial';c.fillText('FREIGHT / POWER / ENGINEERING',px(-16),pz(-26.7));
+    c.fillStyle='#dfc2a3';c.fillText('LABORATORIES / OFFICES / COMMS',px(-16),pz(27));
     c.fillStyle='#b4c4c6';c.font='17px Arial';c.fillText('Blue / Orange: spawn points    •    Pale: walls    •    Slate / Sand: high / low cover',70,994);
     return canvas.toDataURL('image/png');
   },{map:MAP,boxes:BOXES,spawns:SPAWNS,objective:OBJECTIVE,zones:ZONES});

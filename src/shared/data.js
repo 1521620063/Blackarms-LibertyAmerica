@@ -1,6 +1,6 @@
 // Data ported from main's FBLAMatchRules and build_task11_assets.py. Units: metres.
 // Shared dimensions drive collision, navigation, rendering and the tactical map.
-export const MAP = { width:56, depth:36, halfWidth:28, halfDepth:18, ceiling:5.6 };
+export const MAP = { width:80, depth:56, halfWidth:40, halfDepth:28, ceiling:5.6 };
 export const RULES = {
   1: { teamSize: 1, prepare: 15, combat: 80, wins: 3, switchAfter: 2 },
   2: { teamSize: 2, prepare: 15, combat: 95, wins: 4, switchAfter: 3 },
@@ -29,13 +29,64 @@ export const ORDERS = { follow: '跟随我', hold: '守住这里', attack: '攻�
 export const PHASES = { preparation: '准备阶段', combat: '战斗阶段', roundResult: '回合结算', matchResult: '比赛结束' };
 export const CORE_LABELS = { available: '待拾取', carried: '携带中', dropped: '已掉落', planting: '安装中', uploading: '上传中', defusing: '拆除中', defused: '已拆除', completed: '上传完成' };
 export const SPAWNS = {
-  attack: [{ x: -24, z: 12 }, { x: -24, z: 0 }, { x: -24, z: -12 }],
-  defense: [{ x: 24, z: -12 }, { x: 24, z: 0 }, { x: 24, z: 12 }],
+  attack: [{ x: -36, z: 20 }, { x: -36, z: 0 }, { x: -36, z: -20 }],
+  defense: [{ x: 36, z: -20 }, { x: 36, z: 0 }, { x: 36, z: 20 }],
+};
+// Each squad fans out through the annexes before converging on the facility.
+// These waypoints also serve as explicit navigation destinations in validation.
+export const BOT_ROUTES = {
+  attack: {
+    approach: [
+      [{x:-30,z:20},{x:-16,z:25}],
+      [{x:-30,z:0},{x:-18,z:5}],
+      [{x:-30,z:-20},{x:-16,z:-25}],
+    ],
+    patrol: [{x:6,z:-2},{x:12,z:4},{x:18,z:-5},{x:16,z:-21},{x:0,z:-25},{x:-16,z:-25},
+      {x:-30,z:0},{x:-16,z:25},{x:0,z:25},{x:16,z:25},{x:30,z:0},{x:6,z:12}],
+  },
+  defense: {
+    approach: [
+      [{x:30,z:-20},{x:16,z:-21}],
+      [{x:30,z:0},{x:18,z:-5}],
+      [{x:30,z:20},{x:16,z:25}],
+    ],
+    patrol: [{x:-5,z:-6},{x:-12,z:4},{x:-18,z:5},{x:-16,z:25},{x:0,z:25},{x:16,z:25},
+      {x:30,z:0},{x:16,z:-21},{x:0,z:-25},{x:-16,z:-25},{x:-30,z:0},{x:0,z:0}],
+  },
 };
 // Three.js Y is up; UE's ground Y maps to -Z.
 const blocks = [
-  ['北侧外墙', 0, -18, 56, .4, 4], ['南侧外墙', 0, 18, 56, .4, 4],
-  ['攻击方外墙', -28, 0, .4, 36, 4], ['防守方外墙', 28, 0, .4, 36, 4],
+  ['北侧外墙', 0, -MAP.halfDepth, MAP.width, .4, 4], ['南侧外墙', 0, MAP.halfDepth, MAP.width, .4, 4],
+  ['攻击方外墙', -MAP.halfWidth, 0, .4, MAP.depth, 4], ['防守方外墙', MAP.halfWidth, 0, .4, MAP.depth, 4],
+  // The old perimeter becomes an inner facade: four doors per long side,
+  // three per end. The outer ring can also be crossed without entering it.
+  ...[-18,18].flatMap(z=>[[-25,6],[-13,10],[0,8],[13,10],[25,6]].map(([x,w])=>['内环长墙',x,z,w,.4,4])),
+  ...[-28,28].flatMap(x=>[[-16,4],[-6.5,7],[6.5,7],[16,4]].map(([z,d])=>['内环门厅墙',x,z,.4,d,4])),
+  // North annex: connected freight, pump and power rooms, with offset doors
+  // in each partition and a clear cross-passage along the northern wall.
+  ...[-24,-8,8,24].flatMap((x,i)=>(i%2?[[-19.1,2.2],[-24.3,3.4]]:[[-21,6],[-26.8,2.4]])
+    .map(([z,d])=>['北翼动力间隔墙',x,z,.4,d,4])),
+  ['货运箱组五',-17,-21.5,5,2,2.5],['货运箱组六',17,-24.2,5,2,2.5],
+  ['北翼泵站机柜',-30,-23,2,2,2.5],['北翼电力机柜',-2,-23,2.4,1.4,2.6],
+  ['北翼电力机柜东',3,-21.2,1.4,1.6,2.6],['北翼北低箱',0,-26,2,1,.95],
+  ['北翼维修台',30,-22,3,1.2,1.1],['货运装卸低箱',-12,-25,2,1.2,1.1],
+  // South annex: labs and offices have two doors each and a longitudinal
+  // corridor. Solid benches and racks break up the room sightlines.
+  ...[-24,-8,8,24].flatMap((x,i)=>(i%2?[ [19.1,2.2],[24.3,3.4] ]:[ [21,6],[26.8,2.4] ])
+    .map(([z,d])=>['南翼实验间隔墙',x,z,.4,d,4])),
+  ...[-16,0,16].flatMap(x=>[[-4.9,6.2],[4.9,6.2]].map(([dx,w])=>['南翼走廊半墙',x+dx,23,w,.4,2.7])),
+  ['南翼实验操作台',-18,20.5,3,1.1,1.1],['南翼实验机柜',-12,26,2,1,2.4],
+  ['南翼样本机柜',-3,20.3,1.6,1.3,2.3],['南翼研究操作台',3,25.8,3,1.1,1.1],
+  ['南翼办公机柜',12,20.4,2,1,2.2],['南翼办公操作台',20,25.8,3,1.2,1.1],
+  ['南翼医疗操作台',-30,22,3,1.2,1.1],['南翼通信机柜',30,24,2,1.4,2.5],
+  // Outer end galleries: staggered blast walls shield the new spawns while
+  // leaving a continuous circuit through both annexes and the inner facility.
+  ...[-1,1].flatMap(s=>[
+    ...[-20,0,20].map(z=>['外环集结防爆屏',s*33,z,.45,5,2.7]),
+    ...[-10,10].map(z=>['外环门厅折墙',s*30.5,z,5,.4,4]),
+    ['外环北设备柜',s*37,-9,1.5,1.5,2.4],['外环南补给箱',s*37,9,1.5,1.5,1.1],
+    ['外环转角掩体',s*30,16,1.2,1.5,1.4],['外环北转角掩体',s*30,-16,1.2,1.5,1.4]
+  ]),
   // Original facility is now a central building with several doors into both wings.
   ...[-10,10].flatMap(z=>[[-14.4,3.2],[-8.8,4],[-2,5.6],[5,3.6],[12.6,6.8]].map(([x,w])=>['中央建筑分隔墙',x,z,w,.4,4])),
   ...[-16,16].flatMap(x=>[[-8.5,3],[0,7],[8.5,3]].map(([z,d])=>['中央建筑门厅墙',x,z,.4,d,4])),
@@ -72,6 +123,20 @@ const blocks = [
 ];
 export const BOXES = blocks.map(([name, x, z, w, d, h]) => ({ name, x, z, w, d, h, minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2 }));
 export const ZONES = [
+  { name: '攻击方外环集结区', code: 'W–17', x: -36, z: 0, w: 8, d: 56 },
+  { name: '防守方外环集结区', code: 'E–18', x: 36, z: 0, w: 8, d: 56 },
+  { name: '北翼西侧泵站', code: 'N–19', x: -28, z: -23, w: 8, d: 10 },
+  { name: '北翼货运扩展仓', code: 'N–20', x: -16, z: -23, w: 16, d: 10 },
+  { name: '北翼动力控制室', code: 'N–21', x: 0, z: -23, w: 16, d: 10 },
+  { name: '北翼装卸中转站', code: 'N–22', x: 16, z: -23, w: 16, d: 10 },
+  { name: '北翼工程维修间', code: 'N–23', x: 28, z: -23, w: 8, d: 10 },
+  { name: '南翼医疗补给间', code: 'S–24', x: -28, z: 23, w: 8, d: 10 },
+  { name: '南翼材料实验室', code: 'S–25', x: -16, z: 23, w: 16, d: 10 },
+  { name: '南翼样本研究室', code: 'S–26', x: 0, z: 23, w: 16, d: 10 },
+  { name: '南翼行政办公区', code: 'S–27', x: 16, z: 23, w: 16, d: 10 },
+  { name: '南翼通信控制室', code: 'S–28', x: 28, z: 23, w: 8, d: 10 },
+  { name: '西侧环形联络廊', code: 'W–29', x: -30, z: 0, w: 4, d: 36 },
+  { name: '东侧环形联络廊', code: 'E–30', x: 30, z: 0, w: 4, d: 36 },
   { name: '攻击方装卸大厅', code: 'A–01', x: -22, z: 0, w: 12, d: 36 },
   { name: '防守方后勤大厅', code: 'D–08', x: 22, z: 0, w: 12, d: 36 },
   { name: '西侧货运仓', code: 'N–09', x: -13, z: -14, w: 6, d: 8 },
@@ -89,7 +154,7 @@ export const ZONES = [
   { name: '侧翼通道', code: 'F–07', x: 6, z: 7.6, w: 9, d: 3.2 },
   { name: '东侧内门厅', code: 'E–16', x: 13, z: 0, w: 5, d: 19 },
 ];
-export function zoneAt(p) { return ZONES.find(z => Math.abs(p.x-z.x)<z.w/2 && Math.abs(p.z-z.z)<z.d/2) || ZONES.find(z=>z.code==='M–05'); }
+export function zoneAt(p) { return ZONES.find(z => Math.abs(p.x-z.x)<=z.w/2 && Math.abs(p.z-z.z)<=z.d/2) || ZONES.find(z=>z.code==='M–05'); }
 export const clamp = (x,a,b) => Math.min(b,Math.max(a,x));
 export const distance = (a,b) => Math.hypot(a.x-b.x,a.z-b.z);
 export const direction = (yaw,pitch=0) => ({ x: -Math.sin(yaw)*Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw)*Math.cos(pitch) });

@@ -31,13 +31,13 @@ export class WorldView {
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;
     this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
     this.scene=new T.Scene();this.scene.background=new T.Color(0x82979f);this.scene.fog=new T.FogExp2(0x82918e,.006);
-    this.camera=new T.PerspectiveCamera(settings.fov,1,.035,110);this.camera.rotation.order='YXZ';
+    this.camera=new T.PerspectiveCamera(settings.fov,1,.035,150);this.camera.rotation.order='YXZ';
     this.models=new Map();this.recoil=0;this.shake=0;this.shotTimer=0;this.weaponType='';this.smoothPos=null;this.lastRound='';this.sway=new T.Vector2();this.lastLook=null;this.moveBlend=0;
     const pmrem=new T.PMREMGenerator(this.renderer),room=new RoomEnvironment();this.environment=pmrem.fromScene(room,.04).texture;room.dispose();pmrem.dispose();
     this.scene.environment=this.environment;this.scene.environmentIntensity=.48;
     this.scene.add(new T.HemisphereLight(0xc1d3de,0x4c4337,.62));
-    this.sun=new T.DirectionalLight(0xffdfac,4.2);this.sun.position.set(-16,20,-13);this.sun.castShadow=true;this.sun.shadow.mapSize.set(4096,4096);
-    Object.assign(this.sun.shadow.camera,{left:-35,right:35,top:28,bottom:-28,near:.5,far:90});this.sun.shadow.camera.updateProjectionMatrix();this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.009;this.scene.add(this.sun);
+    this.sun=new T.DirectionalLight(0xffdfac,4.2);this.sun.position.set(-32,40,-26);this.sun.castShadow=true;this.sun.shadow.mapSize.set(4096,4096);
+    Object.assign(this.sun.shadow.camera,{left:-52,right:52,top:44,bottom:-44,near:.5,far:150});this.sun.shadow.camera.updateProjectionMatrix();this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.009;this.scene.add(this.sun);
     this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();facilityArchitecture(this);facilityDecals(this.facility);this.batchFacility();
     this.characters=new SoldierModels(this.kit);
     this.ready=Promise.all([this.characters.ready,loadGeneratedArt(this.materials,this.renderer,{skip:['concrete','floor']})]).then(async([,assets])=>{
@@ -90,57 +90,59 @@ export class WorldView {
       }
     }
     // Structural ceiling: steel I-beams, skylight coffers and cable trays.
-    for(let x=-MAP.halfWidth+2;x<MAP.halfWidth-2;x+=4){
+    for(let x=-MAP.halfWidth+2;x<=MAP.halfWidth-2;x+=4){
       this.box(.12,.42,MAP.depth,x,5.12,0,'steel');this.box(.32,.065,MAP.depth,x,4.94,0,'dark');
-      for(let z=-15;z<=15;z+=5){
+      for(let z=-MAP.halfDepth+3;z<=MAP.halfDepth-3;z+=5){
         const glazed=Math.abs(z)===5&&Math.round(x+26)%8===0;
         if(glazed){
           // Roof panels surround an actual aperture; glass transmits sunlight.
-          for(const dx of [-1.85,1.85])this.box(.3,.08,5,x+1.9+dx,5.55,z,'ceiling');
-          for(const dz of [-1.925,1.925])this.box(3.4,.08,1.15,x+1.9,5.55,z+dz,'ceiling');
-          this.box(3.4,.025,2.7,x+1.9,5.54,z,'window');
-          for(let i=0;i<6;i++)this.box(.035,.09,2.73,x+.4+i*.6,5.5,z,'steel');
-        }else this.box(4,.08,5,x+1.9,5.55,z,'ceiling');
+          for(const dx of [-1.85,1.85])this.box(.3,.08,5,x+dx,5.55,z,'ceiling');
+          for(const dz of [-1.925,1.925])this.box(3.4,.08,1.15,x,5.55,z+dz,'ceiling');
+          this.box(3.4,.025,2.7,x,5.54,z,'window');
+          for(let i=0;i<6;i++)this.box(.035,.09,2.73,x-1.5+i*.6,5.5,z,'steel');
+        }else this.box(4,.08,5,x,5.55,z,'ceiling');
       }
-      for(const z of [-14,0,14]){
+      for(const z of [-24,-14,0,14,24]){
         this.box(1.8,.14,.36,x,4.77,z,'steel',this.facility,.025);this.box(1.57,.025,.23,x,4.69,z,'lamp');
         for(const dx of [-.65,.65])this.cylinder(.009,.009,.32,x+dx,5,z,'edge',this.facility,6);
       }
     }
     this.localLights=[];
-    for(const [x,z] of [[-22,0],[-10,0],[6,0],[22,0],[-18,-14],[-2,-14],[18,-14],[-14,14],[2,14],[14,14]]){
+    for(const [x,z] of [[-22,0],[-10,0],[6,0],[22,0],[-18,-14],[-2,-14],[18,-14],[-14,14],[2,14],[14,14],
+      [-35,-20],[-35,0],[-35,20],[35,-20],[35,0],[35,20],[-27,-23],[-15,-23],[0,-23],[16,-23],[28,-23],
+      [-27,23],[-16,23],[0,23],[16,23],[28,23]]){
       const light=new T.SpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?105:145,17,1.06,.72,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
       light.shadow.mapSize.set(1024,1024);light.shadow.camera.near=.2;light.shadow.camera.far=18;light.shadow.bias=-.00015;light.shadow.normalBias=.006;
       this.scene.add(light,light.target);this.localLights.push(light);
     }
     // Service pipes, collars, conduit and wall-mounted distribution boards.
-    for(const [i,z] of [-17.6,-17.21,-16.94].entries()){
+    for(const [i,z] of [-MAP.halfDepth+.4,-MAP.halfDepth+.79,-MAP.halfDepth+1.06].entries()){
       const pipe=this.cylinder(i===0?.13:.067,i===0?.13:.067,MAP.width-1,0,3.45+i*.26,z,i===0?'paintedWall':'steel');pipe.rotation.z=Math.PI/2;
-      for(let x=-26;x<=26;x+=2){const collar=this.cylinder(i===0?.155:.085,i===0?.155:.085,.055,x,3.45+i*.26,z,'edge');collar.rotation.z=Math.PI/2;}
+      for(let x=-MAP.halfWidth+2;x<=MAP.halfWidth-2;x+=2){const collar=this.cylinder(i===0?.155:.085,i===0?.155:.085,.055,x,3.45+i*.26,z,'edge');collar.rotation.z=Math.PI/2;}
     }
-    for(let x=-26;x<27;x+=4){
-      this.box(1.35,1.48,.13,x,.84,-17.66,'steel',this.facility,.025);
-      const panel=new T.Mesh(new T.PlaneGeometry(1.24,1.34),this.materials.panel);panel.position.set(x,.84,-17.569);this.facility.add(panel);
-      this.box(.055,1.2,.055,x+.6,2.3,-17.64,'steel');
-      this.box(.34,.21,.12,x,2.65,17.7,'steel',this.facility,.02);this.box(.22,.085,.14,x,2.65,17.64,'warm',this.facility,.015);
+    for(let x=-MAP.halfWidth+2;x<MAP.halfWidth-1;x+=4){
+      this.box(1.35,1.48,.13,x,.84,-MAP.halfDepth+.34,'steel',this.facility,.025);
+      const panel=new T.Mesh(new T.PlaneGeometry(1.24,1.34),this.materials.panel);panel.position.set(x,.84,-MAP.halfDepth+.431);this.facility.add(panel);
+      this.box(.055,1.2,.055,x+.6,2.3,-MAP.halfDepth+.36,'steel');
+      this.box(.34,.21,.12,x,2.65,MAP.halfDepth-.3,'steel',this.facility,.02);this.box(.22,.085,.14,x,2.65,MAP.halfDepth-.36,'warm',this.facility,.015);
     }
     // Warning paint and floor grime are flat and do not introduce invisible obstacles.
     for(const z of [-6,0,6])for(let x=-14;x<2;x+=1.1)this.box(.6,.006,.035,x,.004,z,'yellow');
-    for(let x=-24;x<=24;x+=4)this.box(.012,.003,MAP.depth-.6,x,-.018,0,'dark');
-    for(let z=-16;z<=16;z+=4)this.box(MAP.width-.6,.003,.012,0,-.018,z,'dark');
-    for(const x of [-24.7,24.7])for(const z of [-12,-6,0,6,12])this.box(.045,.008,.7,x,.006,z,x<0?'blue':'orange');
-    for(const x of [-22,-14,-6,2,10,22]){
-      this.box(.24,.01,MAP.depth-.8,x,.008,0,'steel');for(let z=-17.4;z<17.5;z+=.24)this.box(.2,.012,.018,x,.013,z,'dark');
+    for(let x=-MAP.halfWidth+4;x<=MAP.halfWidth-4;x+=4)this.box(.012,.003,MAP.depth-.6,x,-.018,0,'dark');
+    for(let z=-MAP.halfDepth+4;z<=MAP.halfDepth-4;z+=4)this.box(MAP.width-.6,.003,.012,0,-.018,z,'dark');
+    for(const x of [-36.7,36.7])for(const z of [-20,-12,0,12,20])this.box(.045,.008,.7,x,.006,z,x<0?'blue':'orange');
+    for(const x of [-34,-22,-14,-6,2,10,22,34]){
+      this.box(.24,.01,MAP.depth-.8,x,.008,0,'steel');for(let z=-MAP.halfDepth+.6;z<MAP.halfDepth-.5;z+=.24)this.box(.2,.012,.018,x,.013,z,'dark');
     }
     const grimeCanvas=document.createElement('canvas');grimeCanvas.width=grimeCanvas.height=128;const gc=grimeCanvas.getContext('2d'),g=gc.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(12,20,17,.36)');g.addColorStop(1,'rgba(12,20,17,0)');gc.fillStyle=g;gc.fillRect(0,0,128,128);
     const grime=new T.MeshBasicMaterial({map:new T.CanvasTexture(grimeCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
     for(let i=0;i<28;i++){const mesh=new T.Mesh(new T.PlaneGeometry(.8+random()*2,.5+random()*1.5),grime);mesh.rotation.x=-Math.PI/2;mesh.rotation.z=random()*6;mesh.position.set(random()*(MAP.width-2)-MAP.halfWidth+1,.013,random()*(MAP.depth-2)-MAP.halfDepth+1);this.facility.add(mesh);}
     for(const b of BOXES.filter(b=>b.h<3.9)){const shadow=new T.Mesh(new T.PlaneGeometry(b.w+.7,b.d+.7),grime);shadow.rotation.x=-Math.PI/2;shadow.position.set(b.x,.017,b.z);this.facility.add(shadow);}
-    this.sign('BLACKARMS','ZERO FACILITY / RESTRICTED AREA',6,-27.77,2.8,0,Math.PI/2,'#9bbfc5');
-    this.sign('SECTOR 06','DATA OPERATIONS / AUTHORIZED ACCESS',5,27.77,2.8,0,-Math.PI/2,'#d8b38a');
+    this.sign('BLACKARMS','ZERO FACILITY / RESTRICTED AREA',6,-MAP.halfWidth+.23,2.8,0,Math.PI/2,'#9bbfc5');
+    this.sign('SECTOR 06','DATA OPERATIONS / AUTHORIZED ACCESS',5,MAP.halfWidth-.23,2.8,0,-Math.PI/2,'#d8b38a');
     for(const [title,z] of [['02 / WEST',6],['03 / CENTRAL',0],['04 / EAST',-6]])this.sign(title,'OPERATIONS • KEEP CLEAR',2.4,-2.215,3.35,z,-Math.PI/2);
     this.sign('CORE CONTROL','06 / HIGH SECURITY',3.5,3.215,2.75,0,Math.PI/2,'#8fc6d0');this.sign('SERVICE / 07','MAINTENANCE ACCESS',3,6,2.7,5.585,0,'#d8b38a');
-    for(const x of [-27.65,27.65])for(const z of [-6.8,6.8]){
+    for(const x of [-MAP.halfWidth+.35,MAP.halfWidth-.35])for(const z of [-6.8,6.8]){
       this.box(.13,1.85,1.05,x,1.1,z,'steel',this.facility,.02);this.box(.015,.62,.72,x+(x<0?.08:-.08),1.4,z,x<0?'blue':'orange',this.facility,.015);
       for(let i=0;i<5;i++)this.box(.025,.018,.48,x+(x<0?.095:-.095),.45+i*.065,z,'edge');
     }
@@ -156,6 +158,20 @@ export class WorldView {
       for(let x=b.minX+.3;x<b.maxX;x+=.5)for(const side of [-1,1])this.box(.12,.07,.025,x,1.6,b.z+side*(b.d/2+.03),'blue');
     }
     for(const z of [-16.5,16.5])for(let x=-25;x<26;x+=1.3)this.box(.65,.006,.045,x,.008,z,z<0?'blue':'yellow');
+    for(const [x,title,subtitle] of [[-16,'FREIGHT / 20','STORAGE  ←  →  POWER'],[0,'POWER / 21','PUMP STATION  ←  →  ENGINEERING'],[16,'TRANSFER / 22','LOADING  ←  →  SERVICE']])
+      this.sign(title,subtitle,4,x,2.9,-MAP.halfDepth+.23,0,'#94d6e3');
+    for(const [x,title,subtitle] of [[-16,'LABORATORY / 25','MEDICAL  ←  →  RESEARCH'],[0,'RESEARCH / 26','SAMPLES  ←  →  OFFICES'],[16,'OFFICES / 27','ADMINISTRATION  ←  →  COMMS']])
+      this.sign(title,subtitle,4,x,2.9,MAP.halfDepth-.23,Math.PI,'#e3b77d');
+    // Repeated doorway colors make the inner and outer circuits readable.
+    for(const z of [-18,18])for(const x of [-20,-6,6,20]){
+      this.box(4,.28,.46,x,3.86,z,'steel');this.box(3.7,.045,.49,x,3.69,z,z<0?'blue':'orange');
+      this.box(3.6,.008,.12,x,.012,z,z<0?'blue':'yellow');
+    }
+    for(const x of [-28,28])for(const z of [-12,0,12]){
+      this.box(.46,.28,4,x,3.86,z,'steel');this.box(.49,.045,3.7,x,3.69,z,'lamp');
+    }
+    for(const z of [-26.5,26.5])for(let x=-38;x<39;x+=1.3)this.box(.65,.006,.045,x,.008,z,z<0?'blue':'yellow');
+    for(const x of [-38,38])for(let z=-25;z<26;z+=1.3)this.box(.045,.006,.65,x,.008,z,x<0?'blue':'orange');
     // Recessed core platform and floating data cartridge.
     this.box(2.95,.028,2.95,OBJECTIVE.x,.02,OBJECTIVE.z,'dark',this.facility,.04);
     for(const dx of [-1.35,1.35])for(const dz of [-1.35,1.35]){this.box(.42,.018,.045,6+dx,.043,dz,'yellow');this.box(.045,.018,.42,6+dx,.043,dz,'yellow');}

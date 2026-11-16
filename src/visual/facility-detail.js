@@ -99,11 +99,11 @@ export function facilityArchitecture(view){
   const {kit,facility:root}=view,random=rng(7861);
   const box=(w,h,d,x,y,z,m,r=0)=>kit.box(root,w,h,d,x,y,z,m,r);
   // Clerestory windows and deep facade reveals, above every firing line.
-  for(const z of [-17.94,17.94]){
+  for(const z of [-MAP.halfDepth+.06,MAP.halfDepth-.06]){
     box(MAP.width,.22,.28,0,4.02,z,'concrete');
     box(MAP.width,1.28,.16,0,4.74,z,'window');
     box(MAP.width,.14,.38,0,5.4,z,'steel');
-    for(let x=-27;x<=27;x+=3){
+    for(let x=-MAP.halfWidth+1;x<=MAP.halfWidth-1;x+=3){
       box(.12,1.3,.32,x,4.73,z,'steel');
       box(2.9,.035,.23,x+1.5,4.65,z,'titanium');
     }
@@ -111,9 +111,9 @@ export function facilityArchitecture(view){
   // Warehouse trusses and a suspended yellow bridge crane give the freight
   // lane a strong, human-scale silhouette instead of a repeated light grid.
   for(const z of [-16,-12]){
-    box(52,.27,.18,0,4.4,z,'crane');
-    box(52,.06,.42,0,4.25,z,'crane');
-    for(let x=-24;x<=24;x+=4)box(.07,.7,.1,x,4.77,z,'steel');
+    box(MAP.width-4,.27,.18,0,4.4,z,'crane');
+    box(MAP.width-4,.06,.42,0,4.25,z,'crane');
+    for(let x=-MAP.halfWidth+4;x<=MAP.halfWidth-4;x+=4)box(.07,.7,.1,x,4.77,z,'steel');
   }
   for(const x of [-13,13]){
     box(.4,.35,4.4,x,4.42,-14,'crane',.025);
@@ -134,12 +134,12 @@ export function facilityArchitecture(view){
         }
       }
     }
-    if(length>2&&Math.abs(b.z)<17.5){
+    if(length>2&&Math.abs(b.z)<MAP.halfDepth-.5){
       box(alongX?length-.2:.12,.17,alongX?.12:length-.2,b.x+(alongX?0:b.w/2+.08),3.33,b.z+(alongX?b.d/2+.08:0),'conduit',.012);
     }
   }
   // Repair panels and shallow threshold plates stay on the floor surface.
-  for(const x of [-23,23])for(const z of [-12,0,12]){
+  for(const x of [-36,36])for(const z of [-20,0,20]){
     box(4,.006,2.7,x,.005,z,'stagingFloor');
     for(const side of [-1,1])box(4,.008,.055,x,.01,z+side*1.36,'floorPaint');
   }
@@ -156,18 +156,18 @@ export function facilityArchitecture(view){
     const marking=new T.Mesh(new T.PlaneGeometry(3.8,1.9),paint);marking.rotation.x=-Math.PI/2;marking.position.set(x,.022,-15.8);root.add(marking);
   }
   // Roof seams and ventilator trunks give shaded ceiling panels readable scale.
-  for(let z=-16.8;z<=16.8;z+=1.4){
+  for(let z=-MAP.halfDepth+1.2;z<=MAP.halfDepth-1.2;z+=1.4){
     box(MAP.width-.5,.022,.032,0,5.495,z,'conduit');
   }
   for(const x of [-11,11]){
     box(.62,.22,MAP.depth-.8,x,5.2,0,'hvac',.02);
-    for(let z=-16;z<=16;z+=2){
+    for(let z=-MAP.halfDepth+2;z<=MAP.halfDepth-2;z+=2){
       box(.66,.027,.045,x,5.075,z,'titanium',.005);
       for(const dx of [-.27,.27])box(.018,.33,.025,x+dx,5.35,z,'steel');
     }
   }
   // Shallow service stations on exterior walls stay against solid collision.
-  for(const z of [-17.77,17.77])for(const x of [-22,-14,-6,6,14,22]){
+  for(const z of [-MAP.halfDepth+.23,MAP.halfDepth-.23])for(const x of [-30,-22,-14,-6,6,14,22,30]){
     const facing=z<0?1:-1,front=z+facing*.045;
     box(.72,.48,.055,x,2.42,z,'hvac',.014);
     box(.62,.37,.012,x,2.42,front,'rack',.009);

@@ -1,7 +1,7 @@
 import './style.css';
 import './weapons.css';
 import { Match } from './shared/match.js';
-import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, MAP, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
+import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, MAP, ZONES, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
 import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
@@ -202,8 +202,10 @@ function events(){
 function mapDraw(me){
   const ctx=$('minimap').getContext('2d'),w=ctx.canvas.width,h=ctx.canvas.height;ctx.clearRect(0,0,w,h);
   const sx=Math.min((w-28)/MAP.width,(h-28)/MAP.depth),sz=sx,px=x=>w/2+x*sx,pz=z=>h/2+z*sz;
-  ctx.fillStyle='#7ac8e309';ctx.fillRect(px(-16),pz(-18),32*sx,8*sz);
-  ctx.fillStyle='#d8b38a0c';ctx.fillRect(px(-16),pz(10),32*sx,8*sz);
+  for(const zone of ZONES){
+    ctx.fillStyle=zone.code.startsWith('N')?'#7ac8e311':zone.code.startsWith('S')?'#d8b38a15':'#98bdc408';
+    ctx.fillRect(px(zone.x-zone.w/2),pz(zone.z-zone.d/2),zone.w*sx,zone.d*sz);
+  }
   ctx.strokeStyle='#98bdc414';ctx.lineWidth=1;for(let x=-MAP.halfWidth;x<=MAP.halfWidth;x+=4){ctx.beginPath();ctx.moveTo(px(x),pz(-MAP.halfDepth));ctx.lineTo(px(x),pz(MAP.halfDepth));ctx.stroke();}
   for(const b of BOXES){ctx.fillStyle=b.h<1.5?'#566760':'#8b9e9677';ctx.fillRect(px(b.minX),pz(b.minZ),b.w*sx,b.d*sz);}
   if(state.config.mode==='core'){
