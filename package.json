@@ -12,6 +12,7 @@
     "test:webgpu": "node tests/webgpu.mjs",
     "test:environment": "node tests/environment.mjs",
     "test:performance": "node tests/performance.mjs",
+    "test:startup": "node tests/startup.mjs",
     "test:browser": "node tests/browser.mjs",
     "test:visual": "node tests/visual.mjs",
     "test:wet-light": "node tests/wet-light.mjs",

@@ -315,6 +315,11 @@ view.ready.then(async()=>{
   weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;
   weaponPreview.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 预览设备已断开：${info.message||info.reason}`));
   inspectWeapon(config.primary);
+  $('boot').querySelector('small').textContent='正在准备战场与武器…';
+  await Promise.all([
+    view.prepareGameplay(new Match({...config,mode:'core',teamSize:3}).snapshot(),'player'),
+    audio.prepare()
+  ]);
   lastTime=performance.now();show('boot',false);view.renderer.setAnimationLoop(frame);
   if(debug){
     window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get weaponPreview(){return weaponPreview;},get errors(){return errors;},get paused(){return paused;},config,settings,

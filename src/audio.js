@@ -15,6 +15,20 @@ const REPORTS={
 
 export class AudioEngine {
   constructor(settings){this.settings=settings;this.ctx=null;this.noise=null;this.lastStep=0;this.lastBeep=0;this.reports={};this.reloadSounds=[];this.actorReloads=new Map();this.voices=new Set();this.walkers=new Map();this.listener=null;this.round=null;this.foley={};this.duckUntil=0;this.paused=false;}
+  async prepare(){
+    // AudioBuffers can be generated before a user gesture; create the live context
+    // only in unlock(), so browser autoplay rules still apply.
+    const ctx={sampleRate:48000,createBuffer:(channels,length,sampleRate)=>new AudioBuffer({numberOfChannels:channels,length,sampleRate})};
+    for(const [type,profile] of Object.entries(REPORTS)){
+      this.reports[type]=Array.from({length:5},()=>this.makeReport(profile,ctx));
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    for(const name of FOLEY_NAMES){
+      this.foley[name]=Array.from({length:4},()=>makeFoley(ctx,name));
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    this.ambientBuffer=makeAmbience(ctx);
+  }
   unlock(){
     if(!this.ctx){
       this.ctx=new AudioContext();this.setup();
@@ -43,12 +57,12 @@ export class AudioEngine {
     this.room.buffer=impulse;const wet=ctx.createGain();wet.gain.value=.21;this.room.connect(wet);wet.connect(this.master);
     this.noise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.4),ctx.sampleRate);
     const values=this.noise.getChannelData(0);for(let i=0;i<values.length;i++)values[i]=Math.random()*2-1;
-    for(const [type,profile] of Object.entries(REPORTS))this.reports[type]=Array.from({length:5},()=>this.makeReport(profile));
-    for(const name of FOLEY_NAMES)this.foley[name]=Array.from({length:4},()=>makeFoley(ctx,name));
-    this.ambient=ctx.createBufferSource();this.ambient.buffer=makeAmbience(ctx);this.ambient.loop=true;this.ambient.connect(this.ambientGain);this.ambient.start();
+    for(const [type,profile] of Object.entries(REPORTS))this.reports[type]??=Array.from({length:5},()=>this.makeReport(profile));
+    for(const name of FOLEY_NAMES)this.foley[name]??=Array.from({length:4},()=>makeFoley(ctx,name));
+    this.ambient=ctx.createBufferSource();this.ambient.buffer=this.ambientBuffer??=makeAmbience(ctx);this.ambient.loop=true;this.ambient.connect(this.ambientGain);this.ambient.start();
   }
-  makeReport(p){
-    const rate=this.ctx.sampleRate,buffer=this.ctx.createBuffer(1,Math.ceil(rate*p.duration),rate),data=buffer.getChannelData(0);
+  makeReport(p,ctx=this.ctx){
+    const rate=ctx.sampleRate,buffer=ctx.createBuffer(1,Math.ceil(rate*p.duration),rate),data=buffer.getChannelData(0);
     const variation=.96+Math.random()*.08;
     let low=0,mid=0,air=0,phase=0,peak=0;
     for(let i=0;i<data.length;i++){

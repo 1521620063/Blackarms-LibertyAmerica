@@ -8,7 +8,7 @@ import { transparentPass } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
 import { renderPixelRatio } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BOXES, MAP, OBJECTIVE, WEAPONS, rng } from './shared/data.js';
+import { BOXES, MAP, OBJECTIVE, WEAPONS, WEAPON_ORDER, rng } from './shared/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
@@ -260,11 +260,37 @@ export class WorldView {
     const material=new T.SpriteNodeMaterial({color:0xc1d2cf,transparent:true,opacity:.35,depthWrite:false});material.positionNode=attribute('particlePosition','vec3');material.scaleNode=float(.014);material.opacityNode=float(.35).mul(float(1).sub(smoothstep(.1,.5,uv().sub(.5).length())));
     this.dust=new T.Mesh(geometry,material);this.dust.frustumCulled=false;this.scene.add(this.dust);
   }
+  async prepareGameplay(state,playerId){
+    // Build the combat variants while the loading screen still covers the canvas.
+    this.render(state,playerId,0,0,{prepareOnly:true});
+    await this.renderer.compileAsync(this.scene,this.camera);
+    for(const type of WEAPON_ORDER){
+      await new Promise(resolve=>setTimeout(resolve,0));
+      this.makeGun(type);this.gun.visible=true;this.muzzle.visible=true;
+      await this.renderer.compileAsync(this.gunScene,this.gunCamera);
+      this.muzzle.visible=false;
+    }
+    this.render(state,playerId,0,0,{prepareOnly:true});
+    await this.composer.renderAsync();
+    this.render({...state,config:{...state.config,mode:'elimination'}},playerId,0,0,{prepareOnly:true});
+    await this.composer.renderAsync();
+    // Render the menu too, so its postprocessing variants are ready before reveal.
+    this.render(null,playerId,0,0,{prepareOnly:true});
+    await this.composer.renderAsync();
+    this.smoothPos=null;this.lastLook=null;this.lastRound='';
+  }
   makeGun(type){
-    if(this.weapon){this.gun.remove(this.weapon);this.muzzle.geometry.dispose();this.muzzle.material.dispose();}
-    this.shotTimer=0;
-    this.weaponType=type;this.weapon=this.kit.weapon(type,this.gun,true);
-    this.muzzle=createMuzzleFlash();this.muzzle.position.copy(this.weapon.userData.muzzle);this.weapon.add(this.muzzle);
+    this.gunCache??=new Map();
+    if(this.weapon)this.gun.remove(this.weapon);
+    this.shotTimer=0;this.weaponType=type;
+    let cached=this.gunCache.get(type);
+    if(!cached){
+      const weapon=this.kit.weapon(type,this.gun,true),muzzle=createMuzzleFlash();
+      muzzle.position.copy(weapon.userData.muzzle);weapon.add(muzzle);
+      cached={weapon,muzzle};this.gunCache.set(type,cached);
+    }
+    this.weapon=cached.weapon;this.muzzle=cached.muzzle;
+    this.muzzle.visible=false;this.gun.add(this.weapon);
   }
   resize(){
     const w=innerWidth,h=innerHeight,quality=this.settings.quality;
@@ -366,6 +392,7 @@ export class WorldView {
     });
     this.weaponPass.enabled=!!follow?.alive&&!scoped&&state?.phase!=='matchResult'&&state?.phase!=='roundResult';
     this.weaponVisible.value=this.weaponPass.enabled?1:0;this.gun.visible=this.weaponPass.enabled;this.gradeTime.value=time;
-    this.atmosphere.uniforms.time.value=time;this.camera.updateMatrixWorld();this.atmosphere.update();this.composer.render();
+    this.atmosphere.uniforms.time.value=time;this.camera.updateMatrixWorld();this.atmosphere.update();
+    if(!view.prepareOnly)this.composer.render();
   }
 }
