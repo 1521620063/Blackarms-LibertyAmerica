@@ -19,6 +19,8 @@ import { loadScannedSurfaces } from './visual/scanned-surfaces.js';
 import { atmospherePass } from './visual/atmosphere.js';
 import { loadFacilitySurfaces } from './visual/facility-surfaces.js';
 import { createWetFloor } from './visual/wet-floor.js';
+import { facilitySunShadows } from './visual/sun-shadows.js';
+import { captureFacilityProbes } from './visual/facility-probe.js';
 
 export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T.MathUtils.degToRad(fov)/2)/zoom));
 
@@ -44,6 +46,9 @@ export class WorldView {
       const nylon=this.characters.sideMaterials[0].get('webbing');for(const key of ['map','normalMap','roughnessMap'])this.materials.glovePanel[key]=nylon[key];this.materials.glovePanel.needsUpdate=true;
       this.scannedAssets=await loadScannedSurfaces(this);
       this.facilityAssets=await loadFacilitySurfaces(this);
+      this.sunShadowUniforms=facilitySunShadows(this);
+      this.sunShadowUniforms.facilityShadowTaps.value=this.settings.quality==='high'?16:10;
+      this.facilityProbes=captureFacilityProbes(this);
     });
     this.gunScene=new T.Scene();this.gunScene.environment=this.environment;this.gunScene.environmentIntensity=.65;
     this.gunScene.add(new T.HemisphereLight(0xc1d4dd,0x484536,.55));const gunLight=new T.DirectionalLight(0xffe2b6,2.2);gunLight.position.set(-2,3,1);gunLight.target.position.set(0,-.1,-.8);gunLight.castShadow=true;gunLight.shadow.mapSize.set(2048,2048);
@@ -225,6 +230,7 @@ export class WorldView {
     const samples=quality==='high'?Math.min(4,this.renderer.capabilities.maxSamples):quality==='medium'?Math.min(2,this.renderer.capabilities.maxSamples):0;
     for(const target of [this.composer.renderTarget1,this.composer.renderTarget2])if(target.samples!==samples){target.samples=samples;target.dispose();}
     this.gunLight.castShadow=quality!=='low';this.atmosphere.enabled=quality!=='low';
+    if(this.sunShadowUniforms)this.sunShadowUniforms.facilityShadowTaps.value=quality==='high'?16:10;
     this.wetFloor.visible=quality!=='low';
     const reflectionSize=quality==='high'?768:512,reflectionTarget=this.wetFloor.getRenderTarget();
     if(reflectionTarget.width!==reflectionSize){reflectionTarget.setSize(reflectionSize,reflectionSize);this.wetFloor.material.uniforms.texel.value.setScalar(1/reflectionSize);}
