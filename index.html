@@ -1,13 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101715"><title>黑枪 · 自由美利坚 | BLACKARMS</title><link rel="icon" type="image/svg+xml" href="/mark.svg"></head>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101715">
+<title>黑枪 · 自由美利坚 | BLACKARMS</title>
+<link rel="icon" type="image/svg+xml" href="/mark.svg">
+<style>html{background:#101715;color-scheme:dark}</style>
+<link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/weapons.css">
+</head>
 <body>
 <canvas id="view" aria-label="零号设施游戏画面"></canvas>
 <div class="grain"></div><div class="vignette"></div>
-<div id="boot"><img src="/mark.svg" alt=""><span>BLACKARMS</span><small>正在接入零号设施…</small></div>
+<div id="boot"><img src="/mark.svg" width="70" height="70" alt=""><span>BLACKARMS</span><small>正在接入零号设施…</small></div>
 <div id="fatal" hidden></div>
 <main id="menu">
-  <header class="masthead"><a class="brand" href="/" aria-label="黑枪首页"><img src="/mark.svg" alt=""><span>BLACKARMS<small>LIBERTY AMERICA</small></span></a><nav><button class="nav-item active" data-tab="operation">行动部署</button><button class="nav-item" data-tab="armory">装备库</button><button class="nav-item" data-tab="guide">战术手册</button></nav><button class="icon-button" id="open-settings" aria-label="打开设置">⚙ <span>设置</span></button></header>
+  <header class="masthead"><a class="brand" href="/" aria-label="黑枪首页"><img src="/mark.svg" width="39" alt=""><span>BLACKARMS<small>LIBERTY AMERICA</small></span></a><nav><button class="nav-item active" data-tab="operation">行动部署</button><button class="nav-item" data-tab="armory">装备库</button><button class="nav-item" data-tab="guide">战术手册</button></nav><button class="icon-button" id="open-settings" aria-label="打开设置">⚙ <span>设置</span></button></header>
   <section class="menu-copy"><div class="eyebrow"><i class="live-dot"></i> TACTICAL OPERATIONS / 00</div><h1>黑枪<span>自由美利坚<span class="title-dot">.</span></span></h1><p class="intro">保持低姿态。控制交火线。带着队伍回来。</p><div class="hairline"></div><div class="edition">回合制团队战术射击 <span>／</span> 零号设施</div></section>
   <section id="operation" class="deployment tab-panel">
     <div class="panel-top"><span><b>01</b> 行动配置</span><small>MISSION BRIEFING</small></div>

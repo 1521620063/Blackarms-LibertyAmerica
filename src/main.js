@@ -1,5 +1,3 @@
-import './style.css';
-import './weapons.css';
 import { Match } from './shared/match.js';
 import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES, MAP, ZONES, OBJECTIVE, CORE_LABELS, PHASES, ORDERS, zoneAt, distance, clamp } from './shared/data.js';
 import { WorldView } from './world.js';
