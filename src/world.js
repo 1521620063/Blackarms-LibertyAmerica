@@ -4,6 +4,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
+import { renderPixelRatio } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOXES, MAP, OBJECTIVE, WEAPONS, rng } from './shared/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
@@ -262,8 +263,10 @@ export class WorldView {
   }
   resize(){
     const w=innerWidth,h=innerHeight,quality=this.settings.quality;
-    const scale=quality==='low'?.8:quality==='high'?Math.min(devicePixelRatio,1.75):Math.min(devicePixelRatio,1.25);
-    this.renderer.setPixelRatio(scale);this.renderer.setSize(w,h,false);
+    const scale=renderPixelRatio(w,h,devicePixelRatio,quality);
+    if(this.renderer.getPixelRatio()!==scale||this.renderWidth!==w||this.renderHeight!==h){
+      this.renderer.setPixelRatio(scale);this.renderer.setSize(w,h,false);this.renderWidth=w;this.renderHeight=h;
+    }
     this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.gunCamera.aspect=w/h;this.gunCamera.updateProjectionMatrix();
     const enabled=quality!=='low';
     this.sun.shadow.autoUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.gunLight.shadow.autoUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;

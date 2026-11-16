@@ -5,16 +5,19 @@ import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES
 import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
+import { RenderPacer } from './visual/performance.js';
 
 const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const params=new URLSearchParams(location.search),debug=params.has('debug');
-const defaults={sensitivity:1,fov:85,quality:'medium',volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:false};
+const defaults={sensitivity:1,fov:85,quality:'medium',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:false};
 let saved={};try{saved=JSON.parse(localStorage.getItem('bla.settings')||'{}');}catch{}
 const settings={...defaults,...Object.fromEntries(Object.keys(defaults).filter(k=>typeof saved[k]===typeof defaults[k]).map(k=>[k,saved[k]]))};
 settings.sensitivity=clamp(settings.sensitivity,.4,3);settings.fov=clamp(settings.fov,65,110);settings.volume=clamp(settings.volume,0,1);
 if(!['low','medium','high'].includes(settings.quality))settings.quality='medium';
+if(![0,30,60,90,120,144].includes(settings.maxFPS))settings.maxFPS=60;
+const renderPacer=new RenderPacer();
 const config={mode:'elimination',teamSize:3,difficulty:'normal',primary:'rifle',armor:'light'};
 const errors=[];window.addEventListener('error',e=>errors.push(e.message));window.addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
 let view;
@@ -61,7 +64,7 @@ function applySettings(){
 for(const [key,value] of Object.entries(settings)){
   const el=$('settings-form').elements.namedItem(key);if(!el)continue;
   if(el.type==='checkbox')el.checked=value;else el.value=value;
-  el.addEventListener('input',()=>{settings[key]=el.type==='checkbox'?el.checked:el.type==='range'?+el.value:el.value;applySettings();});
+  el.addEventListener('input',()=>{settings[key]=el.type==='checkbox'?el.checked:el.type==='range'||key==='maxFPS'?+el.value:el.value;applySettings();});
 }
 applySettings();
 function openSettings(){if(active)pauseGame();$('settings').showModal();}
@@ -290,7 +293,7 @@ function renderHUD(now){
   if(!$('scoreboard').hidden)renderBoard();mapDraw(me);
 }
 function frame(now){
-  const dt=Math.min((now-lastTime)/1000,.1);lastTime=now;frames++;
+  const dt=Math.min((now-lastTime)/1000,.1);lastTime=now;
   if(now-fpsAt>=1000){fps=frames*1000/(now-fpsAt);frames=0;fpsAt=now;text('fps',settings.showFPS?`${Math.round(fps)} FPS · ${view.renderer.info.render.drawCalls} calls`:'');}
   if(active){
     if(!online&&!paused&&!document.querySelector('dialog[open]')){
@@ -303,8 +306,12 @@ function frame(now){
   }
   hit=Math.max(0,hit-dt*5);damage=Math.max(0,damage-dt*.55);$('hitmarker').style.opacity=hit;$('damage-overlay').style.opacity=damage;$('damage-direction').style.opacity=damage;
   if(now-lastAnnouncement>2500)$('announcement').classList.remove('visible');if(now>radioUntil)text('radio','');
+  const idle=!active||paused||!!document.querySelector('dialog[open]');
+  const rate=idle?Math.min(settings.maxFPS||60,active?15:30):settings.maxFPS;
+  const renderDt=renderPacer.tick(now,rate,!document.hidden);
+  if(renderDt===null)return;
   const me=state?.actors.find(a=>a.id===playerId);const camera=me?.alive?{yaw:inputYaw,pitch:inputPitch}:{spectate};
-  try{view.render(active?state:null,playerId,Math.min(dt,.05),now/1000,camera);}catch(error){fatal(error);return;}
+  try{view.render(active?state:null,playerId,Math.min(renderDt,.1),now/1000,camera);frames++;}catch(error){fatal(error);return;}
 }
 view.ready.then(async()=>{
   weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;
