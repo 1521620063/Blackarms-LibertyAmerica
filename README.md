@@ -4,7 +4,9 @@
 
 ## 启动
 
-需要 Node.js 22 或更新版本、支持 WebGL 2 的桌面 Chrome / Edge / Firefox，以及键盘鼠标。
+需要 Node.js 22 或更新版本、支持 WebGPU 的桌面浏览器（建议最新版 Chrome / Edge，开启硬件加速），以及键盘鼠标。主场景和装备库预览均只使用 WebGPU；浏览器或显卡不支持时显示错误提示。
+
+WebGPU 需要安全上下文：本机可使用 `http://localhost:5173`；其他电脑访问必须使用受信任的 HTTPS 地址。
 
 ```bash
 npm install
@@ -47,6 +49,7 @@ npm start
 
 ## 画面与人物
 
+- 渲染使用 Three.js `WebGPURenderer`，自定义表面、阴影过滤、枪口火焰、粒子、积水反射与体积散射使用 TSL 节点；GTAO、Bloom 和 FXAA 使用 WebGPU 后处理。场景深度保持单采样供 GTAO 与体积光读取，中高画质使用 FXAA 抗锯齿。
 - 所有 AI 队友和敌人使用本项目原创 BLA Sentinel 战术士兵：33 关节骨骼、独立骨骼实例、自制站立 / 步行 / 跑步动画，叠加持枪手臂与蹲伏腿部 IK。包含头盔、护目镜、面罩、耳机、防弹背心、弹匣袋、电台、背包、护膝、手套与战术靴；攻方为军绿 / 沙色，守方为深灰 / 黑色。人物主体使用跨肩颈、肘膝的连续曲面和混合蒙皮，几何、骨骼和动画由项目制作；制服与背心使用本地生图服务生成的防撕裂布料 / 尼龙颜色贴图及近似法线、粗糙度通道，不使用第三方人物模型。
 - 工业设施使用生图混凝土、环氧地坪、枪械金属、战术织物与设备面板；五类素材分别配备颜色、近似微表面法线和粗糙度，共 15 张 1K 本地 WebP，约 6.01 MiB。统一军绿墙裙、地面模板漆和电气警示，保留顶梁、灯具、管道、设备柜、排水槽和区域标识。
 - 枪械包含圆滑边缘、机匣、枪管、枪口制退器、导轨、弹匣、枪托、扳机护圈、透明反射瞄具与红点；配合第一人称手套、持枪惯性、移动摆动、换弹与后坐力表现。
@@ -74,10 +77,20 @@ npm start
 
 ## 局域网
 
-1. 一台电脑运行 `npm run dev` 或 `npm start`。终端显示本机局域网访问地址，例如 `http://192.168.1.10:5173`。
-2. 所有玩家在浏览器打开该地址。房主先选择模式 / 规模 / 难度，点击“局域网房间 → 创建房间”。
+1. 服务电脑运行 `npm run dev` 或 `npm start`，通过 HTTPS 提供页面和同源 `/lan` WebSocket。可用 HTTPS 反向代理，或设置 `TLS_KEY` / `TLS_CERT` 让 Node 服务直接启用 HTTPS。证书需要包含访问用的主机名或 IP，且被每台玩家电脑信任。
+2. 所有玩家在浏览器打开同一个 HTTPS 地址，例如 `https://192.168.1.10:5173`。房主先选择模式 / 规模 / 难度，点击“局域网房间 → 创建房间”。
 3. 其他玩家输入六位房间码加入，可选择 ALPHA / BRAVO。房主开始比赛后，AI 补满空位。
 4. 玩家断线后当前位置由 AI 接管；房主断线会转交房主身份。比赛运行于 Node 服务所在电脑，关闭服务会断开所有连接。
+
+已有受信任证书时，PowerShell 启动示例：
+
+```powershell
+$env:TLS_KEY = 'D:\\certs\\facility-key.pem'
+$env:TLS_CERT = 'D:\\certs\\facility.pem'
+npm start
+```
+
+普通 `http://192.168...` 不提供 WebGPU 所需的安全上下文；本机 `localhost` 的 HTTP 例外不能用于其他电脑。
 
 局域网比赛打开暂停菜单时仍继续运行。房间在比赛过程中不接受新玩家加入。当前没有账号、互联网匹配、断线恢复原角色、专用服务器部署或 UE 客户端互通。远端浏览器的鼠标捕获依赖浏览器策略，优先使用桌面 Chrome / Edge。需要允许服务端口通过本机防火墙，但本项目不会自动修改系统防火墙。
 
@@ -107,14 +120,16 @@ tests/                     规则、WebSocket 与真实浏览器验收
 ```bash
 npm test
 npm run build
+npm run test:webgpu
 npm run test:browser
 npm run test:visual
+npm run test:muzzle
 npm run test:wet-light
 npm run test:arsenal
 npm run test:audio
 npm run test:art
 ```
 
-浏览器验收使用本机 Chrome / Edge，或通过 `CHROME_PATH` 指定浏览器；没有已安装浏览器时先运行 `npx playwright install chromium`。验收脚本自动启动独立端口，不依赖已运行的开发服务器。生成截图与报告在 `artifacts/`，该目录不提交。
+浏览器验收需要可用的 WebGPU 适配器，使用本机 Chrome / Edge，或通过 `CHROME_PATH` 指定浏览器；没有已安装浏览器时先运行 `npx playwright install chromium`。验收脚本自动启动独立端口，不依赖已运行的开发服务器。生成截图与报告在 `artifacts/`，该目录不提交。
 
 详细检查与限制见 [docs/verification.md](docs/verification.md)。用 `?debug=1` 访问时提供测试用 `window.__BLA` 入口，普通访问不暴露此入口。

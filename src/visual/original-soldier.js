@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { microSurface } from './micro-surface.js';
@@ -37,7 +37,7 @@ function clothTexture(side){
 export function originalSoldierMaterials(side){
   return Object.entries(PALETTES[side]).map(([role,color])=>{
     const textile=['cloth','armor','webbing','mask'].includes(role);
-    const m=new T.MeshPhysicalMaterial({color,vertexColors:true,roughness:role==='visor'?.13:role==='metal'?.48:role==='shell'?.72:.95,metalness:role==='metal'?.65:role==='visor'?.15:0,sheen:textile?.55:0,sheenColor:new T.Color(color).multiplyScalar(.5),sheenRoughness:.85,clearcoat:role==='visor'?1:0,clearcoatRoughness:.1});
+    const m=new T.MeshPhysicalNodeMaterial({color,vertexColors:true,roughness:role==='visor'?.13:role==='metal'?.48:role==='shell'?.72:.95,metalness:role==='metal'?.65:role==='visor'?.15:0,sheen:textile?.55:0,sheenColor:new T.Color(color).multiplyScalar(.5),sheenRoughness:.85,clearcoat:role==='visor'?1:0,clearcoatRoughness:.1});
     if(role==='shell'||role==='metal')microSurface(m,{wear:.12,grain:.04});
     m.name=`original-${side}-${role}`;m.userData.role=role;
     if(role==='cloth')m.map=clothTexture(side);

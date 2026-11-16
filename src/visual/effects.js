@@ -1,15 +1,19 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
+import { attribute, uv, float, vec3, smoothstep, sin } from 'three/tsl';
 import { BOXES, WEAPONS } from '../shared/data.js';
 
 class ParticlePool {
   constructor(scene,count,additive){
     this.count=count;this.cursor=0;this.particles=Array.from({length:count},()=>({life:0}));
     this.positions=new Float32Array(count*3);this.colors=new Float32Array(count*3);this.sizes=new Float32Array(count);this.alphas=new Float32Array(count);
-    this.geometry=new T.BufferGeometry();for(const [name,array,size] of [['position',this.positions,3],['color',this.colors,3],['size',this.sizes,1],['alpha',this.alphas,1]])this.geometry.setAttribute(name,new T.BufferAttribute(array,size).setUsage(T.DynamicDrawUsage));
-    this.material=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:additive?T.AdditiveBlending:T.NormalBlending,uniforms:{scale:{value:600}},
-      vertexShader:'attribute vec3 color; attribute float size; attribute float alpha; varying vec3 vColor; varying float vAlpha; uniform float scale; void main(){vColor=color;vAlpha=alpha;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=clamp(size*scale/max(0.1,-mv.z),1.0,110.0);gl_Position=projectionMatrix*mv;}',
-      fragmentShader:`varying vec3 vColor; varying float vAlpha; void main(){vec2 p=gl_PointCoord-.5;float d=length(p)*2.0;if(d>1.0)discard;float soft=${additive?'pow(1.0-d,2.0)':'(1.0-smoothstep(.12,1.0,d))*(.65+.35*sin(p.x*24.0+sin(p.y*19.0))*sin(p.y*21.0+p.x*9.0))'};gl_FragColor=vec4(vColor,vAlpha*soft);}`});
-    this.mesh=new T.Points(this.geometry,this.material);this.mesh.frustumCulled=false;this.mesh.renderOrder=2;scene.add(this.mesh);
+    this.geometry=new T.InstancedBufferGeometry().copy(new T.PlaneGeometry(1,1));this.geometry.instanceCount=count;
+    for(const [name,array,size] of [['particlePosition',this.positions,3],['color',this.colors,3],['size',this.sizes,1],['alpha',this.alphas,1]])this.geometry.setAttribute(name,new T.InstancedBufferAttribute(array,size).setUsage(T.DynamicDrawUsage));
+    this.material=new T.SpriteNodeMaterial({transparent:true,depthWrite:false,blending:additive?T.AdditiveBlending:T.NormalBlending});
+    this.material.positionNode=attribute('particlePosition','vec3');this.material.scaleNode=attribute('size','float');this.material.colorNode=attribute('color','vec3');
+    const p=uv().sub(.5),d=p.length().mul(2);
+    const soft=additive?float(1).sub(d).max(0).pow(2):float(1).sub(smoothstep(.12,1,d)).mul(sin(p.x.mul(24).add(sin(p.y.mul(19)))).mul(sin(p.y.mul(21).add(p.x.mul(9)))).mul(.35).add(.65));
+    this.material.opacityNode=attribute('alpha','float').mul(soft);
+    this.mesh=new T.Mesh(this.geometry,this.material);this.mesh.frustumCulled=false;this.mesh.renderOrder=2;scene.add(this.mesh);
   }
   emit(p,v,color,size,life,gravity=0){
     const i=this.cursor++%this.count,particle=this.particles[i];Object.assign(particle,{x:p.x,y:p.y,z:p.z,vx:v.x,vy:v.y,vz:v.z,size,life,max:life,gravity});
@@ -21,7 +25,7 @@ class ParticlePool {
       p.life-=dt;p.vy-=p.gravity*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
       this.positions.set([p.x,p.y,p.z],i*3);this.alphas[i]=Math.max(0,p.life/p.max);this.sizes[i]=p.size*(1+(1-p.life/p.max)*(p.gravity?0:2));
     }
-    for(const name of ['position','color','alpha','size'])this.geometry.attributes[name].needsUpdate=true;
+    for(const name of ['particlePosition','color','alpha','size'])this.geometry.attributes[name].needsUpdate=true;
   }
 }
 

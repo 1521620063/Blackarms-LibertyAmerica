@@ -1,4 +1,5 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
+import { Fn, attribute, uv, uniform, vec3, vec4, float, If, mix, smoothstep, exp, sin, cos, atan, abs } from 'three/tsl';
 
 // Demo-inspired crossed flame sheets: a white core, irregular petals and side jets.
 export function createMuzzleFlash(){
@@ -9,20 +10,23 @@ export function createMuzzleFlash(){
   quad([[0,-.065,0],[0,.065,0],[0,.065,-.34],[0,-.065,-.34]],1);
   quad([[-.18,-.045,-.015],[.18,-.045,-.015],[.18,.045,-.015],[-.18,.045,-.015]],2);
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));geometry.setAttribute('kind',new T.Float32BufferAttribute(types,1));
-  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneFactor,blendEquation:T.AddEquation,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,uniforms:{intensity:{value:0},seed:{value:0}},
-    vertexShader:'attribute float kind; varying vec2 vUv; varying float vKind; void main(){vUv=uv;vKind=kind;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader:`varying vec2 vUv; varying float vKind; uniform float intensity,seed;
-      void main(){vec2 p=vUv*2.0-1.0;float r=length(p);float f;
-        if(vKind<.5){float a=atan(p.y,p.x)+seed;float petals=pow(abs(cos(a*2.5)),7.0)+.4*pow(abs(sin(a*4.0)),12.0);float reach=.3+.65*petals;f=(1.0-smoothstep(reach*.12,reach,r))*(.25+petals)+2.0*exp(-r*r*55.0);}
-        else if(vKind<1.5){float y=clamp(vUv.y,0.0,1.0);float x=p.x+.12*sin(y*23.0+seed)*y;float width=.18+.24*sin(y*3.14159);f=exp(-x*x/(width*width))*pow(1.0-y,1.7)*(1.0+.25*sin(y*35.0+seed));}
-        else {float x=abs(p.x);f=exp(-p.y*p.y*(18.0+25.0*x))*(1.0-smoothstep(.1,.95,x))*smoothstep(.02,.15,x)*.65;}
-        // Empty flame-sheet pixels must not touch the color or alpha buffers.
-        float energy=max(f,0.0)*max(intensity,0.0);
-        if(energy<.001)discard;
-        vec3 color=mix(vec3(1.0,.26,.035),vec3(1.0,.88,.6),clamp(f,0.0,1.0));gl_FragColor=vec4(color*energy,0.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`});
+  const intensity=uniform(0),seed=uniform(0);
+  const material=new T.MeshBasicNodeMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneFactor,blendEquation:T.AddEquation,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor});
+  material.uniforms={intensity,seed};
+  material.fragmentNode=Fn(()=>{
+    const coords=uv(),p=coords.mul(2).sub(1),r=p.length(),kind=attribute('kind','float'),f=float(0).toVar();
+    If(kind.lessThan(.5),()=>{
+      const a=atan(p.y,p.x).add(seed),petals=abs(cos(a.mul(2.5))).pow(7).add(abs(sin(a.mul(4))).pow(12).mul(.4)),reach=petals.mul(.65).add(.3);
+      f.assign(float(1).sub(smoothstep(reach.mul(.12),reach,r)).mul(petals.add(.25)).add(exp(r.mul(r).mul(-55)).mul(2)));
+    }).ElseIf(kind.lessThan(1.5),()=>{
+      const y=coords.y.clamp(0,1),x=p.x.add(sin(y.mul(23).add(seed)).mul(.12).mul(y)),width=sin(y.mul(Math.PI)).mul(.24).add(.18);
+      f.assign(exp(x.mul(x).negate().div(width.mul(width))).mul(float(1).sub(y).pow(1.7)).mul(sin(y.mul(35).add(seed)).mul(.25).add(1)));
+    }).Else(()=>{
+      const x=abs(p.x);f.assign(exp(p.y.mul(p.y).negate().mul(x.mul(25).add(18))).mul(float(1).sub(smoothstep(.1,.95,x))).mul(smoothstep(.02,.15,x)).mul(.65));
+    });
+    const energy=f.max(0).mul(intensity.max(0));energy.lessThan(.001).discard();
+    return vec4(mix(vec3(1,.26,.035),vec3(1,.88,.6),f.clamp(0,1)).mul(energy),0);
+  })();
   const mesh=new T.Mesh(geometry,material);mesh.frustumCulled=false;mesh.visible=false;return mesh;
 }
 export const muzzleScale=type=>({pistol:.65,smg:.7,rifle:1,dmr:1.15,lmg:1.2,scatter:1.5,sniper:1.6}[type]||1);

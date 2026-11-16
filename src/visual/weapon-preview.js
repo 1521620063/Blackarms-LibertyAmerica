@@ -1,10 +1,12 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
+import { createRenderer, initializeRenderer } from './renderer.js';
 
 // Render only on selection / drag; the equipment preview has no animation loop.
 export class WeaponPreview {
   constructor(canvas,kit){
     this.kit=kit;this.canvas=canvas;
-    this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true});
+    this.renderer=createRenderer({canvas,antialias:true,alpha:true});
+    this.ready=initializeRenderer(this.renderer);
     this.renderer.setSize(640,300,false);this.renderer.setPixelRatio(1);
     this.renderer.toneMapping=T.ACESFilmicToneMapping;
     this.scene=new T.Scene();this.scene.add(new T.HemisphereLight(0xd8ecff,0x6e7158,3));
@@ -26,5 +28,5 @@ export class WeaponPreview {
     this.weapon=this.kit.weapon(type,this.pivot);this.pivot.rotation.set(-.08,-.5,0);
     this.render();
   }
-  render(){this.renderer.render(this.scene,this.camera);}
+  render(){this.ready.then(()=>this.renderer.render(this.scene,this.camera)).catch(error=>{this.canvas.dispatchEvent(new CustomEvent('rendererror',{detail:error,bubbles:true}));});}
 }

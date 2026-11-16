@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 import { rng } from '../shared/data.js';
 import { tacticalFinish } from './tactical-gear.js';
 import { microSurface } from './micro-surface.js';
@@ -55,7 +55,7 @@ export function surface(kind,seed,size=512) {
 export function makeMaterials(){
   const concrete=surface('concrete',81),floor=surface('floor',37),metal=surface('metal',72),cloth=surface('cloth',9);
   for(const t of Object.values(floor))t.repeat.set(16,10);
-  const m=(color,roughness=.75,metalness=.1,maps={})=>new T.MeshStandardMaterial({color,roughness,metalness,...maps});
+  const m=(color,roughness=.75,metalness=.1,maps={})=>new T.MeshStandardNodeMaterial({color,roughness,metalness,...maps});
   const painted=(color)=>m(color,.72,.35,{...metal,normalScale:new T.Vector2(.35,.35)});
   const finish=tacticalFinish('metal',418),polymer=tacticalFinish('polymer',912),fabric=tacticalFinish('fabric',291);
   const coated=color=>m(color,.76,.24,{...finish,normalScale:new T.Vector2(.16,.16)});
@@ -84,8 +84,8 @@ export function makeMaterials(){
     lamp:m(0xc3e8ef,.3,.1,{emissive:0xabe4f3,emissiveIntensity:4.2}),
     warm:m(0xe4b16b,.4,.3,{emissive:0xffa34b,emissiveIntensity:3}),
     red:m(0x9c3027,.5,.2,{emissive:0xff3520,emissiveIntensity:1.7}),
-    glass:new T.MeshPhysicalMaterial({color:0x4b737c,metalness:.55,roughness:.13,clearcoat:1,envMapIntensity:2}),
-    optic:new T.MeshPhysicalMaterial({color:0x98bdc3,transparent:true,opacity:.19,metalness:.1,roughness:.08,clearcoat:1,depthWrite:false}),
+    glass:new T.MeshPhysicalNodeMaterial({color:0x4b737c,metalness:.55,roughness:.13,clearcoat:1,envMapIntensity:2}),
+    optic:new T.MeshPhysicalNodeMaterial({color:0x98bdc3,transparent:true,opacity:.19,metalness:.1,roughness:.08,clearcoat:1,depthWrite:false}),
     skin:m(0x99785c,.83,0),brass:m(0xbe9453,.3,.8),screen:m(0x3b8998,.4,.3,{emissive:0x2a9eaf,emissiveIntensity:1.7})
   };
   for(const name of ['gunmetal','cerakote','titanium','carbon','containerRed','containerGreen','containerEdge','rack','hvac','caseShell','crane'])microSurface(materials[name],{wear:name==='cerakote'?.22:.14,grain:.055});

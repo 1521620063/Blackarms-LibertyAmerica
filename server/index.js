@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import https from 'node:https';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -86,11 +87,11 @@ export function attachLAN(server) {
   server.on('close',close);
   return {rooms,close};
 }
-export async function createServer({production=false,port=5173,host='0.0.0.0'}={}) {
+export async function createServer({production=false,port=5173,host='0.0.0.0',tls=null}={}) {
   let vite=null;
   const root=resolve('dist');
   if(production&&!existsSync(resolve(root,'index.html')))throw new Error('请先运行 npm run build');
-  const server=http.createServer((req,res)=>{
+  const handleRequest=(req,res)=>{
     if(vite){vite.middlewares(req,res,()=>{res.writeHead(404);res.end('Not found');});return;}
     try {
       const path=resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
@@ -100,7 +101,8 @@ export async function createServer({production=false,port=5173,host='0.0.0.0'}={
       const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png'};
       res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream','Cache-Control':'no-cache'});createReadStream(file).pipe(res);
     }catch{res.writeHead(400);res.end();}
-  });
+  };
+  const server=tls?https.createServer(tls,handleRequest):http.createServer(handleRequest);
   if(!production){const {createServer:createVite}=await import('vite');vite=await createVite({server:{middlewareMode:true,hmr:{server}},appType:'spa'});}
   const lan=attachLAN(server);
   await new Promise((ok,fail)=>{server.once('error',fail);server.listen(port,host,ok);});
@@ -108,8 +110,11 @@ export async function createServer({production=false,port=5173,host='0.0.0.0'}={
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
   const port=Number(process.env.PORT)||5173;
-  createServer({production:process.argv.includes('--production'),port}).then(()=>{
-    console.log(`Blackarms Liberty America → http://localhost:${port}`);
-    for(const list of Object.values(networkInterfaces()))for(const n of list||[])if(n.family==='IPv4'&&!n.internal)console.log(`LAN → http://${n.address}:${port}`);
+  const keyPath=process.env.TLS_KEY,certPath=process.env.TLS_CERT;
+  if(!!keyPath!==!!certPath)throw new Error('HTTPS 需要同时设置 TLS_KEY 与 TLS_CERT。');
+  const tls=keyPath?{key:readFileSync(keyPath),cert:readFileSync(certPath)}:null,protocol=tls?'https':'http';
+  createServer({production:process.argv.includes('--production'),port,tls}).then(()=>{
+    console.log(`Blackarms Liberty America → ${protocol}://localhost:${port}`);
+    for(const list of Object.values(networkInterfaces()))for(const n of list||[])if(n.family==='IPv4'&&!n.internal)console.log(tls?`LAN → https://${n.address}:${port}`:`LAN HTTPS required for WebGPU: ${n.address}:${port} (set TLS_KEY + TLS_CERT, or use an HTTPS reverse proxy)`);
   }).catch(error=>{console.error(error.message);process.exitCode=1;});
 }

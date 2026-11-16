@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { launchBrowser } from './browser-utils.mjs';
 import { existsSync,mkdirSync,writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from '../server/index.js';
@@ -9,7 +9,7 @@ const app=await createServer({production:true,port:0,host:'127.0.0.1'});
 const chrome=process.env.CHROME_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
 let browser;
 try{
-  browser=await chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{}),args:['--enable-unsafe-swiftshader','--disable-gpu-sandbox']});
+  browser=await launchBrowser();
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[],characterRequests=[];
   page.on('request',r=>{if(/\.(glb|gltf|fbx)(?:\?|$)/i.test(r.url()))characterRequests.push(r.url());});
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -36,7 +36,7 @@ try{
       if(['pistol','scatter','smg','dmr','lmg','sniper'].includes(mode)){p.weapon=mode;g.step(0);}
       v.smoothPos=null;v.render(g.state,g.playerId,1/60,20,{yaw:-Math.PI/2,pitch:0});
       if(mode==='portrait'){
-        v.weaponPass.enabled=false;v.camera.position.set(-11.4,1.45,5.4);v.camera.lookAt(-9.1,1.1,5.5);v.composer.render();
+        v.weaponPass.enabled=false;v.weaponVisible.value=0;v.camera.position.set(-11.4,1.45,5.4);v.camera.lookAt(-9.1,1.1,5.5);v.composer.render();
       }
       return v.renderer.domElement.toDataURL('image/png');
     },mode);
@@ -53,7 +53,7 @@ try{
     ['map-outer-gallery',[-36,1.65,16],[-30,1.4,3]]
   ]){
     const image=await page.evaluate(({position,target})=>{
-      const v=window.__BLA.view;v.weaponPass.enabled=false;v.camera.position.fromArray(position);v.camera.lookAt(...target);v.composer.render();return v.renderer.domElement.toDataURL('image/png');
+      const v=window.__BLA.view;v.weaponPass.enabled=false;v.weaponVisible.value=0;v.camera.position.fromArray(position);v.camera.lookAt(...target);v.composer.render();return v.renderer.domElement.toDataURL('image/png');
     },{position,target});
     writeFileSync(`artifacts/${name}.png`,Buffer.from(image.split(',')[1],'base64'));
   }
@@ -81,7 +81,7 @@ try{
   const showcase=await page.evaluate(()=>{
     const v=window.__BLA.view,scene=new v.scene.constructor();scene.background=v.scene.background.clone().set(0x27322f);scene.environment=v.environment;scene.environmentIntensity=.8;
     const ambient=v.scene.children.find(o=>o.isHemisphereLight).clone();ambient.intensity=2.2;scene.add(ambient);
-    const key=v.sun.clone();key.castShadow=true;key.position.set(-3,5,-4);key.intensity=3;key.shadow.camera.left=-3;key.shadow.camera.right=3;key.shadow.camera.top=3;key.shadow.camera.bottom=-3;key.shadow.camera.updateProjectionMatrix();scene.add(key);
+    const key=v.sun.clone();key.shadow.filterNode=undefined;key.castShadow=true;key.position.set(-3,5,-4);key.intensity=3;key.shadow.camera.left=-3;key.shadow.camera.right=3;key.shadow.camera.top=3;key.shadow.camera.bottom=-3;key.shadow.camera.updateProjectionMatrix();scene.add(key);
     const groundMaterial=v.materials.concrete.clone();groundMaterial.map=null;groundMaterial.normalMap=null;groundMaterial.roughnessMap=null;groundMaterial.color.setHex(0x303b36);
     const ground=v.kit.box(scene,200,.05,200,0,-.04,0,groundMaterial);ground.castShadow=false;
     const rim=key.clone();rim.position.set(3,3,2);rim.intensity=2;scene.add(rim);
@@ -91,7 +91,8 @@ try{
       actor.position.x=i===0?-.52:.52;actor.userData.marker.visible=false;scene.add(actor);
       v.characters.animate(actor,{x:actor.position.x,y:0,z:0,alive:true,weapon:'rifle',pitch:0,crouch:false,sprinting:false,cooldown:0},0);
     }
-    v.renderer.render(scene,camera);const front=v.renderer.domElement.toDataURL('image/png'),calls=v.renderer.info.render.calls;
+    v.renderer.render(scene,camera);key.shadow.autoUpdate=false;rim.shadow.autoUpdate=false;
+    v.renderer.info.reset();v.renderer.render(scene,camera);const front=v.renderer.domElement.toDataURL('image/png'),calls=v.renderer.info.render.drawCalls;
     camera.position.set(-1.5,1.5,4.5);camera.lookAt(0,1.03,0);v.renderer.render(scene,camera);const back=v.renderer.domElement.toDataURL('image/png');
     camera.position.set(-3.8,1.3,-.2);camera.lookAt(-.52,1.06,0);v.renderer.render(scene,camera);const profile=v.renderer.domElement.toDataURL('image/png');
     camera.position.set(.33,1.7,-1.65);camera.lookAt(-.51,1.48,-.01);v.renderer.render(scene,camera);const closeup=v.renderer.domElement.toDataURL('image/png');
@@ -122,7 +123,7 @@ try{
   writeFileSync('artifacts/original-soldier-profile.png',Buffer.from(showcase.profile.split(',')[1],'base64'));
   delete showcase.front;delete showcase.back;delete showcase.profile;delete showcase.closeup;delete showcase.crouch;
   assert.equal(showcase.sideSwitch.preservedName,true);assert.equal(showcase.sideSwitch.replacedBody,true);assert.equal(showcase.sideSwitch.design,setup.designs[1]);
-  assert.ok(showcase.calls<100,'two equipped soldiers stay below 100 draw calls');
+  assert.ok(showcase.calls<100,`two equipped soldiers stay below 100 draw calls: ${showcase.calls}`);
   const misplacedHands=showcase.poses.filter(p=>p.errors.some((error,i)=>!Number.isFinite(error)||error>=(i===0?.03:.01)));
   assert.deepEqual(misplacedHands,[],'hands stay within 3 cm of the support grip and 1 cm of the firing grip');
   assert.notEqual(showcase.palettes[0].cloth,showcase.palettes[1].cloth,'factions use distinct uniform palettes');
@@ -138,7 +139,7 @@ try{
     const aim=v.camera.position.clone();u.aim.getWorldDirection(aim);
     const facing=aim.x*Math.sin(a.yaw)+aim.z*Math.cos(a.yaw);
     const qualities=[];
-    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});qualities.push({quality,samples:v.composer.renderTarget1.samples,ao:v.occlusion.enabled,atmosphere:v.atmosphere.enabled,weaponShadows:v.gunLight.castShadow,localShadows:v.localLights.filter(light=>light.castShadow).length,reflections:v.wetFloor.visible,reflectionSize:v.wetFloor.getRenderTarget().width,sunShadowTaps:v.sunShadowUniforms.facilityShadowTaps.value});}
+    for(const quality of ['low','medium','high']){g.settings.quality=quality;v.resize();v.render(g.state,g.playerId,1/60,22,{yaw:-Math.PI/2,pitch:0});qualities.push({quality,samples:v.worldPass.renderTarget.samples,ao:!!v.qualityEffects.value,atmosphere:!!v.atmosphere.enabled.value,weaponShadows:!!v.gunLight.shadow.intensity,localShadows:v.localShadowLights.filter(light=>light.userData.active).length,reflections:v.wetFloor.visible,reflectionSize:Math.round(v.wetFloor.userData.reflection.reflector.resolutionScale*innerHeight*v.renderer.getPixelRatio()),sunShadowTaps:v.sunShadowUniforms.facilityShadowTaps.value});}
     const e={type:'shot',actor:a.id,weapon:'scatter',origin:{x:-13.4,y:1.57,z:4.5},traces:Array.from({length:8},()=>({end:{x:-2.21,y:1.4,z:4.5},hit:false}))};
     for(let i=0;i<120;i++)v.fx.shot(e,false);
     const limits={decals:v.fx.decals.length,traces:v.fx.traces.length,shells:v.fx.shells.length};v.fx.update(5);
@@ -153,7 +154,7 @@ try{
   assert.deepEqual(checks.qualities.map(q=>q.sunShadowTaps),[10,10,16],'sun shadow filtering scales with quality');
   assert.deepEqual(checks.probes,[{name:'freight',source:'local-facility-capture'},{name:'service',source:'local-facility-capture'}]);
   assert.ok(checks.localReflections&&checks.captureRestored,'equipment uses its wing probe and capture restores renderer lighting');
-  assert.equal(checks.qualities[0].samples,0);assert.ok(checks.qualities[2].samples>=checks.qualities[1].samples,'high quality preserves multisample antialiasing');
+  assert.equal(checks.qualities[0].samples,0);assert.ok(checks.qualities[2].samples>=checks.qualities[1].samples,'scene depth stays single sampled for GTAO; FXAA handles final antialiasing');
   assert.notDeepEqual(checks.before,checks.after,'walking animates leg bones');assert.ok(checks.runWeight>.5,'sprinting blends into run animation');
   assert.ok(checks.feetBefore.every((y,i)=>Math.abs(y-checks.feetCrouched[i])<.04),'crouching bends the legs and keeps feet grounded');
   assert.ok(checks.facing>.99,'weapon forward matches actor yaw');

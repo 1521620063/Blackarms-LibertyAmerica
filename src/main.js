@@ -18,7 +18,14 @@ if(!['low','medium','high'].includes(settings.quality))settings.quality='medium'
 const config={mode:'elimination',teamSize:3,difficulty:'normal',primary:'rifle',armor:'light'};
 const errors=[];window.addEventListener('error',e=>errors.push(e.message));window.addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
 let view;
-try{view=new WorldView($('view'),settings);}catch(error){show('boot',false);show('fatal',true);text('fatal',`无法初始化 3D 画面。\n请使用支持 WebGL 2 的桌面浏览器，并启用硬件加速。\n\n${error.message}`);throw error;}
+function fatal(error){
+  console.error(error);
+  active=false;view?.renderer.setAnimationLoop(null);show('boot',false);show('fatal',true);
+  text('fatal',`无法启动 WebGPU 画面。\n请使用支持 WebGPU 的浏览器并启用硬件加速，通过 HTTPS 或本机 localhost 访问。\n请确认服务器包含 public/art/ 资源。\n\n${error.message||error}`);
+}
+try{view=new WorldView($('view'),settings);}catch(error){show('boot',false);show('fatal',true);text('fatal',`无法初始化 WebGPU 画面。\n请使用支持 WebGPU 的浏览器并启用硬件加速，通过 HTTPS 或本机 localhost 访问。\n\n${error.message}`);throw error;}
+view.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 设备已断开：${info.message||info.reason}。请刷新页面重试。`));
+window.addEventListener('rendererror',event=>{errors.push(event.detail?.message||String(event.detail));fatal(event.detail);});
 const audio=new AudioEngine(settings);
 let match=null,state=null,active=false,online=false,paused=false,playerId='player',inputYaw=0,inputPitch=0;
 let lastEvent=0,lastRound='',lastPhase='',spectate=null,socket=null,networkId=null,lobby=null,ping=0;
@@ -284,7 +291,7 @@ function renderHUD(now){
 }
 function frame(now){
   const dt=Math.min((now-lastTime)/1000,.1);lastTime=now;frames++;
-  if(now-fpsAt>=1000){fps=frames*1000/(now-fpsAt);frames=0;fpsAt=now;text('fps',settings.showFPS?`${Math.round(fps)} FPS · ${view.renderer.info.render.calls} calls`:'');}
+  if(now-fpsAt>=1000){fps=frames*1000/(now-fpsAt);frames=0;fpsAt=now;text('fps',settings.showFPS?`${Math.round(fps)} FPS · ${view.renderer.info.render.drawCalls} calls`:'');}
   if(active){
     if(!online&&!paused&&!document.querySelector('dialog[open]')){
       accumulator+=dt;
@@ -297,17 +304,16 @@ function frame(now){
   hit=Math.max(0,hit-dt*5);damage=Math.max(0,damage-dt*.55);$('hitmarker').style.opacity=hit;$('damage-overlay').style.opacity=damage;$('damage-direction').style.opacity=damage;
   if(now-lastAnnouncement>2500)$('announcement').classList.remove('visible');if(now>radioUntil)text('radio','');
   const me=state?.actors.find(a=>a.id===playerId);const camera=me?.alive?{yaw:inputYaw,pitch:inputPitch}:{spectate};
-  view.render(active?state:null,playerId,Math.min(dt,.05),now/1000,camera);
-  requestAnimationFrame(frame);
+  try{view.render(active?state:null,playerId,Math.min(dt,.05),now/1000,camera);}catch(error){fatal(error);return;}
 }
-view.ready.then(()=>{
-  weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);inspectWeapon(config.primary);
-  lastTime=performance.now();show('boot',false);requestAnimationFrame(frame);
+view.ready.then(async()=>{
+  weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;
+  weaponPreview.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 预览设备已断开：${info.message||info.reason}`));
+  inspectWeapon(config.primary);
+  lastTime=performance.now();show('boot',false);view.renderer.setAnimationLoop(frame);
   if(debug){
-    window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get errors(){return errors;},get paused(){return paused;},config,settings,
+    window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get weaponPreview(){return weaponPreview;},get errors(){return errors;},get paused(){return paused;},config,settings,
       start:startOffline,input(i){if(match)match.setInput(playerId,i);},step(seconds){if(!match)return;for(let i=0;i<seconds*60;i++)match.step(1/60);state=match.snapshot();},
       pause(){paused=true;},resume(){paused=false;},get playerId(){return playerId;}};
   }
-}).catch(error=>{
-  show('boot',false);show('fatal',true);text('fatal',`美术资源加载失败，请刷新页面重试。\n请确认通过项目服务器访问，并包含 public/models/ 与 public/art/ 资源。\n\n${error.message}`);
-});
+}).catch(fatal);

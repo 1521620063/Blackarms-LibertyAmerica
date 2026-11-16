@@ -1,3 +1,4 @@
+import { maxAnisotropy } from './renderer.js';
 import * as T from 'three';
 
 import { MAP } from '../shared/data.js';
@@ -12,7 +13,7 @@ const specs={
 
 export async function loadGeneratedArt(materials,renderer,{skip=[]}={}){
   const loader=new T.TextureLoader(),oldTextures=new Set(),loaded=[];
-  const anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  const anisotropy=Math.min(8,maxAnisotropy(renderer));
   await Promise.all(Object.entries(specs).filter(([id])=>!skip.includes(id)).map(async([id,spec])=>{
     const maps=await Promise.all(['albedo','normal','roughness'].map(async channel=>{
       const ext='webp',url=`/art/materials/${id}-${channel}.${ext}`;

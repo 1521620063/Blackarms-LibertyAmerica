@@ -1,5 +1,7 @@
-import * as T from 'three';
-import { dampMaskGLSL } from './damp-mask.js';
+import * as T from 'three/webgpu';
+import { positionWorld, normalGeometry, materialColor, materialRoughness, materialMetalness, float, vec3, mix, max, abs, smoothstep } from 'three/tsl';
+import { maxAnisotropy } from './renderer.js';
+import { facilityDamp, dampNoise } from './damp-mask.js';
 
 const packs={
   'facility-epoxy':{names:['stagingFloor'],normal:.22,roughness:.86,metalness:0},
@@ -7,66 +9,37 @@ const packs={
   'facility-plaster':{names:['paintedWall'],normal:.3,roughness:1,metalness:0}
 };
 
-// World-space variation stays continuous across static batches. Chain the scan
-// shader rather than replacing its relief, desaturation or baked contact map.
+// Shared world coordinates preserve weathering across merged static geometry.
 export function weatherSurface(material,kind){
-  const previous=material.onBeforeCompile,previousKey=material.customProgramCacheKey();
-  material.onBeforeCompile=function(shader,renderer){
-    previous.call(this,shader,renderer);
-    shader.vertexShader='varying vec3 vFacilityWorld;varying vec3 vFacilityNormal;\n'+shader.vertexShader;
-    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFacilityWorld=(modelMatrix*vec4(position,1.)).xyz;vFacilityNormal=normal;');
-    shader.fragmentShader=`varying vec3 vFacilityWorld;varying vec3 vFacilityNormal;
-      ${dampMaskGLSL}
-      float facilityHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float facilityNoise(vec2 p){
-        vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
-        return mix(mix(facilityHash(i),facilityHash(i+vec2(1.,0.)),f.x),mix(facilityHash(i+vec2(0.,1.)),facilityHash(i+vec2(1.,1.)),f.x),f.y);
-      }
-      `+shader.fragmentShader;
-    const floor=kind==='floor',coating=kind==='coating';
-    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
-      float facilityMottle=facilityNoise(vFacilityWorld.xz*.58+vFacilityWorld.y*.31);
-      ${floor?`
-        float facilityPolish=smoothstep(.36,.73,facilityNoise(vFacilityWorld.xz*vec2(.36,.83)));
-        float facilityWet=facilityDamp(vFacilityWorld.xz);
-        diffuseColor.rgb*=mix(.84,1.06,facilityMottle)*mix(1.,.65,facilityWet);
-      `:`
-        float facilityFoot=1.-smoothstep(.08,1.25,vFacilityWorld.y);
-        diffuseColor.rgb*=mix(.88,1.04,facilityMottle)*mix(1.,.72,facilityFoot);
-        ${coating?`
-          // Rounded edges expose primer and metal; interrupted vertical trails
-          // carry corrosion down from damaged paint rather than tinting all paint.
-          vec3 facilityN=abs(normalize(vFacilityNormal));
-          float facilityEdge=smoothstep(.14,.31,1.-max(facilityN.x,max(facilityN.y,facilityN.z)));
-          vec2 facilityPlane=abs(facilityN.x)>.5?vFacilityWorld.zy:vFacilityWorld.xy;
-          float facilityChip=facilityNoise(facilityPlane*48.);
-          float facilityDamage=facilityEdge*smoothstep(.5,.76,facilityChip)*.32;
-          float facilityRun=pow(facilityNoise(vec2((facilityPlane.x+facilityNoise(facilityPlane*.8)*.045)*23.,facilityPlane.y*.6)),9.);
-          float facilityRust=clamp(facilityDamage*.55+facilityRun*.24+facilityFoot*smoothstep(.64,.82,facilityChip)*.12,0.,.8);
-          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.14,.058,.022),facilityRust);
-          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.29,.30,.28),facilityDamage*.65);
-        `:''}
-      `}`);
-    if(floor)shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      // Local polished resin catches the environment; the rest remains dry.
-      roughnessFactor=clamp(roughnessFactor*mix(1.,.7,facilityPolish)*mix(1.,.18,facilityWet),.12,1.);
-    `);
-    if(coating){
-      shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-        roughnessFactor=clamp(roughnessFactor+facilityRust*.22-facilityDamage*.32,.28,1.);
-      `);
-      shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>',`#include <metalnessmap_fragment>
-        metalnessFactor=mix(metalnessFactor,.72,facilityDamage*(1.-facilityRust));
-      `);
+  const p=positionWorld,n=abs(normalGeometry.normalize());
+  const mottle=dampNoise(p.xz.mul(.58).add(p.y.mul(.31)));
+  const base=material.colorNode||materialColor.rgb;
+  const roughness=material.roughnessNode||materialRoughness;
+  if(kind==='floor'){
+    const polish=smoothstep(.36,.73,dampNoise(p.xz.mul(vec3(.36,0,.83).xz))),wet=facilityDamp(p.xz);
+    material.colorNode=base.mul(mix(.84,1.06,mottle)).mul(mix(1,.65,wet));
+    material.roughnessNode=roughness.mul(mix(1,.7,polish)).mul(mix(1,.18,wet)).clamp(.12,1);
+  }else{
+    const foot=float(1).sub(smoothstep(.08,1.25,p.y));
+    let tint=base.mul(mix(.88,1.04,mottle)).mul(mix(1,.72,foot));
+    if(kind==='coating'){
+      const edge=smoothstep(.14,.31,float(1).sub(max(n.x,max(n.y,n.z))));
+      const plane=n.x.greaterThan(.5).select(p.zy,p.xy),chip=dampNoise(plane.mul(48));
+      const damage=edge.mul(smoothstep(.5,.76,chip)).mul(.32);
+      const run=dampNoise(plane.mul(vec3(23,.6,0).xy)).pow(9);
+      const rust=damage.mul(.55).add(run.mul(.24)).add(foot.mul(smoothstep(.64,.82,chip)).mul(.12)).clamp(0,.8);
+      tint=mix(mix(tint,vec3(.14,.058,.022),rust),vec3(.29,.30,.28),damage.mul(.65));
+      material.roughnessNode=roughness.add(rust.mul(.22)).sub(damage.mul(.32)).clamp(.28,1);
+      material.metalnessNode=mix(materialMetalness,.72,damage.mul(float(1).sub(rust)));
     }
-  };
-  material.customProgramCacheKey=()=>`${previousKey}/facility-weather-${kind}-v3`;
+    material.colorNode=tint;
+  }
   material.needsUpdate=true;
 }
 
 export async function loadFacilitySurfaces(view){
   const loader=new T.TextureLoader(),old=new Set(),loaded=[];
-  const anisotropy=Math.min(16,view.renderer.capabilities.getMaxAnisotropy());
+  const anisotropy=maxAnisotropy(view.renderer);
   await Promise.all(Object.entries(packs).map(async([id,spec])=>{
     const textures=await Promise.all(['albedo','normal','roughness'].map(async(channel,index)=>{
       const texture=await loader.loadAsync(`/art/materials/${id}-${channel}.webp`);
