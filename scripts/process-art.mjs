@@ -23,7 +23,7 @@ try{
       const rgba=ctx.getImageData(0,0,size,size),data=rgba.data;
       // Normalize mean brightness and reduce saturation; lighting remains the renderer's job.
       let mean=0;for(let i=0;i<data.length;i+=4)mean+=(data[i]*.2126+data[i+1]*.7152+data[i+2]*.0722)/(size*size);
-      const target={concrete:173,floor:127,gunmetal:135,fabric:142,'facility-epoxy':145,'facility-paint':175,'facility-plaster':181,'soldier-fabric':185,'soldier-nylon':185,'service-panel':113}[id];
+      const target={concrete:173,floor:127,gunmetal:135,fabric:142,'facility-epoxy':145,'facility-paint':175,'facility-plaster':181,'soldier-fabric':185,'soldier-nylon':185,'soldier-rubber':185,'soldier-helmet':185,'service-panel':113}[id];
       const gain=target/Math.max(1,mean),saturation=id==='fabric'?.78:.55;
       for(let i=0;i<data.length;i+=4){const l=data[i]*.2126+data[i+1]*.7152+data[i+2]*.0722;for(let c=0;c<3;c++)data[i+c]=Math.max(0,Math.min(255,(l+(data[i+c]-l)*saturation)*gain));data[i+3]=255;}
       if(tileable){
@@ -55,7 +55,7 @@ try{
       }
       const normal=document.createElement('canvas'),roughness=document.createElement('canvas');normal.width=normal.height=roughness.width=roughness.height=size;
       const nc=normal.getContext('2d'),rc=roughness.getContext('2d'),ni=nc.createImageData(size,size),ri=rc.createImageData(size,size);
-      const strength={concrete:2.4,floor:1.4,gunmetal:.8,fabric:2,'facility-epoxy':.9,'facility-paint':.65,'facility-plaster':1.2,'soldier-fabric':1.4,'soldier-nylon':1.5,'service-panel':.5}[id],rough={concrete:225,floor:180,gunmetal:175,fabric:237,'facility-epoxy':172,'facility-paint':201,'facility-plaster':223,'soldier-fabric':235,'soldier-nylon':226,'service-panel':195}[id];
+      const strength={concrete:2.4,floor:1.4,gunmetal:.8,fabric:2,'facility-epoxy':.9,'facility-paint':.65,'facility-plaster':1.2,'soldier-fabric':1.4,'soldier-nylon':1.5,'soldier-rubber':1.1,'soldier-helmet':.9,'service-panel':.5}[id],rough={concrete:225,floor:180,gunmetal:175,fabric:237,'facility-epoxy':172,'facility-paint':201,'facility-plaster':223,'soldier-fabric':235,'soldier-nylon':226,'soldier-rubber':211,'soldier-helmet':218,'service-panel':195}[id];
       for(let y=0;y<size;y++)for(let x=0;x<size;x++){
         const i=y*size+x,p=i*4,dx=(height[y*size+(x+1)%size]-height[y*size+(x+size-1)%size])*strength,dy=(height[((y+1)%size)*size+x]-height[((y+size-1)%size)*size+x])*strength;
         const length=Math.hypot(dx,dy,1);ni.data.set([128-dx/length*127,128+dy/length*127,128+127/length,255],p);

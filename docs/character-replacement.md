@@ -1,6 +1,13 @@
-# 原创战术角色 · 第五版
+# 原创战术角色 · 第六版
 
 当前使用项目原创 BLA Sentinel 野战侦察兵与 BLA Warden 城市守卫。双方有独立的装备几何模板，复用 33 关节骨骼命名和动作逻辑；每个角色仍克隆独立骨骼。布料沿用本地生成的材质。没有采用第三方人物网格或动画。
+
+## 第六版改动
+
+- 头盔壳体增加纵向截面密度，耳罩增加贴合内衬、侧导轨和固定点；护目镜下方与下颌增加浅薄护片及边缘线。保留 33 关节骨骼、双方独立模板与原有持枪接口。
+- 通过 `C:/project/image` 的本地生图服务生成 `soldier-rubber` 防滑橡胶和 `soldier-helmet` 哑光复合涂层两张基础颜色素材；处理为各 1024² 的 albedo / 近似 normal / 估算 roughness，并只用于小面积橡胶和头盔壳。生成时服务读取更新后的 `.env`，运行时仅加载本地资源，不使用服务密钥。
+- 校对角色贴图 UV 缩放：制服颜色图将微纹理和迷彩预合成，颜色图 1 倍、微法线和粗糙度 4 倍；其余映射材质的三个通道使用一致缩放。测试验证实际角色材质分配而不仅是文件存在。
+- 实机近景、侧面与全身截图位于 `artifacts/original-soldier-*.png`，测试检查双方姿态和资源。画质仍明显受程序化形体、遮脸结构、蒙皮与动作质量限制，不能声称达到 CS2、《使命召唤》或《三角洲行动》的人物写实程度。WebGPU 本轮未迁移：切换渲染后端不能替代雕刻、拓扑、烘焙贴图与动作制作。
 
 ## 第五版改动
 
@@ -44,9 +51,9 @@
 
 ## 生图材质
 
-通过用户授权的 `D:/dev/Image-generation` 服务，逐张生成防撕裂制服布料和背心尼龙基础颜色贴图。生成提示词和处理记录保存在 `public/art/characters/manifest.json`。
+原有制服布料和背心尼龙通过用户授权的本地服务生成；本轮橡胶与头盔涂层通过 `C:/project/image` 生成。生成提示词和处理记录保存在 `public/art/characters/manifest.json`。
 
-- 发布文件：`public/art/characters/soldier-{fabric,nylon}-{albedo,normal,roughness}.webp`。
+- 发布文件：`public/art/characters/soldier-{fabric,nylon,rubber,helmet}-{albedo,normal,roughness}.webp`。
 - 每张贴图为 1024 × 1024；颜色使用 sRGB，法线和粗糙度使用线性数据。
 - 处理包括亮度归一化、边缘匹配、近似微表面法线和保守粗糙度；这些不是经标定的扫描 PBR 材质。
 - 迷彩由代码叠加到制服颜色上；生成服务仅用于制作阶段，游戏运行只加载本地文件。
@@ -57,7 +64,9 @@
 ```sh
 node scripts/generate-art.mjs soldier-fabric
 node scripts/generate-art.mjs soldier-nylon
-node scripts/process-art.mjs --characters soldier-fabric soldier-nylon
+node scripts/generate-art.mjs soldier-rubber
+node scripts/generate-art.mjs soldier-helmet
+node scripts/process-art.mjs --characters soldier-fabric soldier-nylon soldier-rubber soldier-helmet
 ```
 
 ## 代码与验证

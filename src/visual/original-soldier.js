@@ -54,7 +54,7 @@ export function originalSoldierMaterials(side){
 }
 export async function loadOriginalSoldierSurfaces(sideMaterials){
   const loader=new T.TextureLoader(),maps={};
-  await Promise.all(['soldier-fabric','soldier-nylon'].map(async id=>{
+  await Promise.all(['soldier-fabric','soldier-nylon','soldier-rubber','soldier-helmet'].map(async id=>{
     maps[id]=await Promise.all(['albedo','normal','roughness'].map(async channel=>{
       const texture=await loader.loadAsync(`/art/characters/${id}-${channel}.webp`);
       texture.colorSpace=channel==='albedo'?T.SRGBColorSpace:T.NoColorSpace;
@@ -62,25 +62,37 @@ export async function loadOriginalSoldierSurfaces(sideMaterials){
       texture.name=`${id}/${channel}`;texture.userData.source='generated-character-art';return texture;
     }));
   }));
+  const variants=new Map();
+  const variant=(source,channel,repeat)=>{
+    const key=`${source}/${channel}/${repeat}`;
+    if(!variants.has(key)){
+      const texture=maps[source][{albedo:0,normal:1,roughness:2}[channel]].clone();
+      texture.repeat.setScalar(repeat);variants.set(key,texture);
+    }
+    return variants.get(key);
+  };
   for(const palette of sideMaterials)for(const material of palette.values()){
-    const role=material.userData.role;if(!['cloth','armor','webbing','mask'].includes(role))continue;
-    const [albedo,normal,roughness]=maps[['cloth','mask'].includes(role)?'soldier-fabric':'soldier-nylon'];
+    const role=material.userData.role;if(!['cloth','armor','webbing','mask','rubber','shell'].includes(role))continue;
+    const source={cloth:'soldier-fabric',mask:'soldier-fabric',armor:'soldier-nylon',webbing:'soldier-nylon',rubber:'soldier-rubber',shell:'soldier-helmet'}[role];
+    const repeat={cloth:4,mask:5,armor:2,webbing:2,rubber:3,shell:2}[role];
     if(role==='cloth'){
       const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;
       const c=canvas.getContext('2d');c.fillStyle='#e0e0de';c.fillRect(0,0,1024,1024);
-      c.globalAlpha=.35;for(let y=0;y<4;y++)for(let x=0;x<4;x++)c.drawImage(albedo.image,x*256,y*256,256,256);
+      c.globalAlpha=.35;for(let y=0;y<4;y++)for(let x=0;x<4;x++)c.drawImage(maps[source][0].image,x*256,y*256,256,256);
       c.globalAlpha=1;c.globalCompositeOperation='multiply';c.drawImage(material.map.image,0,0,1024,1024);
       material.map.dispose();material.map=new T.CanvasTexture(canvas);material.map.colorSpace=T.SRGBColorSpace;
       material.map.wrapS=material.map.wrapT=T.RepeatWrapping;material.map.anisotropy=4;material.map.name='uniform-composited-albedo';material.map.userData.source='generated-character-art';
-    }else material.map=albedo;
-    material.normalMap=normal.clone();material.normalMap.repeat.setScalar(role==='cloth'?4:role==='mask'?5:2);
-    material.normalScale.setScalar(role==='cloth'?.22:.18);material.roughnessMap=roughness;material.needsUpdate=true;
+    }else material.map=variant(source,'albedo',repeat);
+    material.normalMap=variant(source,'normal',repeat);
+    material.normalScale.setScalar(role==='cloth'?.22:role==='shell'?.14:role==='rubber'?.11:.18);
+    material.roughnessMap=variant(source,'roughness',repeat);
+    material.needsUpdate=true;
   }
   return Object.keys(maps).sort();
 }
 export function createOriginalSoldier(side=0){
   const scene=new T.Group();scene.name=side?'BLA Warden / Urban':'BLA Sentinel / Recon';
-  scene.userData={design:side?'BLA WARDEN':'BLA SENTINEL',source:'original-procedural',version:5,side};
+  scene.userData={design:side?'BLA WARDEN':'BLA SENTINEL',source:'original-procedural',version:6,side};
   const bones=[],byName={};
   const joint=(name,parent,x,y,z)=>{
     const bone=new T.Bone();bone.name=`bla${name}`;bone.position.set(x,y,z);parent.add(bone);bones.push(bone);byName[name]=bone;return bone;
@@ -212,6 +224,14 @@ export function createOriginalSoldier(side=0){
     box('rubber','Head',.055,.006,.009,sign*.034,1.741,-.105,.002,0,sign*.13,sign*.04);
     sphere('rubber','Head',.017,.008,.009,sign*.033,1.73,-.105);
   }
+  // A fitted gasket and brow fold break the flat face silhouette without
+  // changing the head bone or obstructing the existing eye shield.
+  for(const sign of [-1,1]){
+    cable('webbing','Head',[[sign*.081,1.753,-.062],[sign*.095,1.721,-.079],[sign*.083,1.685,-.078]],.003);
+    cable('rubber','Head',[[sign*.056,1.68,-.091],[sign*.064,1.662,-.098],[sign*.044,1.643,-.1]],.002);
+  }
+  sphere('mask','Head',.082,.035,.011,0,1.65,-.106);
+  cable('webbing','Head',[[-.048,1.655,-.111],[0,1.632,-.113],[.048,1.655,-.111]],.002);
   // Curved, thin goggles rather than two oversized blocks.
   const lensShape=new T.Shape();lensShape.moveTo(-.081,.002);lensShape.quadraticCurveTo(-.073,.028,-.02,.025);lensShape.lineTo(.02,.025);lensShape.quadraticCurveTo(.073,.028,.081,.002);lensShape.lineTo(.071,-.025);lensShape.lineTo(.029,-.027);lensShape.lineTo(.009,-.012);lensShape.lineTo(-.009,-.012);lensShape.lineTo(-.029,-.027);lensShape.lineTo(-.071,-.025);lensShape.closePath();
   const lens=new T.ShapeGeometry(lensShape,10);const lp=lens.attributes.position;
@@ -226,10 +246,14 @@ export function createOriginalSoldier(side=0){
     [0,1.862,.019,.075,.085],[0,1.883,.02,.037,.043],[0,1.887,.02,.002,.003]
   ];
   const helmetCut=(p,a,v)=>{p[1]+=.039*Math.pow(Math.abs(Math.cos(a)),6)*Math.pow(1-v,3);};
-  surface('shell',helmetRows,'y',rigid('Head'),{segments:40,shape:helmetCut});
+  surface('shell',helmetRows,'y',rigid('Head'),{segments:56,shape:helmetCut});
   surface('rubber',[[0,1.757,.011,.106,.122],[0,1.766,.011,.107,.123]],'y',rigid('Head'),{segments:40,shape:(p,a)=>{p[1]+=.039*Math.pow(Math.abs(Math.cos(a)),6);}});
   for(const sign of [-1,1]){
     box('rubber','Head',.014,.028,.104,sign*.108,1.798,.02,.005);
+    // Side rail, inset fasteners and an earcup with an actual padded rim.
+    cable('shell','Head',[[sign*.105,1.808,-.063],[sign*.118,1.815,-.014],[sign*.111,1.81,.052]],.005);
+    for(const z of [-.054,.047])sphere('metal','Head',.007,.007,.007,sign*.116,1.813,z);
+    sphere('webbing','Head',.047,.08,.067,sign*.103,1.699,.021);
     for(let rail=0;rail<4;rail++)box('metal','Head',.004,.011,.012,sign*.117,1.796,-.014+rail*.021,.002);
     sphere('rubber','Head',.044,.086,.069,sign*.099,1.704,.021);
     box('shell','Head',.017,.061,.05,sign*.118,1.703,.022,.012);

@@ -61,6 +61,66 @@
         }
       },
       "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "soldier-rubber": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable neutral gray molded thermoplastic elastomer tactical glove and respirator gasket material, macro surface scan covering 20 by 20 centimeters. Very fine stippled non-slip grain, restrained injection molded microtexture, subtle pressure-polished areas and tiny scuffs. Mostly uniform medium light neutral gray to be tinted dark charcoal by the game. No glove shape, no hand, no straps, no seams, no stitching, no ribs, no deep grooves, no letters. Opposite edges must match.",
+      "createdAt": "2026-11-16T08:19:26.174Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/characters/soldier-rubber-albedo.webp",
+          "bytes": 436176,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/characters/soldier-rubber-normal.webp",
+          "bytes": 613190,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/characters/soldier-rubber-roughness.webp",
+          "bytes": 231286,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
+    },
+    "soldier-helmet": {
+      "prompt": "Photorealistic physically based material base color texture for a contemporary military tactical FPS set in a decommissioned industrial research facility. Restrained realistic art direction, cool neutral grays, muted desaturated colors, credible manufacturing and use. Orthographic straight-on surface scan, completely flat even cross-polarized diffuse lighting. No baked highlights, no directional light or cast shadows, no perspective, no scene, no objects in front of the surface, no typography, no watermark, no border. Edge-to-edge material only. Fine and medium scale detail, restrained wear, no excessive destruction or rusty post-apocalyptic look. Seamless tileable neutral gray matte ceramic-coated aramid composite tactical helmet shell material, macro surface scan covering 35 by 35 centimeters. Fine mineral-filled stipple and faint compressed fiber texture under paint, subtle tiny abrasions near edges, almost intact coating with slight roughness variation. Medium light neutral gray for olive or charcoal tinting by the game. No helmet silhouette, no vents, no hardware, no seams, no labels, no large chips. Opposite edges must match.",
+      "createdAt": "2026-11-16T08:22:39.665Z",
+      "source": "User-authorized local text-to-image service",
+      "sourceSize": {
+        "width": 1254,
+        "height": 1254
+      },
+      "size": 1024,
+      "tileable": true,
+      "maxUncompressedEdgeDifference": 0,
+      "channels": {
+        "albedo": {
+          "url": "/art/characters/soldier-helmet-albedo.webp",
+          "bytes": 380882,
+          "colorSpace": "srgb"
+        },
+        "normal": {
+          "url": "/art/characters/soldier-helmet-normal.webp",
+          "bytes": 455050,
+          "colorSpace": "linear-data"
+        },
+        "roughness": {
+          "url": "/art/characters/soldier-helmet-roughness.webp",
+          "bytes": 158116,
+          "colorSpace": "linear-data"
+        }
+      },
+      "processing": "Brightness normalization, restrained saturation, local edge matching for tileable maps; approximate high-frequency luminance micro-normal and conservative roughness, not measured PBR."
     }
   }
 }

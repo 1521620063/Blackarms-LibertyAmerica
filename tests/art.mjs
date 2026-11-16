@@ -32,13 +32,17 @@ try{
   const characterMaterials=await page.evaluate(()=>{
     const characters=window.__BLA.view.characters;
     const palettes=characters.sideMaterials.map(palette=>[...palette.values()]
-      .filter(m=>['cloth','armor','webbing'].includes(m.userData.role))
-      .map(m=>({role:m.userData.role,maps:[m.map,m.normalMap,m.roughnessMap].map(t=>({width:t.image.width,height:t.image.height,colorSpace:t.colorSpace,source:t.userData.source}))})));
+      .filter(m=>['cloth','armor','webbing','rubber','shell'].includes(m.userData.role))
+      .map(m=>({role:m.userData.role,maps:[m.map,m.normalMap,m.roughnessMap].map(t=>({name:t.name,width:t.image.width,height:t.image.height,colorSpace:t.colorSpace,source:t.userData.source,repeat:t.repeat.toArray()}))})));
     return {assets:characters.surfaceAssets,palettes};
   });
-  assert.deepEqual(characterMaterials.assets,['soldier-fabric','soldier-nylon']);
+  assert.deepEqual(characterMaterials.assets,['soldier-fabric','soldier-helmet','soldier-nylon','soldier-rubber']);
   for(const palette of characterMaterials.palettes)for(const material of palette)for(const [i,map] of material.maps.entries()){
     assert.equal(map.source,'generated-character-art');assert.equal(map.width,1024);assert.equal(map.height,1024);assert.equal(map.colorSpace,i===0?'srgb':'');
+    const repeat=material.role==='cloth'?(i===0?1:4):{armor:2,webbing:2,rubber:3,shell:2}[material.role];
+    const asset={cloth:'soldier-fabric',armor:'soldier-nylon',webbing:'soldier-nylon',rubber:'soldier-rubber',shell:'soldier-helmet'}[material.role];
+    assert.equal(map.name,i===0&&material.role==='cloth'?'uniform-composited-albedo':`${asset}/${['albedo','normal','roughness'][i]}`);
+    assert.deepEqual(map.repeat,[repeat,repeat],`${material.role} PBR channels keep their intended texture scale`);
   }
   const manifest=JSON.parse(readFileSync('public/art/manifest.json','utf8')),characterManifest=JSON.parse(readFileSync('public/art/characters/manifest.json','utf8')),checks=[];
   const allAssets={...manifest.assets,...characterManifest.assets};
