@@ -19,8 +19,5 @@ export class RenderPacer {
 export function renderPixelRatio(width,height,deviceRatio,quality){
   const cap=quality==='low'?.8:quality==='high'?1.75:1.25;
   const pixels=quality==='low'?1280*720:quality==='high'?2560*1440:1920*1080;
-  // Modest supersampling helps distant geometry on 1x displays. The same
-  // pixel budget still limits high quality to roughly 1440p on larger screens.
-  const requested=quality==='high'?Math.max(deviceRatio,1.25):deviceRatio;
-  return Math.min(requested,cap,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))));
+  return Math.min(deviceRatio,cap,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))));
 }

@@ -62,7 +62,7 @@ try{
     assert.equal(q.antialias,true,`${q.quality} selects its antialiasing pipeline`);
   }
   const high=qualities.find(q=>q.quality==='high');
-  assert.deepEqual(high.resolution,[1600,900],'high quality supersamples the 1280×720 viewport');
+  assert.deepEqual(high.resolution,[1280,720],'high quality preserves the native 1280×720 viewport resolution');
   assert.deepEqual(high.smaaSize,high.resolution,'SMAA renders at the full internal resolution');
   assert.deepEqual(errors,[],'WebGPU shaders and pipelines render without browser errors');
   for(const missing of ['gpu','adapter']){
