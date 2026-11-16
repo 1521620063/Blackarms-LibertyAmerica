@@ -20,15 +20,16 @@ export function createWetFloor(view){
         float mask=facilityDamp(p);
         if(mask<.015)discard;
         vec3 sight=normalize(cameraPosition-vWetWorld);
-        float fresnel=.08+.55*pow(1.-max(sight.y,0.),4.);
+        float fresnel=.14+.7*pow(1.-max(sight.y,0.),3.);
         vec2 uv=vProjected.xy/vProjected.w;
-        uv+=vec2(sin(p.y*17.+time*.7),cos(p.x*19.-time*.55))*.00022;
+        vec2 ripple=vec2(dampNoise(p*3.1+vec2(time*.035,0.)),dampNoise(p*3.1-vec2(0.,time*.03)))-.5;
+        uv+=ripple*.0011+vec2(sin(p.y*17.+time*.7),cos(p.x*19.-time*.55))*.00012;
         // Damp margins scatter more than the centre of the same puddle.
-        vec2 blur=texel*mix(3.,.7,mask);
+        vec2 blur=texel*mix(2.6,.45,mask);
         vec3 reflection=texture2D(tDiffuse,uv).rgb*.4;
         reflection+=(texture2D(tDiffuse,uv+vec2(blur.x,0.)).rgb+texture2D(tDiffuse,uv-vec2(blur.x,0.)).rgb+texture2D(tDiffuse,uv+vec2(0.,blur.y)).rgb+texture2D(tDiffuse,uv-vec2(0.,blur.y)).rgb)*.15;
         float border=smoothstep(0.,.025,min(min(uv.x,uv.y),min(1.-uv.x,1.-uv.y)));
-        gl_FragColor=vec4(mix(color*.22,reflection,.9),mask*fresnel*.8*border);
+        gl_FragColor=vec4(mix(color*.16,reflection,.96),mask*fresnel*.95*border);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`

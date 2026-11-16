@@ -29,7 +29,7 @@ export function weatherSurface(material,kind){
       ${floor?`
         float facilityPolish=smoothstep(.36,.73,facilityNoise(vFacilityWorld.xz*vec2(.36,.83)));
         float facilityWet=facilityDamp(vFacilityWorld.xz);
-        diffuseColor.rgb*=mix(.84,1.06,facilityMottle)*mix(1.,.72,facilityWet);
+        diffuseColor.rgb*=mix(.84,1.06,facilityMottle)*mix(1.,.65,facilityWet);
       `:`
         float facilityFoot=1.-smoothstep(.08,1.25,vFacilityWorld.y);
         diffuseColor.rgb*=mix(.88,1.04,facilityMottle)*mix(1.,.72,facilityFoot);
@@ -49,7 +49,7 @@ export function weatherSurface(material,kind){
       `}`);
     if(floor)shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       // Local polished resin catches the environment; the rest remains dry.
-      roughnessFactor=clamp(roughnessFactor*mix(1.,.7,facilityPolish)*mix(1.,.32,facilityWet),.2,1.);
+      roughnessFactor=clamp(roughnessFactor*mix(1.,.7,facilityPolish)*mix(1.,.18,facilityWet),.12,1.);
     `);
     if(coating){
       shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
@@ -60,7 +60,7 @@ export function weatherSurface(material,kind){
       `);
     }
   };
-  material.customProgramCacheKey=()=>`${previousKey}/facility-weather-${kind}-v2`;
+  material.customProgramCacheKey=()=>`${previousKey}/facility-weather-${kind}-v3`;
   material.needsUpdate=true;
 }
 

@@ -93,7 +93,7 @@ export class WorldView {
     for(let x=-MAP.halfWidth+2;x<=MAP.halfWidth-2;x+=4){
       this.box(.12,.42,MAP.depth,x,5.12,0,'steel');this.box(.32,.065,MAP.depth,x,4.94,0,'dark');
       for(let z=-MAP.halfDepth+3;z<=MAP.halfDepth-3;z+=5){
-        const glazed=Math.abs(z)===5&&Math.round(x+26)%8===0;
+        const glazed=[5,15,25].includes(Math.abs(z))&&Math.round(x+26)%8===0;
         if(glazed){
           // Roof panels surround an actual aperture; glass transmits sunlight.
           for(const dx of [-1.85,1.85])this.box(.3,.08,5,x+dx,5.55,z,'ceiling');
@@ -111,7 +111,8 @@ export class WorldView {
     for(const [x,z] of [[-22,0],[-10,0],[6,0],[22,0],[-18,-14],[-2,-14],[18,-14],[-14,14],[2,14],[14,14],
       [-35,-20],[-35,0],[-35,20],[35,-20],[35,0],[35,20],[-27,-23],[-15,-23],[0,-23],[16,-23],[28,-23],
       [-27,23],[-16,23],[0,23],[16,23],[28,23]]){
-      const light=new T.SpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?105:145,17,1.06,.72,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
+      const light=new T.SpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?125:170,17,.82,.55,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
+      this.box(.86,.12,.42,x,4.63,z,'steel',this.facility,.025);this.box(.7,.025,.3,x,4.54,z,'lamp');
       light.shadow.mapSize.set(1024,1024);light.shadow.camera.near=.2;light.shadow.camera.far=18;light.shadow.bias=-.00015;light.shadow.normalBias=.006;
       this.scene.add(light,light.target);this.localLights.push(light);
     }
@@ -250,7 +251,7 @@ export class WorldView {
     this.wetFloor.visible=quality!=='low';
     const reflectionSize=quality==='high'?768:512,reflectionTarget=this.wetFloor.getRenderTarget();
     if(reflectionTarget.width!==reflectionSize){reflectionTarget.setSize(reflectionSize,reflectionSize);this.wetFloor.material.uniforms.texel.value.setScalar(1/reflectionSize);}
-    const atmosphereSteps=quality==='high'?24:16;
+    const atmosphereSteps=quality==='high'?32:24;
     if(this.atmosphere.material.defines.ATMOSPHERE_STEPS!==atmosphereSteps){this.atmosphere.material.defines.ATMOSPHERE_STEPS=atmosphereSteps;this.atmosphere.material.needsUpdate=true;}
     this.renderer.shadowMap.enabled=quality!=='low';this.occlusion.enabled=quality!=='low';this.bloom.enabled=quality!=='low';this.bloom.strength=quality==='high'?.15:.1;this.grade.enabled=quality!=='low';this.dust.visible=quality!=='low';
     this.fx.spark.material.uniforms.scale.value=h*scale;this.fx.smoke.material.uniforms.scale.value=h*scale;
@@ -311,7 +312,6 @@ export class WorldView {
     const shadowCount=this.settings.quality==='high'?2:this.settings.quality==='medium'?1:0;
     const nearby=[...this.localLights].sort((a,b)=>a.position.distanceToSquared(this.camera.position)-b.position.distanceToSquared(this.camera.position));
     for(const light of this.localLights)light.castShadow=nearby.indexOf(light)<shadowCount;
-    this.atmosphere.uniforms.tShadow.value=this.sun.shadow.map?.texture||this.atmosphere.fallbackShadow;
     this.weaponPass.enabled=!!follow?.alive&&!scoped&&state?.phase!=='matchResult'&&state?.phase!=='roundResult';this.grade.uniforms.time.value=time;this.composer.render(dt);this.renderer.autoClear=true;
   }
 }

@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import { existsSync,readFileSync,writeFileSync,mkdirSync,statSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from '../server/index.js';
+import { MAP } from '../src/shared/data.js';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({production:true,port:0,host:'127.0.0.1'}),base=`http://127.0.0.1:${app.server.address().port}`;
@@ -28,7 +29,7 @@ try{
     const facility=['stagingFloor','paintedWall','containerRed','containerGreen','rack','hvac','crane'].includes(material.name);
     assert.equal(map.source,scanned?'scanned-cc0':facility?'generated-facility-art':'generated-art');assert.equal(map.width,size);assert.equal(map.height,size);assert.equal(map.colorSpace,i===0?'srgb':'');
   }
-  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[14,9]);
+  assert.deepEqual(materials.materials.find(m=>m.name==='floor').repeat,[MAP.width/4,MAP.depth/4]);
   const characterMaterials=await page.evaluate(()=>{
     const characters=window.__BLA.view.characters;
     const palettes=characters.sideMaterials.map(palette=>[...palette.values()]
