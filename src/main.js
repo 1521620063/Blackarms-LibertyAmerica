@@ -11,11 +11,11 @@ const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const params=new URLSearchParams(location.search),debug=params.has('debug');
-const defaults={sensitivity:1,fov:85,quality:'medium',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:false};
+const defaults={sensitivity:1,fov:85,quality:'high',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:false};
 let saved={};try{saved=JSON.parse(localStorage.getItem('bla.settings')||'{}');}catch{}
 const settings={...defaults,...Object.fromEntries(Object.keys(defaults).filter(k=>typeof saved[k]===typeof defaults[k]).map(k=>[k,saved[k]]))};
 settings.sensitivity=clamp(settings.sensitivity,.4,3);settings.fov=clamp(settings.fov,65,110);settings.volume=clamp(settings.volume,0,1);
-if(!['low','medium','high'].includes(settings.quality))settings.quality='medium';
+if(!['low','medium','high'].includes(settings.quality))settings.quality=defaults.quality;
 if(![0,30,60,90,120,144].includes(settings.maxFPS))settings.maxFPS=60;
 const renderPacer=new RenderPacer();
 const config={mode:'elimination',teamSize:3,difficulty:'normal',primary:'rifle',armor:'light'};
