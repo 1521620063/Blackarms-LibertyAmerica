@@ -16,17 +16,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/concrete-albedo.webp",
-          "bytes": 437616,
+          "bytes": 294948,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/concrete-normal.webp",
-          "bytes": 745486,
+          "bytes": 575584,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/concrete-roughness.webp",
-          "bytes": 219274,
+          "bytes": 68624,
           "colorSpace": "linear-data"
         }
       },
@@ -46,17 +46,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/floor-albedo.webp",
-          "bytes": 411524,
+          "bytes": 250936,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/floor-normal.webp",
-          "bytes": 603328,
+          "bytes": 399536,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/floor-roughness.webp",
-          "bytes": 174956,
+          "bytes": 41156,
           "colorSpace": "linear-data"
         }
       },
@@ -76,17 +76,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/gunmetal-albedo.webp",
-          "bytes": 507006,
+          "bytes": 344362,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/gunmetal-normal.webp",
-          "bytes": 561580,
+          "bytes": 366338,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/gunmetal-roughness.webp",
-          "bytes": 273014,
+          "bytes": 88654,
           "colorSpace": "linear-data"
         }
       },
@@ -106,17 +106,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/service-panel-albedo.webp",
-          "bytes": 284986,
+          "bytes": 120282,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/service-panel-normal.webp",
-          "bytes": 180312,
+          "bytes": 71732,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/service-panel-roughness.webp",
-          "bytes": 70164,
+          "bytes": 18532,
           "colorSpace": "linear-data"
         }
       },
@@ -136,17 +136,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/fabric-albedo.webp",
-          "bytes": 620872,
+          "bytes": 434316,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/fabric-normal.webp",
-          "bytes": 842020,
+          "bytes": 651226,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/fabric-roughness.webp",
-          "bytes": 365762,
+          "bytes": 175704,
           "colorSpace": "linear-data"
         }
       },
@@ -166,17 +166,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/facility-epoxy-albedo.webp",
-          "bytes": 347784,
+          "bytes": 191886,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/facility-epoxy-normal.webp",
-          "bytes": 397702,
+          "bytes": 235216,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/facility-epoxy-roughness.webp",
-          "bytes": 130370,
+          "bytes": 28366,
           "colorSpace": "linear-data"
         }
       },
@@ -196,17 +196,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/facility-paint-albedo.webp",
-          "bytes": 431656,
+          "bytes": 288794,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/facility-paint-normal.webp",
-          "bytes": 434046,
+          "bytes": 263280,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/facility-paint-roughness.webp",
-          "bytes": 204258,
+          "bytes": 51652,
           "colorSpace": "linear-data"
         }
       },
@@ -226,17 +226,17 @@
       "channels": {
         "albedo": {
           "url": "/art/materials/facility-plaster-albedo.webp",
-          "bytes": 408850,
+          "bytes": 247838,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/materials/facility-plaster-normal.webp",
-          "bytes": 546568,
+          "bytes": 351446,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/materials/facility-plaster-roughness.webp",
-          "bytes": 170006,
+          "bytes": 32642,
           "colorSpace": "linear-data"
         }
       },

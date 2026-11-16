@@ -16,17 +16,17 @@
       "channels": {
         "albedo": {
           "url": "/art/characters/soldier-fabric-albedo.webp",
-          "bytes": 581866,
+          "bytes": 444402,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/characters/soldier-fabric-normal.webp",
-          "bytes": 834106,
+          "bytes": 610882,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/characters/soldier-fabric-roughness.webp",
-          "bytes": 369390,
+          "bytes": 192170,
           "colorSpace": "linear-data"
         }
       },
@@ -46,7 +46,7 @@
       "channels": {
         "albedo": {
           "url": "/art/characters/soldier-nylon-albedo.webp",
-          "bytes": 552304,
+          "bytes": 410124,
           "colorSpace": "srgb"
         },
         "normal": {
@@ -56,7 +56,7 @@
         },
         "roughness": {
           "url": "/art/characters/soldier-nylon-roughness.webp",
-          "bytes": 332714,
+          "bytes": 182536,
           "colorSpace": "linear-data"
         }
       },
@@ -76,17 +76,17 @@
       "channels": {
         "albedo": {
           "url": "/art/characters/soldier-rubber-albedo.webp",
-          "bytes": 436176,
+          "bytes": 279022,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/characters/soldier-rubber-normal.webp",
-          "bytes": 613190,
+          "bytes": 390538,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/characters/soldier-rubber-roughness.webp",
-          "bytes": 231286,
+          "bytes": 85644,
           "colorSpace": "linear-data"
         }
       },
@@ -106,17 +106,17 @@
       "channels": {
         "albedo": {
           "url": "/art/characters/soldier-helmet-albedo.webp",
-          "bytes": 380882,
+          "bytes": 236528,
           "colorSpace": "srgb"
         },
         "normal": {
           "url": "/art/characters/soldier-helmet-normal.webp",
-          "bytes": 455050,
+          "bytes": 273922,
           "colorSpace": "linear-data"
         },
         "roughness": {
           "url": "/art/characters/soldier-helmet-roughness.webp",
-          "bytes": 158116,
+          "bytes": 39430,
           "colorSpace": "linear-data"
         }
       },

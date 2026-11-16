@@ -8,5 +8,5 @@
     {"id":"concrete_wall_008","page":"https://polyhaven.com/a/concrete_wall_008","resolution":2048,"physicalSizeMeters":4,"sourcePattern":"https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_wall_008/concrete_wall_008_{diff,nor_gl,rough}_2k.jpg","channels":{"albedo":"concrete_wall_008-diff.webp","normalOpenGL":"concrete_wall_008-nor_gl.webp","roughness":"concrete_wall_008-rough.webp"}},
     {"id":"empty_warehouse_01","page":"https://polyhaven.com/a/empty_warehouse_01","resolution":"1K","file":"warehouse-1k.hdr","source":"https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/empty_warehouse_01_1k.hdr"}
   ],
-  "processing":"Material JPEG sources converted to 2K WebP with browser canvas. Normals use OpenGL orientation and quality 1. HDR is unmodified. Physical tiling is an authored scene scale."
+  "processing":"Material JPEG sources converted to 2K WebP with browser canvas, then recompressed by scripts/compress-images.mjs without resizing. OpenGL normals use quality 0.94 with angular-error checks; albedo and roughness use quality 0.85 with pixel-error checks. HDR is unmodified. Physical tiling is an authored scene scale."
 }
