@@ -9,8 +9,15 @@ try{
   const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);await waitForGame(page);
-  const coverage=await page.evaluate(async()=>{
-    const T=await import('/node_modules/three/build/three.webgpu.js'),{uv,vec2,vec3,vec4}=await import('/node_modules/three/build/three.tsl.js');
+  // Share the application's resolved modules when workspace dependencies are
+  // hoisted above the frontend root.
+  const modules=await page.evaluate(async()=>{
+    const source=await(await fetch('/src/world.js')).text();
+    const imports=[...source.matchAll(/from ["']([^"']+)["']/g)].map(match=>match[1]);
+    return {gpu:imports.find(path=>path.includes('three_webgpu.js')),tsl:imports.find(path=>path.includes('three_tsl.js'))};
+  });
+  const coverage=await page.evaluate(async({gpu,tsl})=>{
+    const T=await import(gpu),{uv,vec2,vec3,vec4}=await import(tsl);
     const {facilityDamp}=await import('/src/visual/damp-mask.js');
     const g=window.__BLA,v=g.view;v.renderer.setAnimationLoop(null);g.settings.quality='high';v.resize();
     const material=new T.MeshBasicNodeMaterial();material.fragmentNode=vec4(vec3(facilityDamp(uv().sub(.5).mul(vec2(80,56)))),1);
@@ -24,7 +31,7 @@ try{
       areas[name].total++;if(pixels[(row*160+col)*4]>64)areas[name].wet++;
     }
     return Object.fromEntries(Object.entries(areas).map(([name,a])=>[name,a.wet/a.total]));
-  });
+  },modules);
   for(const [name,fraction] of Object.entries(coverage)){assert.ok(fraction>.1,`${name} has visible puddle coverage (${fraction})`);assert.ok(fraction<.85,`${name} retains dry ground (${fraction})`);}
   const scenes=[];
   for(const [name,position,target] of [

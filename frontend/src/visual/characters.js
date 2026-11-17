@@ -8,8 +8,12 @@ export class SoldierModels {
   constructor(kit){this.kit=kit;this.ready=Promise.resolve().then(async()=>{
     const assets=[createOriginalSoldier(0),createOriginalSoldier(1)];
     this.templates=assets.map(asset=>asset.scene);this.template=this.templates[0];this.clips=assets[0].animations;
-    this.scales=this.templates.map(template=>1.86/new T.Box3().setFromObject(template).getSize(new T.Vector3()).y);
-    this.floors=this.templates.map((template,i)=>-new T.Box3().setFromObject(template).min.y*this.scales[i]);
+    const bounds=this.templates.map(template=>new T.Box3().setFromObject(template));
+    this.scales=bounds.map(box=>1.86/box.getSize(new T.Vector3()).y);
+    this.floors=bounds.map((box,i)=>-box.min.y*this.scales[i]);
+    // One conservative whole-body bound per faction includes limb animation and
+    // IK. Avoid both disabled culling and per-frame skinned vertex scans.
+    this.cullBounds=bounds.map(box=>{const sphere=box.getBoundingSphere(new T.Sphere());sphere.radius+=.5;return sphere;});
     this.scale=this.scales[0];this.floor=this.floors[0];
     // Match by surface role, since each faction has its own authored geometry.
     this.sideMaterials=this.templates.map(template=>{
@@ -25,7 +29,7 @@ export class SoldierModels {
     const root=new T.Group(),body=new T.Group();root.add(body);
     const contact=new T.Mesh(this.contactGeometry,this.contactMaterial);contact.rotation.x=-Math.PI/2;contact.position.set(0,.005,-.04);root.add(contact);
     const skin=clone(this.templates[side]);skin.scale.setScalar(this.scales[side]);skin.position.y=this.floors[side];body.add(skin);
-    const originals=new Map();skin.traverse(o=>{if(o.isMesh){originals.set(o,o.material.userData.role);o.material=this.sideMaterials[side].get(o.material.userData.role);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;}});
+    const originals=new Map();skin.traverse(o=>{if(o.isMesh){originals.set(o,o.material.userData.role);o.material=this.sideMaterials[side].get(o.material.userData.role);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;if(o.isSkinnedMesh)o.boundingSphere=this.cullBounds[side].clone();}});
     const mixer=new T.AnimationMixer(skin),actions={};
     for(const clip of this.clips)if(clip.name!=='TPose')actions[clip.name]=mixer.clipAction(clip).play();
     actions.Idle.setEffectiveWeight(1);actions.Walk.setEffectiveWeight(0);actions.Run.setEffectiveWeight(0);mixer.update(0);
@@ -56,6 +60,10 @@ export class SoldierModels {
   animate(root,a,dt){
     const u=root.userData,p=new T.Vector3(a.x,a.y,a.z),travel=u.lastPosition?Math.hypot(p.x-u.lastPosition.x,p.z-u.lastPosition.z):0;
     u.lastPosition=p;const speed=Math.min(6,travel/Math.max(dt,.001));u.speed=T.MathUtils.lerp(u.speed,speed,1-Math.exp(-dt*12));
+    u.flashTime=Math.max(0,u.flashTime-dt);u.death=T.MathUtils.damp(u.death,a.alive?0:1,8,dt);
+    // The followed actor's third-person body is hidden. Keep its motion speed
+    // for weapon bob, but avoid the unused skeleton, pose copies and limb IK.
+    if(!root.visible)return;
     const move=a.alive?Math.min(1,u.speed/.8):0,run=a.sprinting?move:Math.max(0,(u.speed-3)/3);
     u.actions.Idle.setEffectiveWeight(1-move);u.actions.Walk.setEffectiveWeight(move*(1-run));u.actions.Run.setEffectiveWeight(run);
     // Restore the animation pose before applying IK. AnimationMixer may skip writing
@@ -65,9 +73,8 @@ export class SoldierModels {
     for(const pose of u.animationPose){pose.position.copy(pose.bone.position);pose.quaternion.copy(pose.bone.quaternion);}
     this.kit.animateWeapon(u.weapon,a);
     if(a.weapon!==u.weaponType){u.aim.remove(u.weapon);u.weapon=this.kit.weapon(a.weapon,u.aim);u.weapon.scale.setScalar(.78);u.weaponType=a.weapon;u.muzzle.position.copy(u.weapon.userData.muzzle);u.weapon.add(u.muzzle);}
-    u.flashTime=Math.max(0,u.flashTime-dt);u.muzzle.visible=a.alive&&u.flashTime>0&&!a.reload&&!a.switchTime;
+    u.muzzle.visible=a.alive&&u.flashTime>0&&!a.reload&&!a.switchTime;
     u.muzzle.material.uniforms.intensity.value=5*u.flashTime/.075;
-    u.death=T.MathUtils.damp(u.death,a.alive?0:1,8,dt);
     u.body.rotation.z=-u.death*Math.PI*.49;u.body.position.y=u.death*.23;
     u.skin.position.y=u.floor;u.aim.position.y=1.49-(a.crouch?.37:0);
     u.chest.rotation.set((a.pitch||0)*.35,-.1,0);

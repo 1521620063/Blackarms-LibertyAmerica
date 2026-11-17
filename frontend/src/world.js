@@ -303,9 +303,12 @@ export class WorldView {
     const enabled=quality!=='low';
     this.sun.shadow.autoUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.gunLight.shadow.autoUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;
     if(this.sunShadowUniforms)this.sunShadowUniforms.facilityShadowTaps.value=quality==='high'?16:10;
-    this.wetFloor.userData.reflection.reflector.resolutionScale=(quality==='high'?768:512)/(h*scale);
+    // A reflection must never be more expensive than the view it decorates.
+    // In particular, 720p used to allocate an upscaled 768px-high reflection.
+    this.wetFloor.userData.reflection.reflector.resolutionScale=Math.min(quality==='high'?.5:1/3,(quality==='high'?768:512)/(h*scale));
     if(!this.composer)return;
     this.qualityEffects.value=enabled?1:0;this.atmosphere.enabled.value=enabled?1:0;
+    this.atmosphere.resize(w*scale,h*scale,quality);
     const output=quality==='high'?this.highQualityOutput:enabled?this.mediumQualityOutput:this.lowQualityOutput;
     if(this.composer.outputNode!==output){this.composer.outputNode=output;this.composer.needsUpdate=true;}
     this.atmosphere.steps.value=quality==='high'?32:24;

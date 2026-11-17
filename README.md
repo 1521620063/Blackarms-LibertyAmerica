@@ -198,6 +198,8 @@ npm run test:visual
 npm run test:startup
 npm run test:arsenal
 npm run test:audio
+npm run test:render-work
+npm run benchmark:rendering
 ```
 
 可用 `CHROME_PATH` 指定 Chrome / Edge。浏览器检查产生的截图与报告保存在 `artifacts/`。通过 `?debug=1` 提供测试入口 `window.__BLA`。

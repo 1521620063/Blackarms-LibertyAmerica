@@ -1,0 +1,113 @@
+import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { createFrontendServer } from '../frontend/server.mjs';
+import { launchBrowser, waitForGame } from './browser-utils.mjs';
+
+const app=await createFrontendServer({production:true,port:0,host:'127.0.0.1',tls:false});
+const browser=await launchBrowser();
+try{
+  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+  await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);await waitForGame(page);
+  assert.match(await page.title(),/BLACKARMS/i);
+  assert.ok(await page.locator('#start-offline').isVisible());
+  await page.locator('#start-offline').click();await page.locator('#ready').click();
+  await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
+  await page.evaluate(()=>{const g=window.__BLA;g.pause();g.view.renderer.setAnimationLoop(null);});
+  const checks=[];
+  for(const quality of ['high','medium','low','high']){
+    const result=await page.evaluate(async quality=>{
+      const g=window.__BLA,v=g.view;g.settings.quality=quality;v.resize();
+      v.render(g.state,g.playerId,1/60,30);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+      const lights=[v.sun,v.gunLight,...v.localShadowLights],updates=lights.map(()=>0);
+      const originals=lights.map((light,index)=>{
+        const original=light.shadow.updateMatrices;
+        light.shadow.updateMatrices=function(...args){updates[index]++;return original.apply(this,args);};
+        return original;
+      });
+      try{
+        const self=v.models.get(g.playerId),other=[...v.models.values()].find(model=>model.visible);
+        const selfBefore=self.userData.mixer.time,otherBefore=other.userData.mixer.time;
+        v.render(g.state,g.playerId,1/60,30.1);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+        const volume=v.atmosphere.scatteringPass?.renderTarget;
+        return {quality,updates,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
+      }finally{lights.forEach((light,index)=>light.shadow.updateMatrices=originals[index]);}
+    },quality);
+    checks.push(result);
+  }
+  mkdirSync('artifacts',{recursive:true});
+  console.log(checks);
+  for(const check of checks){
+    assert.equal(check.hiddenPoseDelta,0,'the hidden first-person body skips skeletal animation and IK');
+    assert.ok(check.visiblePoseDelta>0,'visible actors keep animating');
+    assert.ok(check.updates.every(count=>count<=1),`${check.quality}: each shadow map is rendered at most once per frame, including reflections: ${check.updates}`);
+    if(check.quality==='low')assert.deepEqual(check.updates,[0,0,0,0]);
+    else{
+      assert.equal(check.updates[0],1,'sun shadows still follow moving actors');
+      assert.equal(check.updates[1],1,'weapon shadows still follow its animation');
+      assert.equal(check.active[0],1,'cached shadow maps remain active for volumetric light');
+      assert.ok(check.volume,'volumetric scattering has an independent render target');
+      assert.ok(check.volume.width*check.volume.height<=check.width*check.height/4,'ray marching uses at most a quarter of the main pixel count');
+      assert.ok(check.reflectionScale>0&&check.reflectionScale<=.5,'reflections stay within a quarter of the main pixel count, even on small viewports');
+    }
+  }
+  const spectator=await page.evaluate(async()=>{
+    const g=window.__BLA,v=g.view,actor=g.state.actors.find(actor=>actor.id===g.playerId),self=v.models.get(g.playerId);
+    actor.x+=.1;v.render(g.state,g.playerId,1/60,31);
+    const moving=self.userData.speed>0&&v.moveBlend>0,before=self.userData.mixer.time;
+    const teammate=g.state.actors.find(other=>other.id!==g.playerId);
+    v.render(g.state,g.playerId,1/60,31.1,{spectate:teammate.id});
+    await v.renderer.backend.device.queue.onSubmittedWorkDone();
+    return {moving,resumed:self.userData.mixer.time>before,visible:self.visible};
+  });
+  assert.ok(spectator.moving,'hidden actors still drive first-person weapon bob');
+  assert.ok(spectator.resumed&&spectator.visible,'switching spectator resumes the previously hidden body animation');
+  const culling=await page.evaluate(async()=>{
+    const v=window.__BLA.view,actor=[...v.models.values()].find(model=>model.visible),skins=[];
+    for(const model of v.models.values())model.visible=model===actor;
+    actor.position.set(0,0,0);actor.updateMatrixWorld(true);
+    actor.userData.skin.traverse(mesh=>{if(mesh.isSkinnedMesh)skins.push(mesh);});
+    let color=0,shadows=0;
+    for(const mesh of skins){mesh.onBeforeRender=()=>color++;mesh.onBeforeShadow=()=>shadows++;}
+    v.weaponPass.enabled=false;v.weaponVisible.value=0;
+    const draw=async(target)=>{
+      color=0;shadows=0;v.camera.position.set(-8,1.5,0);v.camera.lookAt(...target);
+      v.camera.updateMatrixWorld(true);v.atmosphere.update();v.composer.render();
+      // WebGPU also calls onBeforeRender for shadow submissions.
+      await v.renderer.backend.device.queue.onSubmittedWorkDone();return {color:color-shadows,shadows};
+    };
+    try{return {away:await draw([-20,1.5,0]),towards:await draw([0,1,0])};}
+    finally{for(const mesh of skins){mesh.onBeforeRender=()=>{};mesh.onBeforeShadow=()=>{};}}
+  });
+  console.log({culling});
+  assert.equal(culling.away.color,0,'offscreen bodies are culled in the world and reflection color passes');
+  assert.ok(culling.away.shadows>0,'offscreen actors still cast shadows into the scene');
+  assert.ok(culling.towards.color>0,'turning back restores the body without a simulation update');
+  const bounds=await page.evaluate(()=>{
+    const g=window.__BLA,v=g.view,sides=new Set();let checked=0,outside=0;
+    for(const [id,model] of v.models){
+      if(sides.has(model.userData.side))continue;sides.add(model.userData.side);model.visible=true;
+      const actor=g.state.actors.find(actor=>actor.id===id),point=model.position.clone();
+      for(const pose of [{alive:true},{alive:true,crouch:true,pitch:1},{alive:true,sprinting:true,pitch:-1},{alive:false}]){
+        for(let frame=0;frame<12;frame++)v.characters.animate(model,{...actor,...pose,x:frame*.05,z:0},1/30);
+        model.updateMatrixWorld(true);
+        model.userData.skin.traverse(mesh=>{
+          if(!mesh.isSkinnedMesh)return;
+          const count=mesh.geometry.attributes.position.count;
+          for(let index=0;index<count;index+=47){
+            mesh.getVertexPosition(index,point);checked++;
+            if(!mesh.boundingSphere?.containsPoint(point))outside++;
+          }
+        });
+      }
+    }
+    return {factions:sides.size,checked,outside};
+  });
+  assert.equal(bounds.factions,2,'both faction designs are covered');
+  assert.ok(bounds.checked>1000,'sample deformed vertices across walking, crouching, aiming and death');
+  assert.equal(bounds.outside,0,'animated limbs remain inside the conservative culling bounds');
+  writeFileSync('artifacts/render-work-report.json',JSON.stringify({checks,spectator,culling,bounds,errors},null,2));
+  await page.screenshot({path:'artifacts/render-work-high.png'});
+  assert.deepEqual(errors,[]);
+}finally{await browser.close();await app.close();}
