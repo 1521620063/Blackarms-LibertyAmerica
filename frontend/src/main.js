@@ -13,7 +13,7 @@ const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const params=new URLSearchParams(location.search),debug=params.has('debug');
-const defaults={sensitivity:1,fov:85,quality:'high',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:false};
+const defaults={sensitivity:1,fov:85,quality:'high',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:true};
 const saved=readPreferences('bla.settings');
 const settings={...defaults,...Object.fromEntries(Object.keys(defaults).filter(k=>typeof saved[k]===typeof defaults[k]).map(k=>[k,saved[k]]))};
 settings.sensitivity=clamp(settings.sensitivity,.4,3);settings.fov=clamp(settings.fov,65,110);settings.volume=clamp(settings.volume,0,1);
