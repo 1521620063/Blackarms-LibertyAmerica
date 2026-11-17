@@ -301,17 +301,18 @@ export class WorldView {
     }
     this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.gunCamera.aspect=w/h;this.gunCamera.updateProjectionMatrix();
     const enabled=quality!=='low';
-    this.sun.shadow.autoUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.gunLight.shadow.autoUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;
+    this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.sunShadowElapsed=0;
+    this.gunLight.shadow.autoUpdate=false;this.gunLight.shadow.needsUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;
     if(this.sunShadowUniforms)this.sunShadowUniforms.facilityShadowTaps.value=quality==='high'?16:10;
-    // A reflection must never be more expensive than the view it decorates.
-    // In particular, 720p used to allocate an upscaled 768px-high reflection.
-    this.wetFloor.userData.reflection.reflector.resolutionScale=Math.min(quality==='high'?.5:1/3,(quality==='high'?768:512)/(h*scale));
+    // Bound reflection pixels independently of viewport size; linear filtering
+    // is enough for the small ripples, so the reflector needs no mip chain.
+    this.wetFloor.userData.reflection.reflector.resolutionScale=Math.min(quality==='high'?1/3:1/4,(quality==='high'?512:384)/(h*scale));
     if(!this.composer)return;
     this.qualityEffects.value=enabled?1:0;this.atmosphere.enabled.value=enabled?1:0;
     this.atmosphere.resize(w*scale,h*scale,quality);
     const output=quality==='high'?this.highQualityOutput:enabled?this.mediumQualityOutput:this.lowQualityOutput;
     if(this.composer.outputNode!==output){this.composer.outputNode=output;this.composer.needsUpdate=true;}
-    this.atmosphere.steps.value=quality==='high'?32:24;
+    this.atmosphere.steps.value=quality==='high'?20:16;
     this.bloom.strength.value=quality==='high'?.15:.1;
 
   }
@@ -348,7 +349,7 @@ export class WorldView {
     this.wetFloor.material.uniforms.time.value=time;
     let follow=null,player=null;
     if(state){
-      const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;}
+      const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;this.sun.shadow.needsUpdate=this.settings.quality!=='low';}
       player=state.actors.find(a=>a.id===playerId);follow=state.actors.find(a=>a.id===(view.spectate||playerId))||player;
       const ids=new Set(state.actors.map(a=>a.id));for(const [id,model] of this.models)if(!ids.has(id)){this.characters.release(model);this.scene.remove(model);this.models.delete(id);}
       for(const a of state.actors){
@@ -404,9 +405,17 @@ export class WorldView {
     this.localShadowLights.forEach((light,index)=>{
       const source=nearby[index],enabled=index<shadowCount;
       light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
-      light.intensity=enabled?source.intensity:0;light.shadow.intensity=enabled?1:0;light.shadow.autoUpdate=enabled;light.userData.active=enabled;
+      light.intensity=enabled?source.intensity:0;light.shadow.intensity=enabled?1:0;light.shadow.autoUpdate=false;light.shadow.needsUpdate=enabled;light.userData.active=enabled;
       if(enabled)source.intensity=0;
     });
+    // needsUpdate is consumed by the first view, so reflections reuse the same
+    // map. Keep weapon/local shadows responsive; cap the large sun map at 30/20 Hz.
+    const shadowsEnabled=this.settings.quality!=='low',sunInterval=1/(this.settings.quality==='high'?30:20);
+    this.sunShadowElapsed+=Math.max(0,dt);
+    if(shadowsEnabled&&this.sunShadowElapsed+1e-8>=sunInterval){
+      this.sun.shadow.needsUpdate=true;this.sunShadowElapsed=Math.max(0,this.sunShadowElapsed-sunInterval*Math.floor((this.sunShadowElapsed+1e-8)/sunInterval));
+    }
+    this.gunLight.shadow.needsUpdate=shadowsEnabled;
     this.weaponPass.enabled=!!follow?.alive&&!scoped&&state?.phase!=='matchResult'&&state?.phase!=='roundResult';
     this.weaponVisible.value=this.weaponPass.enabled?1:0;this.gun.visible=this.weaponPass.enabled;this.gradeTime.value=time;
     this.atmosphere.uniforms.time.value=time;this.camera.updateMatrixWorld();this.atmosphere.update();

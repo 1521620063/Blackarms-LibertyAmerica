@@ -4,7 +4,7 @@ import { Fn, uniform, texture, rtt, vec2, vec3, vec4, float, Loop, If, mix, smoo
 // Depth-bounded ray marching with native shadow depth comparisons.
 export function atmospherePass(view,worldPass){
   const inverseProjection=uniform(new T.Matrix4()),cameraWorld=uniform(new T.Matrix4());
-  const density=uniform(.027),strength=uniform(.85),lampStrength=uniform(1.65),time=uniform(0),steps=uniform(24,'int'),enabled=uniform(1);
+  const density=uniform(.027),strength=uniform(.85),lampStrength=uniform(1.65),time=uniform(0),steps=uniform(16,'int'),enabled=uniform(1);
   const white=new T.DepthTexture(1,1);white.compareFunction=T.LessCompare;
   const lights=[view.sun,...view.localShadowLights];
   const bindings=lights.map(light=>({light,matrix:uniform(new T.Matrix4()),map:texture(white).onRenderUpdate(()=>light.shadow.map?.depthTexture||white),active:uniform(0)}));
@@ -36,10 +36,14 @@ export function atmospherePass(view,worldPass){
         for(const lamp of lampBindings){
           const delta=p.sub(lamp.position),length=delta.length(),fromLamp=delta.div(max(length,.001));
           const cone=smoothstep(lamp.cone,lamp.cone+(1-lamp.cone)*.45,dot(fromLamp,lamp.direction));
-          const falloff=float(1).div(length.mul(length).mul(.12).add(1));
-          const fade=float(1).sub(smoothstep(lamp.range*.7,lamp.range,length));
-          const phase=dot(direction,fromLamp.negate()).max(0).pow(4).mul(.65).add(.65);
-          lamps.addAssign(lamp.tint.mul(cone).mul(falloff).mul(fade).mul(phase).mul(visibility(lamp,p)).mul(lamp.intensity));
+          // Most samples lie outside a lamp's short cone. Avoid a shadow-map
+          // comparison there, and skip unused quality-tier lights entirely.
+          If(lamp.active.greaterThan(.5).and(lamp.intensity.greaterThan(0)).and(length.lessThan(lamp.range)).and(cone.greaterThan(0)),()=>{
+            const falloff=float(1).div(length.mul(length).mul(.12).add(1));
+            const fade=float(1).sub(smoothstep(lamp.range*.7,lamp.range,length));
+            const phase=dot(direction,fromLamp.negate()).max(0).pow(4).mul(.65).add(.65);
+            lamps.addAssign(lamp.tint.mul(cone).mul(falloff).mul(fade).mul(phase).mul(visibility(lamp,p)).mul(lamp.intensity));
+          });
         }
         scattering.addAssign(sun.add(lamps.mul(lampStrength)).mul(dust).mul(exp(travel.mul(density).negate())).mul(stepLength).mul(density));
       });
@@ -66,14 +70,15 @@ export function atmospherePass(view,worldPass){
   })();
   return {node,scatteringPass,uniforms:{density,strength,lampStrength,time,inverseProjection,cameraWorld},bindings,steps,enabled,
     resize(width,height,quality){
-      const scale=quality==='high'?.5:1/3,w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
+      const scale=quality==='high'?1/3:1/4,w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
       if(scatteringPass.width!==w||scatteringPass.height!==h)scatteringPass.setSize(w,h);
       texel.value.set(1/w,1/h);
     },
     update(){
       inverseProjection.value.copy(view.camera.projectionMatrixInverse);cameraWorld.value.copy(view.camera.matrixWorld);
       for(const binding of bindings){
-        binding.active.value=binding.light.shadow.autoUpdate?1:0;
+        // Cached maps still illuminate the fog between shadow updates.
+        binding.active.value=binding.light.castShadow&&binding.light.shadow.intensity>0&&binding.light.shadow.map?1:0;
         binding.matrix.value.copy(binding.light.shadow.matrix);
       }
       for(const lamp of lampBindings){lamp.direction.value.subVectors(lamp.light.target.position,lamp.light.position).normalize();lamp.intensity.value=lamp.light.intensity/130;}

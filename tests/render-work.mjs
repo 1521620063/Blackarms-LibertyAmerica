@@ -29,9 +29,15 @@ try{
       try{
         const self=v.models.get(g.playerId),other=[...v.models.values()].find(model=>model.visible);
         const selfBefore=self.userData.mixer.time,otherBefore=other.userData.mixer.time;
-        v.render(g.state,g.playerId,1/60,30.1);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+        v.sunShadowElapsed=0;
+        const perFrame=[];
+        for(let frame=0;frame<12;frame++){
+          const before=[...updates];
+          v.render(g.state,g.playerId,1/60,30.1+frame/60);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+          perFrame.push(updates.map((count,index)=>count-before[index]));
+        }
         const volume=v.atmosphere.scatteringPass?.renderTarget;
-        return {quality,updates,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
+        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
       }finally{lights.forEach((light,index)=>light.shadow.updateMatrices=originals[index]);}
     },quality);
     checks.push(result);
@@ -41,15 +47,19 @@ try{
   for(const check of checks){
     assert.equal(check.hiddenPoseDelta,0,'the hidden first-person body skips skeletal animation and IK');
     assert.ok(check.visiblePoseDelta>0,'visible actors keep animating');
-    assert.ok(check.updates.every(count=>count<=1),`${check.quality}: each shadow map is rendered at most once per frame, including reflections: ${check.updates}`);
+    assert.ok(check.perFrame.every(updates=>updates.every(count=>count<=1)),`${check.quality}: each shadow map is rendered at most once per frame, including reflections: ${check.updates}`);
     if(check.quality==='low')assert.deepEqual(check.updates,[0,0,0,0]);
     else{
-      assert.equal(check.updates[0],1,'sun shadows still follow moving actors');
-      assert.equal(check.updates[1],1,'weapon shadows still follow its animation');
+      assert.equal(check.updates[0],check.quality==='high'?6:4,'sun shadows update at 30/20 Hz during 60 Hz rendering');
+      assert.equal(check.updates[1],12,'weapon shadows still follow every animation frame');
+      assert.deepEqual(check.updates.slice(2),check.quality==='high'?[12,12]:[12,0],'active local shadows update once per frame');
       assert.equal(check.active[0],1,'cached shadow maps remain active for volumetric light');
+      assert.equal(check.steps,check.quality==='high'?20:16,'volumetric sample count scales with quality');
       assert.ok(check.volume,'volumetric scattering has an independent render target');
-      assert.ok(check.volume.width*check.volume.height<=check.width*check.height/4,'ray marching uses at most a quarter of the main pixel count');
-      assert.ok(check.reflectionScale>0&&check.reflectionScale<=.5,'reflections stay within a quarter of the main pixel count, even on small viewports');
+      const scale=check.quality==='high'?1/3:1/4;
+      assert.ok(check.volume.width*check.volume.height<=check.width*check.height*scale*scale,'ray marching stays within its reduced pixel budget');
+      assert.ok(check.reflectionScale>0&&check.reflectionScale<=scale,'reflections stay within their quality pixel budget, even on small viewports');
+      assert.equal(check.mipmaps,false,'ripples do not generate a reflection mip chain');
     }
   }
   const spectator=await page.evaluate(async()=>{
@@ -73,6 +83,7 @@ try{
     v.weaponPass.enabled=false;v.weaponVisible.value=0;
     const draw=async(target)=>{
       color=0;shadows=0;v.camera.position.set(-8,1.5,0);v.camera.lookAt(...target);
+      v.sun.shadow.needsUpdate=true;
       v.camera.updateMatrixWorld(true);v.atmosphere.update();v.composer.render();
       // WebGPU also calls onBeforeRender for shadow submissions.
       await v.renderer.backend.device.queue.onSubmittedWorkDone();return {color:color-shadows,shadows};

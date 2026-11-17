@@ -33,7 +33,7 @@ try{
       const render=(index)=>{
         v.render(g.state,g.playerId,1/60,30+index/60,{yaw:variant==='rear-view'?Math.PI/2:-Math.PI/2,pitch:0,prepareOnly:true});
         if(variant==='no-reflections')v.wetFloor.visible=false;
-        if(variant==='no-shadows')for(const light of [v.sun,v.gunLight,...v.localShadowLights])light.shadow.autoUpdate=false;
+        if(variant==='no-shadows')for(const light of [v.sun,v.gunLight,...v.localShadowLights]){light.shadow.autoUpdate=false;light.shadow.needsUpdate=false;}
         if(variant==='no-atmosphere')v.atmosphere.enabled.value=0;
         v.composer.render();
       };
