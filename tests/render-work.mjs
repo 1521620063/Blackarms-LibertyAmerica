@@ -6,7 +6,7 @@ import { launchBrowser, waitForGame } from './browser-utils.mjs';
 const app=await createFrontendServer({production:true,port:0,host:'127.0.0.1',tls:false});
 const browser=await launchBrowser();
 try{
-  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];
+  const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:1}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);await waitForGame(page);
@@ -16,7 +16,10 @@ try{
   await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   await page.evaluate(()=>{const g=window.__BLA;g.pause();g.view.renderer.setAnimationLoop(null);});
   const checks=[];
-  for(const quality of ['high','medium','low','high']){
+  for(const {viewport,quality} of [{width:1920,height:1080},{width:2560,height:1440}].flatMap(viewport=>['high','medium','low','high'].map(quality=>({viewport,quality})))){
+    await page.setViewportSize(viewport);
+    // Let the browser's resize event finish before measuring shadow cadence.
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const result=await page.evaluate(async quality=>{
       const g=window.__BLA,v=g.view;g.settings.quality=quality;v.resize();
       v.render(g.state,g.playerId,1/60,30);await v.renderer.backend.device.queue.onSubmittedWorkDone();
@@ -36,11 +39,11 @@ try{
           v.render(g.state,g.playerId,1/60,30.1+frame/60);await v.renderer.backend.device.queue.onSubmittedWorkDone();
           perFrame.push(updates.map((count,index)=>count-before[index]));
         }
-        const volume=v.atmosphere.scatteringPass?.renderTarget;
-        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
+        const volume=v.atmosphere.scatteringPass?.renderTarget,reflection=v.wetFloor.getRenderTarget();
+        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflection:{width:reflection.width,height:reflection.height},reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
       }finally{lights.forEach((light,index)=>light.shadow.updateMatrices=originals[index]);}
     },quality);
-    checks.push(result);
+    checks.push({viewport,...result});
   }
   mkdirSync('artifacts',{recursive:true});
   console.log(checks);
@@ -56,9 +59,14 @@ try{
       assert.equal(check.active[0],1,'cached shadow maps remain active for volumetric light');
       assert.equal(check.steps,check.quality==='high'?20:16,'volumetric sample count scales with quality');
       assert.ok(check.volume,'volumetric scattering has an independent render target');
-      const scale=check.quality==='high'?1/3:1/4;
-      assert.ok(check.volume.width*check.volume.height<=check.width*check.height*scale*scale,'ray marching stays within its reduced pixel budget');
-      assert.ok(check.reflectionScale>0&&check.reflectionScale<=scale,'reflections stay within their quality pixel budget, even on small viewports');
+      const scale=check.quality==='high'?1/3:1/4,budget=check.quality==='high'?640*360:480*270;
+      assert.ok(check.volume.width*check.volume.height<=Math.min(budget,check.width*check.height/16),'ray marching stays within its pixel budget at 1080p and 1440p');
+      assert.ok(check.reflection.width*check.reflection.height<=budget,'actual reflection attachment stays within its pixel budget');
+      assert.ok(check.reflectionScale>0&&check.reflectionScale<=scale,'reflections stay within their quality pixel budget');
+      if(check.quality==='high'){
+        assert.equal(check.width,check.viewport.width,'high quality preserves native scene width');
+        assert.equal(check.height,check.viewport.height,'high quality preserves native scene height');
+      }
       assert.equal(check.mipmaps,false,'ripples do not generate a reflection mip chain');
     }
   }

@@ -16,6 +16,13 @@ export class RenderPacer {
   }
 }
 
+// Reflections and fog have their own pixel budgets at 1080p and 1440p.
+// Base this on drawing-buffer dimensions so display density cannot multiply cost.
+export function renderEffectScale(width,height,quality,maxScale=1/4){
+  const pixels=quality==='high'?640*360:480*270;
+  return Math.min(maxScale,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))));
+}
+
 export function renderPixelRatio(width,height,deviceRatio,quality){
   const cap=quality==='low'?.8:quality==='high'?1.75:1.25;
   const pixels=quality==='low'?1280*720:quality==='high'?2560*1440:1920*1080;

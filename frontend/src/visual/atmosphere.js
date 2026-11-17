@@ -1,6 +1,8 @@
 import * as T from 'three/webgpu';
 import { Fn, uniform, texture, rtt, vec2, vec3, vec4, float, Loop, If, mix, smoothstep, dot, max, min, sin, exp, abs, floor, fract, getViewPosition, uv } from 'three/tsl';
 
+import { renderEffectScale } from './performance.js';
+
 // Depth-bounded ray marching with native shadow depth comparisons.
 export function atmospherePass(view,worldPass){
   const inverseProjection=uniform(new T.Matrix4()),cameraWorld=uniform(new T.Matrix4());
@@ -70,7 +72,7 @@ export function atmospherePass(view,worldPass){
   })();
   return {node,scatteringPass,uniforms:{density,strength,lampStrength,time,inverseProjection,cameraWorld},bindings,steps,enabled,
     resize(width,height,quality){
-      const scale=quality==='high'?1/3:1/4,w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
+      const scale=renderEffectScale(width,height,quality),w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
       if(scatteringPass.width!==w||scatteringPass.height!==h)scatteringPass.setSize(w,h);
       texel.value.set(1/w,1/h);
     },

@@ -6,7 +6,7 @@ import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import { transparentPass, compositeOverlay } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
-import { renderPixelRatio } from './visual/performance.js';
+import { renderPixelRatio, renderEffectScale } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOXES, MAP, OBJECTIVE, WEAPONS, WEAPON_ORDER, rng } from './game/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
@@ -304,9 +304,8 @@ export class WorldView {
     this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.sunShadowElapsed=0;
     this.gunLight.shadow.autoUpdate=false;this.gunLight.shadow.needsUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;
     if(this.sunShadowUniforms)this.sunShadowUniforms.facilityShadowTaps.value=quality==='high'?16:10;
-    // Bound reflection pixels independently of viewport size; linear filtering
-    // is enough for the small ripples, so the reflector needs no mip chain.
-    this.wetFloor.userData.reflection.reflector.resolutionScale=Math.min(quality==='high'?1/3:1/4,(quality==='high'?512:384)/(h*scale));
+    // Limit reflection pixels at 1080p/1440p independently of scene resolution.
+    this.wetFloor.userData.reflection.reflector.resolutionScale=renderEffectScale(w*scale,h*scale,quality,quality==='high'?1/3:1/4);
     if(!this.composer)return;
     this.qualityEffects.value=enabled?1:0;this.atmosphere.enabled.value=enabled?1:0;
     this.atmosphere.resize(w*scale,h*scale,quality);

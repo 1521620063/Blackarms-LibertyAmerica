@@ -6,7 +6,7 @@ import { launchBrowser,waitForGame } from './browser-utils.mjs';
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({port:0,host:'127.0.0.1'}),browser=await launchBrowser();
 try{
-  const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];
+  const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:1}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);await waitForGame(page);
   // Share the application's resolved modules when workspace dependencies are
@@ -34,6 +34,10 @@ try{
   },modules);
   for(const [name,fraction] of Object.entries(coverage)){assert.ok(fraction>.1,`${name} has visible puddle coverage (${fraction})`);assert.ok(fraction<.85,`${name} retains dry ground (${fraction})`);}
   const scenes=[];
+  for(const viewport of [{width:1920,height:1080},{width:2560,height:1440}]){
+    await page.setViewportSize(viewport);
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await page.evaluate(()=>window.__BLA.view.resize());
   for(const [name,position,target] of [
     ['wet-north-power',[-6,1.65,-25],[4,1.1,-21]],
     ['wet-south-laboratory',[-22,1.65,25],[-10,1.1,20]],
@@ -46,11 +50,12 @@ try{
       v.localLights.forEach(l=>l.intensity=l.userData.baseIntensity);
       v.localShadowLights.forEach((light,i)=>{const source=nearby[i];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);light.intensity=source.intensity;source.intensity=0;light.shadow.autoUpdate=true;light.shadow.intensity=1;});
       v.wetFloor.material.uniforms.time.value=20;
-      const output=new v.worldPass.renderTarget.constructor(320,200,{type:1009,depthBuffer:false});
+      const width=v.renderer.domElement.width,height=v.renderer.domElement.height;
+      const output=new v.worldPass.renderTarget.constructor(width,height,{type:1009,depthBuffer:false});
       const sample=async()=>{
         // Read the composed GPU target directly, independently of canvas presentation.
         v.renderer._nodes.nodeFrame.update();v.atmosphere.update();v.renderer.setRenderTarget(output);v.composer.render();
-        const pixels=await v.renderer.readRenderTargetPixelsAsync(output,0,0,320,200);v.renderer.setRenderTarget(null);return pixels;
+        const pixels=await v.renderer.readRenderTargetPixelsAsync(output,0,0,width,height);v.renderer.setRenderTarget(null);return pixels;
       };
       v.atmosphere.enabled.value=1;v.wetFloor.visible=true;await sample();const full=await sample();
       v.composer.render();const image=v.renderer.domElement.toDataURL('image/png');
@@ -62,11 +67,12 @@ try{
       const difference=other=>{let changed=0,total=0;for(let i=0;i<full.length;i+=4){const d=Math.abs(full[i]-other[i])+Math.abs(full[i+1]-other[i+1])+Math.abs(full[i+2]-other[i+2]);if(d>9)changed++;total+=d;}return {changedFraction:changed/(full.length/4),meanDifference:total/(full.length/4*3)};};
       output.dispose();return {image,synced,lamps,mist:difference(noMist),lamplight:difference(noLamps),water:difference(noWater)};
     },{position,target});
-    writeFileSync(`artifacts/${name}.png`,Buffer.from(result.image.split(',')[1],'base64'));delete result.image;
+    writeFileSync(`artifacts/${name}-${viewport.height}p.png`,Buffer.from(result.image.split(',')[1],'base64'));delete result.image;
     console.log(name,result);
     assert.ok(result.synced,`${name}: scattering follows camera movement`);assert.equal(result.lamps,2,`${name}: nearby lamp shadow maps are reused`);
     assert.ok(result.mist.changedFraction>.01,`${name}: volumetric light changes the rendered scene`);assert.ok(result.water.changedFraction>.005,`${name}: puddles reflect the rendered scene`);
-    scenes.push({name,...result});
+    scenes.push({viewport,name,...result});
+  }
   }
   assert.ok(scenes.some(s=>s.lamplight.changedFraction>.01),'local lamps produce visible shafts independently of sunlight');assert.deepEqual(errors,[]);
   writeFileSync('artifacts/wet-light-report.json',JSON.stringify({passed:true,coverage,scenes,errors},null,2));console.log('WebGPU wet floor and light shafts passed:',JSON.stringify({coverage,scenes},null,2));

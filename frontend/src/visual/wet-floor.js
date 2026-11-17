@@ -18,6 +18,6 @@ export function createWetFloor(view){
   floor.add(reflection.target);floor.userData.reflection=reflection;
   // Share the same world-space shoreline with the PBR ground.
   material.uniforms={time};
-  floor.getRenderTarget=()=>reflection.reflector.getRenderTarget(view.camera);
+  floor.getRenderTarget=()=>reflection.reflector.getRenderTarget(reflection.reflector.getVirtualCamera(view.camera));
   view.scene.add(floor);return floor;
 }

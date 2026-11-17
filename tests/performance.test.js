@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RenderPacer, renderPixelRatio } from '../frontend/src/visual/performance.js';
+import { RenderPacer, renderPixelRatio, renderEffectScale } from '../frontend/src/visual/performance.js';
 
 test('render cap keeps its cadence across common display refresh rates',()=>{
   for(const refresh of [60,120,144,165,240]){
@@ -27,6 +27,22 @@ test('hidden rendering stops and resumes without accumulating a large animation 
   assert.equal(pacer.tick(61002,15),null);
   assert.notEqual(pacer.tick(61003,0),null,'uncapped mode resumes immediately');
   assert.notEqual(pacer.tick(61004,0),null);
+});
+
+test('fog and reflection budgets remain bounded at 1080p, 1440p and high display density',()=>{
+  for(const [width,height] of [[1920,1080],[2560,1440],[3440,1440]]){
+    for(const dpr of [1,1.25,1.5,2]){
+      for(const quality of ['medium','high']){
+        const ratio=renderPixelRatio(width,height,dpr,quality),w=width*ratio,h=height*ratio;
+        const budget=quality==='high'?640*360:480*270;
+        for(const limit of [1/4,quality==='high'?1/3:1/4]){
+          const scale=renderEffectScale(w,h,quality,limit);
+          assert.ok(w*h*scale*scale<=budget+1,'display density does not multiply effect cost');
+          assert.ok(scale<=limit,'effects never upscale small drawing buffers');
+        }
+      }
+    }
+  }
 });
 
 test('quality pixel budgets bound render cost on high resolution displays',()=>{
