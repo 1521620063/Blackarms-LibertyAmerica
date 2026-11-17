@@ -1,9 +1,9 @@
 import { performance } from 'node:perf_hooks';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { Match } from '../src/shared/match.js';
-import { SIMULATION_STEP } from '../src/shared/movement.js';
-import { walkable, wallHit } from '../src/shared/geometry.js';
+import { Match } from '../frontend/src/game/match.js';
+import { SIMULATION_STEP } from '../frontend/src/game/movement.js';
+import { walkable, wallHit } from '../frontend/src/game/geometry.js';
 
 const rooms=12,ticks=1800;
 function simulate(){

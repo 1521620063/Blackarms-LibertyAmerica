@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RenderPacer, renderPixelRatio } from '../src/visual/performance.js';
+import { RenderPacer, renderPixelRatio } from '../frontend/src/visual/performance.js';
 
 test('render cap keeps its cadence across common display refresh rates',()=>{
   for(const refresh of [60,120,144,165,240]){

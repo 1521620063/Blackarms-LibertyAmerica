@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Match, sanitizeInput } from '../src/shared/match.js';
-import { SPAWNS, OBJECTIVE, RULES, WEAPONS, MAP, ZONES, BOXES, BOT_ROUTES, zoneAt } from '../src/shared/data.js';
-import { findPath, walkable, move, visible } from '../src/shared/geometry.js';
+import { Match, sanitizeInput } from '../frontend/src/game/match.js';
+import { SPAWNS, OBJECTIVE, RULES, WEAPONS, MAP, ZONES, BOXES, BOT_ROUTES, zoneAt } from '../frontend/src/game/data.js';
+import { findPath, walkable, move, visible } from '../frontend/src/game/geometry.js';
 
 const advance=(m,seconds)=>{for(let i=0;i<Math.ceil(seconds*60);i++)m.step(1/60);};
 function quiet(config={mode:'core',teamSize:1}) {
@@ -101,7 +101,7 @@ test('bots navigate, plant, complete upload and defuse using the same objective 
   for(let i=0;i<60*25&&n.phase==='combat';i++)n.step(1/60);
   assert.equal(n.core.state,'defused');assert.equal(n.result.winner,1);
 });
-for(const mode of ['elimination','core'])for(const size of [1,2,3])for(const difficulty of ['easy','normal','hard']) {
+for(const mode of ['elimination','core'])for(const size of [1,2,3,4,5])for(const difficulty of ['easy','normal','hard']) {
   test(`unattended complete match: ${mode} ${size}v${size} ${difficulty}`,()=>{
     const m=new Match({mode,teamSize:size,difficulty,seed:103+size},[]);const states=new Set();
     for(let i=0;i<60*1200&&m.phase!=='matchResult';i++){m.step(1/60);states.add(m.phase);for(const a of m.actors){assert.ok(Number.isFinite(a.x)&&Number.isFinite(a.hp));assert.ok(walkable(a.x,a.z,.28));}}

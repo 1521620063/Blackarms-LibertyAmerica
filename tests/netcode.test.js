@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Match } from '../src/shared/match.js';
-import { NetworkMovement, InputQueue } from '../src/shared/netcode.js';
-import { FixedClock, SIMULATION_STEP } from '../src/shared/movement.js';
+import { Match } from '../frontend/src/game/match.js';
+import { NetworkMovement, InputQueue } from '../frontend/src/game/netcode.js';
+import { FixedClock, SIMULATION_STEP } from '../frontend/src/game/movement.js';
 
 function fixture(){
   const match=new Match({teamSize:1},[{id:'player',squad:0},{id:'enemy',squad:1}]);

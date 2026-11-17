@@ -1,8 +1,8 @@
 import { chromium } from '@playwright/test';
 import { existsSync,mkdirSync,writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from '../server/index.js';
-import { WEAPON_ORDER,WEAPONS } from '../src/shared/data.js';
+import { createServer } from './app.mjs';
+import { WEAPON_ORDER,WEAPONS } from '../frontend/src/game/data.js';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({production:true,port:0,host:'127.0.0.1'});

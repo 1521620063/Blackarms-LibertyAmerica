@@ -7,11 +7,11 @@ const characterMode=process.argv.includes('--characters');
 const requested=process.argv.slice(2).filter(arg=>arg!=='--characters');
 const ids=requested.length?requested:['concrete','floor','gunmetal','fabric','service-panel'];
 const chrome=process.env.CHROME_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
-const output=characterMode?'public/art/characters':'public/art/materials';await mkdir(output,{recursive:true});await mkdir('artifacts/art-previews',{recursive:true});
+const output=characterMode?'frontend/public/art/characters':'frontend/public/art/materials';await mkdir(output,{recursive:true});await mkdir('artifacts/art-previews',{recursive:true});
 const browser=await chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{})});
 try{
   const page=await browser.newPage();
-  const manifestPath=characterMode?'public/art/characters/manifest.json':'public/art/manifest.json';let manifest={version:1,style:'Zero Facility / grounded contemporary military industrial',assets:{}};
+  const manifestPath=characterMode?'frontend/public/art/characters/manifest.json':'frontend/public/art/manifest.json';let manifest={version:1,style:'Zero Facility / grounded contemporary military industrial',assets:{}};
   if(existsSync(manifestPath))manifest=JSON.parse(await readFile(manifestPath,'utf8'));
   for(const id of ids){
     const metadata=JSON.parse(await readFile(`artifacts/ai-source/${id}.json`,'utf8')),source=await readFile(path.join('artifacts/ai-source',metadata.file));

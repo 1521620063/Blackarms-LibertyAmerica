@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOXES, MAP, clamp, rng } from '../src/shared/data.js';
-import { walkable, rayBox, findPath } from '../src/shared/geometry.js';
+import { BOXES, MAP, clamp, rng } from '../frontend/src/game/data.js';
+import { walkable, rayBox, findPath } from '../frontend/src/game/geometry.js';
 
 function referenceWalkable(x,z,r){
   return x>-MAP.halfWidth+.25+r&&x<MAP.halfWidth-.25-r&&z>-MAP.halfDepth+.25+r&&z<MAP.halfDepth-.25-r&&!BOXES.some(b=>{

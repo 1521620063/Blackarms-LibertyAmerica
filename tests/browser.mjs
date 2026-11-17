@@ -1,7 +1,7 @@
 import { launchBrowser, waitForGame } from './browser-utils.mjs';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from '../server/index.js';
+import { createServer } from './app.mjs';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({production:true,port:0,host:'127.0.0.1'});
@@ -12,6 +12,12 @@ try {
   browser=await launchBrowser();
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{
+    if(!sessionStorage.getItem('storage-regression-checked')){
+      localStorage.setItem('bla.settings','null');localStorage.setItem('bla.connections','null');
+      sessionStorage.setItem('storage-regression-checked','true');
+    }
+  });
   await page.goto(`${base}/?debug=1`);await waitForGame(page);await page.waitForTimeout(600);
   await page.screenshot({path:'artifacts/menu.png'});
   await page.getByRole('button',{name:'装备库',exact:true}).click();await page.locator('[data-group="primary"] [data-value="scatter"]').click();
@@ -69,9 +75,10 @@ try {
   await normal.waitForFunction(()=>document.querySelector('#phase-label').textContent==='战斗阶段');
   assert.ok(await normal.evaluate(()=>!!document.pointerLockElement));assert.equal(await normal.locator('#pause').isVisible(),false);await normal.close();
   // Two real browser clients run with 60 ms delay in each direction.
-  let holdInputs=false;const heldInputs=[];
+  let holdInputs=false;const heldInputs=[],connections=[];
   await context.routeWebSocket('**/lan',route=>{
     const upstream=route.connectToServer(),timers=new Set();
+    connections.push({route,upstream});
     const later=(destination,message)=>{const timer=setTimeout(()=>{timers.delete(timer);destination.send(message);},60);timers.add(timer);};
     route.onMessage(message=>{
       if(holdInputs&&JSON.parse(String(message)).type==='input')heldInputs.push(()=>later(upstream,message));
@@ -115,8 +122,19 @@ try {
     return Math.hypot(p.x-a.x,p.z-a.z)<.03;
   });
   await page.screenshot({path:'artifacts/lan.png'});await guest.close();await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===1);
+  await page.evaluate(()=>document.querySelector('#view').requestPointerLock());
+  await page.waitForFunction(()=>!!document.pointerLockElement);
+  connections[0].upstream.close();connections[0].route.close();
+  await page.waitForFunction(()=>document.querySelector('#pause-title').textContent==='连接已断开');
+  assert.equal(await page.evaluate(()=>!!document.pointerLockElement),false,'disconnect releases the captured mouse');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#pause').isVisible(),true,'Escape cannot resume a disconnected match');
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  assert.equal(await page.locator('#pause-title').textContent(),'连接已断开','blur preserves the disconnect reason');
+  assert.equal(await page.locator('#resume').isDisabled(),true);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.__BLA.errors),[]);
-  await page.setViewportSize({width:1280,height:720});await page.keyboard.press('Escape');await page.locator('#quit').click();await page.screenshot({path:'artifacts/menu-720p.png'});
-  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients with 120 ms round trip','local keyboard and camera prediction before server input delivery','acknowledged movement reconciliation','disconnect bot takeover']},null,2));
+  await page.setViewportSize({width:1280,height:720});await page.locator('#quit').click();await page.screenshot({path:'artifacts/menu-720p.png'});
+  await page.locator('#start-offline').click();assert.equal(await page.locator('#resume').isDisabled(),false,'offline play works after leaving a disconnected match');
+  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['null stored preferences do not prevent startup','disconnect releases pointer lock and cannot be resumed','offline play after disconnect','menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients with 120 ms round trip','local keyboard and camera prediction before server input delivery','acknowledged movement reconciliation','disconnect bot takeover']},null,2));
   console.log('Browser acceptance passed: menu, combat, results, persistence and two-client LAN. Screenshots: artifacts/');
 } finally {await browser?.close();await app.close();}

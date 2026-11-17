@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Match,sanitizeInput } from '../src/shared/match.js';
-import { WEAPONS,WEAPON_ORDER,PRIMARY_WEAPONS } from '../src/shared/data.js';
+import { Match,sanitizeInput } from '../frontend/src/game/match.js';
+import { WEAPONS,WEAPON_ORDER,PRIMARY_WEAPONS } from '../frontend/src/game/data.js';
 
 function fixture(primary='rifle'){
   const match=new Match({teamSize:1,primary},[{id:'player',squad:0},{id:'enemy',squad:1}]);

@@ -1,8 +1,8 @@
 import { chromium } from '@playwright/test';
 import { existsSync,readFileSync,writeFileSync,mkdirSync,statSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from '../server/index.js';
-import { MAP } from '../src/shared/data.js';
+import { createServer } from './app.mjs';
+import { MAP } from '../frontend/src/game/data.js';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({production:true,port:0,host:'127.0.0.1'}),base=`http://127.0.0.1:${app.server.address().port}`;
@@ -45,7 +45,7 @@ try{
     assert.equal(map.name,i===0&&material.role==='cloth'?'uniform-composited-albedo':`${asset}/${['albedo','normal','roughness'][i]}`);
     assert.deepEqual(map.repeat,[repeat,repeat],`${material.role} PBR channels keep their intended texture scale`);
   }
-  const manifest=JSON.parse(readFileSync('public/art/manifest.json','utf8')),characterManifest=JSON.parse(readFileSync('public/art/characters/manifest.json','utf8')),checks=[];
+  const manifest=JSON.parse(readFileSync('frontend/public/art/manifest.json','utf8')),characterManifest=JSON.parse(readFileSync('frontend/public/art/characters/manifest.json','utf8')),checks=[];
   const allAssets={...manifest.assets,...characterManifest.assets};
   for(const [id,asset] of Object.entries(allAssets)){
     const check=await page.evaluate(async({base,id,asset})=>{
@@ -70,9 +70,9 @@ try{
     const adapter=await navigator.gpu?.requestAdapter();return {checks,webgpu:!!navigator.gpu,adapter:!!adapter};
   });
   for(const check of scannedChecks.checks){assert.ok(check.meanLengthError<.08,`${check.name}: normals remain normalized`);assert.ok(check.meanZ>.5,`${check.name}: normals face out of the surface`);}
-  const scannedManifest=JSON.parse(readFileSync('public/art/scanned/manifest.json','utf8'));
+  const scannedManifest=JSON.parse(readFileSync('frontend/public/art/scanned/manifest.json','utf8'));
   assert.equal(scannedManifest.license,'CC0-1.0');
-  const scannedBytes=scannedManifest.assets.reduce((sum,a)=>sum+(a.file?statSync(`public/art/scanned/${a.file}`).size:Object.values(a.channels).reduce((n,file)=>n+statSync(`public/art/scanned/${file}`).size,0)),0);
+  const scannedBytes=scannedManifest.assets.reduce((sum,a)=>sum+(a.file?statSync(`frontend/public/art/scanned/${a.file}`).size:Object.values(a.channels).reduce((n,file)=>n+statSync(`frontend/public/art/scanned/${file}`).size,0)),0);
   await page.screenshot({path:'artifacts/generated-art-menu.png'});
   await page.locator('#start-offline').click();await page.locator('#ready').click();await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   await page.evaluate(()=>window.__BLA.pause());await page.screenshot({path:'artifacts/generated-art-gameplay.png'});

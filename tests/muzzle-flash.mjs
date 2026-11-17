@@ -1,7 +1,7 @@
 import { launchBrowser } from './browser-utils.mjs';
 import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from '../server/index.js';
+import { createServer } from './app.mjs';
 const app=await createServer({port:0,host:'127.0.0.1'});
 const executablePath=process.env.CHROME_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
 let browser;

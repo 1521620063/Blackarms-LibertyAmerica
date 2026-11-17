@@ -2,10 +2,10 @@ import { chromium } from '@playwright/test';
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
 
-const root='public/art',backupRoot='artifacts/image-originals',files=[];
+const root='frontend/public/art',backupRoot='artifacts/image-originals',files=[];
 function collect(dir){for(const entry of readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())collect(file);else if(file.endsWith('.webp'))files.push(file);}}
 collect(root);
-const manifestPaths=['public/art/manifest.json','public/art/characters/manifest.json'];
+const manifestPaths=['frontend/public/art/manifest.json','frontend/public/art/characters/manifest.json'];
 const manifests=manifestPaths.map(file=>({file,data:JSON.parse(readFileSync(file,'utf8'))}));
 const assets=new Map();for(const {data} of manifests)for(const asset of Object.values(data.assets))for(const channel of Object.values(asset.channels))assets.set(path.normalize('public'+channel.url),{channel,tileable:asset.tileable});
 const chrome=process.env.CHROME_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);

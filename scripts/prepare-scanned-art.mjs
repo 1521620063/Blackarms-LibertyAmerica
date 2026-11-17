@@ -1,16 +1,16 @@
 import { chromium } from '@playwright/test';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 
-// Fetch the original 2K JPEGs from the URLs in public/art/scanned/manifest.json
-// into public/art/scanned before running this authoring-only conversion step.
+// Fetch the original 2K JPEGs from the URLs in frontend/public/art/scanned/manifest.json
+// into frontend/public/art/scanned before running this authoring-only conversion step.
 const chrome=['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
 const browser=await chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{})});
 try{
   const page=await browser.newPage();await page.goto('about:blank');
   for(const id of ['concrete_floor_02','concrete_wall_008'])for(const channel of ['diff','nor_gl','rough']){
-    const original=`public/art/scanned/${id}-${channel}.jpg`,archived=`artifacts/scanned-sources/${id}-${channel}.jpg`,output=`public/art/scanned/${id}-${channel}.webp`;
+    const original=`frontend/public/art/scanned/${id}-${channel}.jpg`,archived=`artifacts/scanned-sources/${id}-${channel}.jpg`,output=`frontend/public/art/scanned/${id}-${channel}.webp`;
     const input=existsSync(original)?original:archived;
-    if(!existsSync(input)){if(existsSync(output))continue;throw new Error(`Missing source for ${output}; download the JPEG recorded in public/art/scanned/manifest.json`);}
+    if(!existsSync(input)){if(existsSync(output))continue;throw new Error(`Missing source for ${output}; download the JPEG recorded in frontend/public/art/scanned/manifest.json`);}
     const source=`data:image/jpeg;base64,${readFileSync(input).toString('base64')}`;
     const data=await page.evaluate(async({source,channel})=>{
       const image=new Image();image.src=source;await image.decode();

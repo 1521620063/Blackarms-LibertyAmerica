@@ -1,135 +1,249 @@
-# 黑枪 · 自由美利坚 — 浏览器战术版
+# 黑枪 · 自由美利坚
 
-`main` 分支是 Three.js + HTML/CSS + JavaScript 浏览器战术 FPS，保留原 Zero Facility 的回合、武器和目标规则。原 UE 工程可在历史提交 `88bcb3e` 中查看。
+基于 Three.js WebGPU 的浏览器战术射击游戏，前端使用 JavaScript，联机后台使用 Rust（Axum / Tokio）。支持本机离线 AI 对战、局域网联机和公网联机，每队最多 5 人、每个房间最多 10 人，空位由 AI 补齐。原 UE 工程保留在历史提交 `88bcb3e`。
 
-## 启动
+## 环境要求
 
-需要 Node.js 22 或更新版本、支持 WebGPU 的桌面浏览器（建议最新版 Chrome / Edge，开启硬件加速），以及键盘鼠标。主场景和装备库预览均只使用 WebGPU；浏览器或显卡不支持时显示错误提示。
+- Node.js 22 或更新版本与 npm。
+- 联机后台需要 Rust stable / Cargo；仅运行前端离线游戏无需 Rust。
+- 支持 WebGPU 的桌面 Chrome / Edge，开启硬件加速，使用键盘和鼠标。
+- 局域网证书生成命令需要 OpenSSL，可通过 `OPENSSL_PATH` 指定可执行文件。
 
-WebGPU 需要安全上下文：本机可使用 `http://localhost:5173`；其他电脑访问必须使用受信任的 HTTPS 地址。
+WebGPU 要求安全上下文：本机可用 `http://localhost`，其他设备必须使用证书受信任的 HTTPS。普通 `http://局域网IP` 或 `http://公网IPv4` 无法使用本项目的 WebGPU 画面。
+
+## 本机启动
+
+在项目根目录运行：
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-打开 **http://localhost:5173**，选择模式、人数和难度，点击“开始行动”。准备阶段可调整主武器、护甲；点击“确认就绪”或按 Enter 开始。比赛开始后浏览器会捕获鼠标，Esc 释放并暂停离线比赛。
+默认启动前端 `5173` 端口和 Rust 后台 `3000` 端口。首次启动需要下载并编译 Rust 依赖。浏览器打开 `http://localhost:5173`；已配置前端证书时改用 `https://localhost:5173`。
 
-地图、枪械几何、人物几何、骨骼动画和音效在本地程序生成；场景表面、人物制服和背心使用已随项目提供的生图材质。安装依赖后游戏运行不访问外部 CDN 或生图接口，不需要 UE 编辑器，也不需要额外下载人物模型。请通过服务器访问，不能直接双击 `index.html`。
+选择作战模式、队伍规模和 AI 难度，点击“开始行动”进入离线比赛。准备阶段可选装备，点击“确认就绪”或按 Enter 开始战斗。
 
-发布运行：
+前后端也可分别启动：
 
 ```bash
-npm run build
-npm start
+npm run dev:backend
+npm run dev:frontend
 ```
 
-`dist/` 为静态游戏资源；局域网房间依赖同源 Node 服务的 `/lan` WebSocket。如果仅部署静态资源，离线 AI 模式可用，房间服务不可用。通过环境变量 `PORT` 可更改服务端口，默认 5173。
+以上两条命令分别在两个终端运行。只玩离线 AI 时只需启动前端。请通过服务器访问页面，不要直接双击 `index.html`。
 
-## 已实现玩法
+## 局域网联机
 
-- 团队歼灭和数据核心攻防；Solo / 2v2 / 3v3；简单 / 普通 / 困难 AI。
-- 准备、战斗、回合结算、自动下一回合、攻守交换、比赛结算、再战和返回菜单。
-- 1v1 为 80 秒 / 先赢 3 回合；2v2 为 95 秒 / 先赢 4 回合；3v3 为 110 秒 / 先赢 5 回合。准备 15 秒，全部真人就绪可提前开始。
-- 设施地图为 80 × 56 米（上一版 56 × 36 米的约 2.22 倍面积），共 30 个命名区域。保留中央控制区、货运仓和维修档案区，新增北翼泵站、动力控制室、装卸与工程间，以及南翼医疗补给、材料实验室、样本研究室、行政办公与通信室。新旧设施通过多门洞和两侧外环联络廊相连，错位隔墙、货箱、机柜与操作台形成转线、绕后和近远距离交战路线；碰撞、机器人导航、区域提示和小地图共享布局。
-- 七把武器可用数字键 1–7 / 滚轮循环切换：PR–24「游隼」战术步枪（24 发）、EP–12 手枪（12 发）、SG–6「破门者」霰弹枪（6 发）、VX–9「雨燕」冲锋枪（32 发）、MR–18「隼眼」射手步枪（10 发）、LM–60「铁幕」轻机枪（60 发）、SR–7「寒鸦」狙击枪（5 发）。每把枪独立保存弹匣与备弹；切枪打断换弹，拔枪期间无法开火。
-- 装备库与准备阶段可选择六种开局主武器；装备库支持拖动旋转预览、武器特点与参数对比。全部七把枪在对局中可切换，每回合重置弹药。
-- 四种新增主武器有独立结构：雨燕直弹匣与伸缩枪托、隼眼低倍镜与精确枪管、铁幕弹箱 / 弹链 / 提把、寒鸦长枪管 / 5×瞄准镜 / 可动枪栓。第一 / 第三人称共用模型。
-- 隼眼为半自动、2.25×瞄具；寒鸦为栓动单发、5×瞄具，腰射精度低。开镜有圆形镜内视野与刻线、匹配倍率的 FOV 和鼠标灵敏度；狙击拉栓约 1.43 秒，切枪不能跳过。机枪持续开火散布增长更快，移动更慢、换弹 4.2 秒。
-- 原有两把主武器保留独立外观：沙色 / 黑色游隼机匣、M-LOK 护木和曲形弹匣；黑色破门者隔热罩、双管结构、备用霰弹和短弹匣。红点瞄具、枪口火焰和后坐同步；轻甲 / 重甲、弱点 / 身体 / 四肢与距离衰减继续生效。
-- 枪声由本地分层合成：枪口爆音、低频冲击、枪机动作、早期反射和尾音；每种武器 5 个变体，支持左右声像、距离衰减及混音限幅。`npm run test:audio` 检查音频并在 `artifacts/audio-*.wav` 输出试听文件。
-- 玩家与 AI 共用移动碰撞、武器、生命、伤害和目标系统；友方阻挡射线，但不造成友伤。
-- 原地图三线、中央战斗区、目标区、侧翼通道、双方出生区；出生屏障避免直接跨出生区交火。
-- AI 使用有净空检查的 A* 导航、视线遮挡、反应延迟、枪声 / 伤害线索、搜索、掩体和队伍指令。三档难度调整反应与瞄准误差，不提高生命值或伤害。
-- 核心携带、丢弃、死亡掉落、拾取、5 秒安装、30 秒上传、5 秒拆除、防守方送回掉落核心、非法位置恢复。移动、受伤、松开 E 会取消安装 / 拆除。
-- 安装后攻击方全灭仍可等待上传；上传在拆除过程中继续计时。未安装时超时防守方胜；歼灭模式超时比较存活数与生命，同值进入一次 15 秒加时，再相等则平局。
-- 固定 ALPHA / BRAVO 队伍累计比分，按回合周期交换攻守（1v1 每 2 回合、2v2 每 3 回合、3v3 每 4 回合）。蓝色为攻击方，橙色为防守方；角色标识随攻守改变。
-- HUD、小地图（仅队友和已知目标）、命中与受伤反馈、击杀信息、战术字幕、记分板和阵亡观察队友。
-- 灵敏度、FOV、画质 / 渲染分辨率、音量、字幕、准星、色盲辅助、帧率、全屏；浏览器保存设置。
+服务电脑与玩家电脑需要能够互相访问。服务电脑先安装依赖，再生成 HTTPS 证书：
 
-## 画面与人物
+```bash
+npm run setup:https
+```
 
-- 渲染使用 Three.js `WebGPURenderer`，自定义表面、阴影过滤、枪口火焰、粒子、积水反射与体积散射使用 TSL 节点；GTAO、Bloom 和 FXAA 使用 WebGPU 后处理。场景深度保持单采样供 GTAO 与体积光读取，中高画质使用 FXAA 抗锯齿。
-- 所有 AI 队友和敌人使用本项目原创 BLA Sentinel 战术士兵：33 关节骨骼、独立骨骼实例、自制站立 / 步行 / 跑步动画，叠加持枪手臂与蹲伏腿部 IK。包含头盔、护目镜、面罩、耳机、防弹背心、弹匣袋、电台、背包、护膝、手套与战术靴；攻方为军绿 / 沙色，守方为深灰 / 黑色。人物主体使用跨肩颈、肘膝的连续曲面和混合蒙皮，几何、骨骼和动画由项目制作；制服与背心使用本地生图服务生成的防撕裂布料 / 尼龙颜色贴图及近似法线、粗糙度通道，不使用第三方人物模型。
-- 工业设施使用生图混凝土、环氧地坪、枪械金属、战术织物与设备面板；五类素材分别配备颜色、近似微表面法线和粗糙度，共 15 张 1K 本地 WebP，约 6.01 MiB。统一军绿墙裙、地面模板漆和电气警示，保留顶梁、灯具、管道、设备柜、排水槽和区域标识。
-- 枪械包含圆滑边缘、机匣、枪管、枪口制退器、导轨、弹匣、枪托、扳机护圈、透明反射瞄具与红点；配合第一人称手套、持枪惯性、移动摆动、换弹与后坐力表现。
-- 开火包含暖色枪口火光、短暂照明、短弹道、弹着火花与烟尘、弹孔焦痕、带重力与落地反弹的弹壳；核心状态变化有粒子脉冲。
-- 扩大南北新翼、货运仓、中央门厅与两侧外环的积水范围，湿区有不规则边缘、细微波纹和实际灯具、建筑与人物的平面反射。天窗和附近顶灯产生受墙体、掩体遮挡的丁达尔光束；中高画质启用，低画质关闭平面反射与体积光。静态地图按材质合并，粒子、弹孔和弹壳均有数量上限。
-- 低画质关闭阴影、Bloom、胶片颗粒与空气尘点；中 / 高画质启用这些效果，高画质提高像素密度与辉光强度。
+该命令为本机当前 IPv4 地址与 localhost 生成证书，将路径写入 `frontend/.env`。证书保存在 `frontend/.certs/`，不会提交到 Git。需要加入其他主机名或 IP 时可运行：
 
-原创人物与第三方工具代码说明见 [docs/asset-credits.md](docs/asset-credits.md)，生图素材与复现流程见 [docs/generated-art.md](docs/generated-art.md)。人物在本地启动时生成，无需下载 GLB；部署时需要一并发布 `dist/art/`。
+```bash
+npm run setup:https -- 主机名或IP
+```
 
-## 操作
+把 `frontend/.certs/blackarms-lan-ca.crt` 复制到每台玩家电脑（包括需要访问页面的服务电脑），在各自的 PowerShell 执行：
+
+```powershell
+certutil -user -addstore Root "C:\实际保存位置\blackarms-lan-ca.crt"
+```
+
+安装后重启浏览器。只分享这个 `.crt` 文件，证书目录中的私钥留在服务电脑。IP 变化后重新运行生成命令；原 CA 会保留，已安装的信任继续有效。
+
+随后启动或重启服务：
+
+```bash
+npm run dev
+```
+
+使用终端打印的局域网 HTTPS 地址，例如 `https://192.168.1.10:5173`。允许前端端口通过服务电脑的防火墙，所有玩家打开同一个页面地址。
+
+1. 房主选择模式、队伍规模和难度，点击“联机房间”。
+2. 选择“局域网联机”，“房间服务器”留空，输入呼号并创建房间。
+3. 房主分享六位房间码，其他玩家输入房间码加入。
+4. 玩家选择 ALPHA / BRAVO，房主点击“开始比赛”，空位自动补 AI。
+
+比赛开始后不接受新玩家加入。断线角色由 AI 接管，房主断线会转交房主身份；暂停菜单不会暂停联机比赛。关闭后台会断开所有房间。
+
+## “房间服务器”怎么填
+
+房间服务器是负责创建房间、同步玩家和运行比赛的后台地址，六位房间码用于选择其中的某个房间。
+
+| 场景 | 房间服务器填写方式 |
+| --- | --- |
+| 使用本项目 `npm run dev` 局域网联机 | 留空 |
+| 公网静态服务器已将 `/lan` 代理到 Rust 后台 | 留空 |
+| 前端与后台使用不同地址或端口 | 填后台的 HTTPS 地址，例如 `https://203.0.113.10:8443` |
+
+表中的公网 IP 为示例，请换成实际地址。留空时使用当前网站的 `/lan`；开发和预览服务已配置代理，默认转发到 `http://127.0.0.1:3000`。
+
+地址支持 `https://` 和 `wss://`，只填写根地址时自动补 `/lan`。HTTPS 页面必须连接 HTTPS/WSS 后台，不能直接填写默认的 `http://服务器:3000`。
+
+“局域网联机 / 公网联机”分别保存服务器地址并显示对应提示，切换选项不会自动配置公网端口映射或发布服务器。所有玩家需要连接同一个后台进程，房间码才可互通。
+
+## 公网 IPv4 部署
+
+公网可以直接使用 IPv4，无需强制购买域名，但访问页面仍需 HTTPS。证书必须覆盖实际访问的公网 IP，且被玩家浏览器信任。要让玩家无需安装 CA，需使用受信任机构签发的 IP 地址证书，并按有效期续期；局域网命令生成的证书需要每台玩家电脑手动安装 CA。
+
+推荐结构：
+
+```text
+玩家浏览器 → HTTPS 公网IPv4:443 → Nginx
+                                  ├─ /     → 前端静态文件
+                                  └─ /lan  → Rust 后台 127.0.0.1:3000
+```
+
+部署步骤：
+
+1. 准备可达的公网 IPv4、HTTPS 证书和端口；路由器部署需配置端口映射，服务器需放通实际使用的 HTTPS 端口。
+2. 在根目录运行 `npm run build`，将整个 `frontend/dist/` 发布到静态服务器，包括 `art/` 和 `config.js`。
+3. 运行 `cargo build --release --locked --manifest-path backend/Cargo.toml`，得到 `backend/target/release/blackarms-backend`（Windows 为 `.exe`）。
+4. 配置后台环境文件，示例如下。将示例 IP 替换为实际公网 IP；非默认 HTTPS 端口也要写入 Origin。
+
+```dotenv
+APP_MODE=public
+HOST=127.0.0.1
+PORT=3000
+ALLOWED_ORIGINS=https://203.0.113.10
+```
+
+后台开发时读取 `backend/.env`；发布可通过环境变量 `BACKEND_ENV_FILE` 指定配置文件绝对路径。环境变量优先于文件配置。公网模式必须明确配置 `ALLOWED_ORIGINS`，填写浏览器页面的协议、主机和端口，不含路径。多个 Origin 用逗号分隔。
+
+5. 启动后台可执行文件，并配置进程管理与自动重启。编译后的后台无需 Node.js 或 Rust 工具链。
+6. 参考 [Nginx 配置模板](frontend/deploy/nginx.conf)，将域名、证书路径和静态目录替换为实际值；IPv4 部署将 `server_name` 改为实际 IP。检查配置后加载服务。
+
+Nginx 在公网提供 HTTPS/WSS，Rust 使用内部 HTTP。`/lan` 代理需要转发 WebSocket 的 Upgrade / Connection，以及原始 Origin / Host。玩家打开 `https://公网IPv4`，选择“公网联机”，“房间服务器”留空即可。
+
+如果后台单独部署，在发布后的 `config.js` 设置默认地址：
+
+```js
+window.BLACKARMS_CONFIG = {
+  networkMode: 'public',
+  backendUrl: 'https://203.0.113.10:8443',
+};
+```
+
+独立后台地址也需 HTTPS 反向代理，并在 `ALLOWED_ORIGINS` 中允许前端页面的 Origin。玩家可以在房间界面覆盖默认后台地址。
+
+`npm start` 只启动 Rust 后台，不提供游戏页面。`npm run preview` 用于本机验证构建，默认端口 `4173`，生产环境使用静态服务器。
+
+## 配置
+
+| 配置 | 用途 |
+| --- | --- |
+| `frontend/.env` | 前端开发 / 预览配置，模板见 [frontend/.env.example](frontend/.env.example) |
+| `FRONTEND_TLS_KEY` / `FRONTEND_TLS_CERT` | 前端 HTTPS 私钥和证书，需同时设置；相对路径以 `frontend/` 为基准 |
+| `FRONTEND_PORT` | 前端端口；联合开发默认 `5173`，预览默认 `4173` |
+| `BACKEND_URL` | 开发 / 预览 `/lan` 代理目标，默认 `http://127.0.0.1:3000` |
+| `VITE_BACKEND_URL` / `VITE_NETWORK_MODE` | 构建时的默认后台地址与联机模式 |
+| `frontend/public/config.js` | 部署时默认配置；构建后可直接修改 `frontend/dist/config.js`，无需重新构建 |
+| `backend/.env` | 后台配置，模板见 [backend/.env.example](backend/.env.example) |
+| `APP_MODE` | `local` 默认监听回环地址；`lan` / `public` 默认监听所有网络接口 |
+| `HOST` / `PORT` | 覆盖后台监听地址与端口，默认端口 `3000` |
+| `ALLOWED_ORIGINS` | 允许的浏览器页面 Origin，公网模式必须配置 |
+| `BACKEND_ENV_FILE` | 指定后台环境文件 |
+
+运行时 `config.js` 中的 `null` 表示继承构建配置，`backendUrl: ''` 表示使用当前网站 `/lan`。
+
+## 玩法与操作
+
+支持团队歼灭、数据核心攻防，以及简单 / 普通 / 困难 AI。地图为 80 × 56 米，包含中央设施、南北翼和外环通路。玩家与 AI 共用移动碰撞、武器、伤害和目标规则；友方不受友伤。
+
+| 队伍规模 | 战斗时长 / 回合 | 获胜所需回合 | 交换攻守间隔 |
+| --- | --- | --- | --- |
+| 1V1 | 80 秒 | 3 | 2 回合 |
+| 2V2 | 95 秒 | 4 | 3 回合 |
+| 3V3 | 110 秒 | 5 | 4 回合 |
+| 4V4 | 125 秒 | 6 | 5 回合 |
+| 5V5 | 140 秒 | 7 | 6 回合 |
+
+准备阶段 15 秒，全部真人就绪可提前开始。核心安装和拆除各需 5 秒，上传需 30 秒；移动、受伤或松开交互键会取消安装 / 拆除。安装后攻击方全灭仍可能通过上传获胜。
+
+七把武器分别为步枪、手枪、霰弹枪、冲锋枪、射手步枪、轻机枪和狙击枪。支持装备选择、护甲、队伍指令、记分板、阵亡观战，以及画质、音量、灵敏度和 FOV 设置。
 
 | 按键 | 操作 |
 | --- | --- |
-| W A S D / 鼠标 | 移动 / 视角 |
+| WASD / 鼠标 | 移动 / 视角 |
 | 左键 / 右键 | 射击 / 瞄准 |
 | R | 换弹 |
-| 1 / 2 / 3 / 4 / 5 / 6 / 7 | 步枪 / 手枪 / 霰弹枪 / 冲锋枪 / 射手步枪 / 轻机枪 / 狙击枪 |
-| 鼠标滚轮 | 前 / 后切枪，首尾循环 |
+| 1–7 / 鼠标滚轮 | 切换武器 |
 | Shift / Ctrl 或 C / 空格 | 冲刺 / 蹲伏 / 跳跃 |
 | 按住 E / G | 目标交互 / 丢弃核心 |
 | F1 / F2 / F3 / F4 | 跟随 / 固守 / 进攻 / 撤退 |
 | Tab | 按住显示记分板 |
-| ← / → | 阵亡后切换存活队友视角 |
-| Enter / Esc | 准备就绪 / 暂停与释放鼠标 |
+| ← / → | 阵亡后切换队友视角 |
+| Enter / Esc | 准备就绪 / 释放鼠标与打开暂停菜单 |
 
-## 局域网
-
-1. 服务电脑运行 `npm run dev` 或 `npm start`，通过 HTTPS 提供页面和同源 `/lan` WebSocket。可用 HTTPS 反向代理，或设置 `TLS_KEY` / `TLS_CERT` 让 Node 服务直接启用 HTTPS。证书需要包含访问用的主机名或 IP，且被每台玩家电脑信任。
-2. 所有玩家在浏览器打开同一个 HTTPS 地址，例如 `https://192.168.1.10:5173`。房主先选择模式 / 规模 / 难度，点击“局域网房间 → 创建房间”。
-3. 其他玩家输入六位房间码加入，可选择 ALPHA / BRAVO。房主开始比赛后，AI 补满空位。
-4. 玩家断线后当前位置由 AI 接管；房主断线会转交房主身份。比赛运行于 Node 服务所在电脑，关闭服务会断开所有连接。
-
-已有受信任证书时，PowerShell 启动示例：
-
-```powershell
-$env:TLS_KEY = 'D:\\certs\\facility-key.pem'
-$env:TLS_CERT = 'D:\\certs\\facility.pem'
-npm start
-```
-
-普通 `http://192.168...` 不提供 WebGPU 所需的安全上下文；本机 `localhost` 的 HTTP 例外不能用于其他电脑。
-
-局域网比赛打开暂停菜单时仍继续运行。房间在比赛过程中不接受新玩家加入。当前没有账号、互联网匹配、断线恢复原角色、专用服务器部署或 UE 客户端互通。远端浏览器的鼠标捕获依赖浏览器策略，优先使用桌面 Chrome / Edge。需要允许服务端口通过本机防火墙，但本项目不会自动修改系统防火墙。
-
-## 结构
-
-```text
-index.html                 菜单、HUD、设置、结算和房间界面
-src/main.js                客户端输入、UI、离线循环、网络快照
-src/world.js               场景装配、灯光、后处理、相机与武器表现
-src/visual/                表面贴图、细节枪械、人类骨骼动画与粒子效果
-src/visual/original-soldier.js  原创士兵几何、迷彩、骨骼和动画
-src/audio.js               Web Audio 合成音效
-src/style.css              界面和响应式布局
-src/shared/data.js         比赛、武器、难度、护甲和地图数据
-src/shared/geometry.js     碰撞、射线、可视检查、导航
-src/shared/match.js        统一比赛状态、角色、AI、伤害、回合、目标规则
-server/index.js            HTTP / Vite 服务、房间、服务端比赛模拟
-tests/                     规则、WebSocket 与真实浏览器验收
-```
-
-`shared/` 不依赖 DOM 或 Three.js，离线客户端与局域网服务端运行同一套规则。UI 显示快照，不计算胜负。局域网客户端提交输入，服务端决定位置、伤害和比分。服务端模拟 60 Hz，网络快照 20 Hz；显示层插值角色位置。当前没有客户端预测或延迟补偿，局域网低延迟为主要使用场景。
-
-规则来源（原 UE 历史提交 `88bcb3e`）：`docs/superpowers/specs/2026-09-14-ue5-tactical-fps-design.md`、`Source/BLA/Public/BLAGameplayTypes.h`、`Scripts/Editor/build_task11_assets.py`。视觉延续该版本 `docs/art/art-direction-and-zero-facility-realization.md` 的工业设施方向；当前使用本地程序化场景与原创程序化士兵，未移植 UE 扫描素材或 Lumen 渲染。
-
-## 验证
+## 开发与验证
 
 ```bash
 npm test
+npm run test:backend
 npm run build
+```
+
+需要真实浏览器和 WebGPU 适配器的验收命令：
+
+```bash
 npm run test:webgpu
 npm run test:browser
 npm run test:visual
-npm run test:muzzle
-npm run test:wet-light
+npm run test:startup
 npm run test:arsenal
 npm run test:audio
-npm run test:art
 ```
 
-浏览器验收需要可用的 WebGPU 适配器，使用本机 Chrome / Edge，或通过 `CHROME_PATH` 指定浏览器；没有已安装浏览器时先运行 `npx playwright install chromium`。验收脚本自动启动独立端口，不依赖已运行的开发服务器。生成截图与报告在 `artifacts/`，该目录不提交。
+可用 `CHROME_PATH` 指定 Chrome / Edge。浏览器检查产生的截图与报告保存在 `artifacts/`。通过 `?debug=1` 提供测试入口 `window.__BLA`。
 
-详细检查与限制见 [docs/verification.md](docs/verification.md)。用 `?debug=1` 访问时提供测试用 `window.__BLA` 入口，普通访问不暴露此入口。
+```text
+frontend/             独立前端、静态素材、构建与开发服务
+  src/game/           离线规则、移动与网络预测
+  src/visual/         WebGPU 渲染、角色和枪械
+  public/             打包素材与运行时配置
+  deploy/nginx.conf   HTTPS 静态服务和 WebSocket 代理模板
+backend/              独立 Rust 后台
+  src/game.rs         AI、武器、回合与目标规则
+  src/server.rs       房间与权威模拟
+  src/game-data.json  后台地图与规则数据
+scripts/              联合启动、证书生成、素材处理与基准
+tests/                规则、网络与浏览器检查
+```
+
+前后端可分别复制和构建：前端目录执行 `npm ci`、`npm run build`；后台目录执行 `cargo build --release --locked`。前后端独立保存规则数据，修改规则时需同步，测试会校验一致性。联机后台以 60 Hz 模拟、20 Hz 发送快照，客户端负责输入预测和显示插值。房间保存在单个后台进程内存，多实例部署需让同一房间的玩家连接相同实例。
+
+## 素材与第三方许可
+
+地图、枪械、角色几何、骨骼动画和音效由本项目程序生成。部分表面与服装纹理使用本地生图服务制作，来源和处理记录保存在 `frontend/public/art/manifest.json` 与 `frontend/public/art/characters/manifest.json`。游戏运行时加载打包素材，不调用生图服务或外部 CDN。
+
+扫描材质 Concrete Floor 02、Concrete Wall 008 和 Empty Warehouse 01 HDR 来自 [Poly Haven](https://polyhaven.com/)，采用 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/legalcode)。具体来源、文件和转换记录保存在 `frontend/public/art/scanned/manifest.json`。
+
+Three.js 及其工具模块使用 MIT 许可，授权原文如下；此授权适用于对应第三方代码。
+
+```text
+The MIT License
+
+Copyright © 2010-2025 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```

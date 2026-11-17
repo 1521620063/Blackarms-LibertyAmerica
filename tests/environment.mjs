@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync,writeFileSync } from 'node:fs';
-import { createServer } from '../server/index.js';
+import { createServer } from './app.mjs';
 import { launchBrowser,waitForGame } from './browser-utils.mjs';
 
 const app=await createServer({production:true,port:0,host:'127.0.0.1'}),browser=await launchBrowser();

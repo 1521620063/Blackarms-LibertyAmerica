@@ -1,6 +1,6 @@
 import { mkdirSync,writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from '../server/index.js';
+import { createServer } from './app.mjs';
 import { launchBrowser,waitForGame } from './browser-utils.mjs';
 
 mkdirSync('artifacts',{recursive:true});

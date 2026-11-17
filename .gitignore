@@ -5,3 +5,8 @@ playwright-report/
 test-results/
 demo/
 *.log
+.env
+.env.*
+!.env.example
+target/
+frontend/.certs/
