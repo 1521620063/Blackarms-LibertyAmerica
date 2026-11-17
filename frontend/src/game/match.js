@@ -1,6 +1,7 @@
 import { RULES, OBJECTIVE, WEAPONS, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, SPAWNS, BOT_ROUTES, ORDERS, BOXES, clamp, distance, direction, rng } from './data.js';
 import { move, walkable, findPath, visible, wallHit, raySphere } from './geometry.js';
 import { moveActor } from './movement.js';
+import { eye, smokeBlocks, throwGrenade, updateGrenades } from './grenades.js';
 
 const ACTIVE = new Set(['preparation','combat']);
 const UPLOADING = new Set(['uploading','defusing']);
@@ -35,12 +36,13 @@ export class Match {
   side(actor) { return actor.squad===this.attackSquad?'attack':'defense'; }
   living(squad) { return this.actors.filter(a=>a.squad===squad&&a.alive); }
   resetRound() {
+    this.projectiles=[];this.smokes=[];this.projectileId=0;
     this.phase='preparation'; this.remaining=this.rules.prepare; this.elapsed=0; this.overtime=false; this.result=null; this.orders=[null,null];
     for(const a of this.actors) {
       const p=SPAWNS[this.side(a)][a.slot];
       Object.assign(a,{...p,y:0,vy:0,yaw:this.side(a)==='attack'?-Math.PI/2:Math.PI/2,pitch:0,hp:100,alive:true,
         weapon:a.primary,ammo:Object.fromEntries(Object.entries(WEAPONS).map(([k,w])=>[k,{mag:w.mag,reserve:w.reserve}])),
-        reload:0,switchTime:0,cooldown:0,shotHeat:0,interact:0,ready:a.bot,heard:null,target:null,memory:null,reaction:0,path:[],pathTimer:0,routeStage:0,cover:null,coverCheck:0,stuck:0,lastPos:{...p},
+        reload:0,switchTime:0,cooldown:0,shotHeat:0,flash:0,interact:0,ready:a.bot,heard:null,target:null,memory:null,reaction:0,path:[],pathTimer:0,routeStage:0,cover:null,coverCheck:0,stuck:0,lastPos:{...p},
         input:emptyInput(),lastInput:{},jumpHeld:false,crouch:false,aim:false,sprinting:false,interactionOrigin:null});
     }
     const carrier=this.actors.find(a=>a.squad===this.attackSquad);
@@ -97,6 +99,7 @@ export class Match {
       const a=this.actors[i],b=this.actors[j]; if(!a.alive||!b.alive) continue;
       const d=distance(a,b); if(d>.001&&d<.58) {const p=(.58-d)/2; move(a,(a.x-b.x)/d*p,(a.z-b.z)/d*p); move(b,(b.x-a.x)/d*p,(b.z-a.z)/d*p);}
     }
+    updateGrenades(this,dt);
     if(this.config.mode==='core') this.updateObjective(dt);
     if(this.phase!=='combat') return;
     this.evaluateElimination();
@@ -121,13 +124,14 @@ export class Match {
   }
   reloadWeapon(a) {
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
-    if(a.reload>0||a.switchTime>0||am.mag===w.mag||am.reserve<=0) return false;
+    if(w.throwable||a.reload>0||a.switchTime>0||am.mag===w.mag||am.reserve<=0) return false;
     a.reload=w.reload; this.emit('reload',{actor:a.id,weapon:a.weapon,duration:w.reload}); return true;
   }
   shoot(a) {
     if(this.phase!=='combat'||!a.alive||a.reload>0||a.switchTime>0||a.cooldown>0) return false;
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
     if(am.mag<=0) {if(!this.reloadWeapon(a)&&a.weapon!=='pistol') a.input.weapon='pistol'; return false;}
+    if(w.throwable)return throwGrenade(this,a);
     am.mag--; a.cooldown=60/w.rpm*(a.bot?1.25:1); a.shotHeat=Math.min(1,a.shotHeat+.22);
     const origin={x:a.x,y:(a.crouch?1.07:1.57)+a.y,z:a.z};
     const accuracy=a.weapon==='sniper'?(a.aim?.025:1):(a.aim?.32:1);
@@ -243,7 +247,7 @@ export class Match {
     input.yaw=a.yaw;input.pitch=a.pitch;
     const enemies=this.actors.filter(b=>b.alive&&b.squad!==a.squad);
     const seen=enemies.filter(b=> {
-      if(distance(a,b)>28||!visible(a,b)) return false;
+      if(a.flash>.5||distance(a,b)>28||!visible(a,b)||smokeBlocks(this.smokes,eye(a),eye(b))) return false;
       const angle=Math.atan2(-(b.x-a.x),-(b.z-a.z));
       return Math.cos(angle-a.yaw)>-.15||distance(a,b)<3||a.heard?.until>this.time;
     }).sort((b,c)=>distance(a,b)-distance(a,c));
@@ -345,7 +349,7 @@ export class Match {
   }
   snapshot() {
     return {config:this.config,time:this.time,round:this.round,scores:this.scores,attackSquad:this.attackSquad,phase:this.phase,remaining:this.remaining,elapsed:this.elapsed,
-      overtime:this.overtime,result:this.result,core:this.core,rules:this.rules,orders:this.orders,history:this.history,
+      overtime:this.overtime,result:this.result,core:this.core,rules:this.rules,orders:this.orders,history:this.history,projectiles:this.projectiles,smokes:this.smokes,
       actors:this.actors.map(({input,lastInput,waitingForInput,path,goal,heard,memory,lastPos,...a})=>a),events:this.events};
   }
 }

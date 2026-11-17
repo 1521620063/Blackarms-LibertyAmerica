@@ -2293,6 +2293,62 @@
       "zoom": 5,
       "semi": true,
       "kick": 0.19
+    },
+    "grenade": {
+      "name": "FG–1 破片手雷",
+      "short": "手雷",
+      "mag": 1,
+      "reserve": 0,
+      "damage": 150,
+      "rpm": 60,
+      "reload": 0,
+      "spread": 0,
+      "range": 7,
+      "pellets": 0,
+      "falloff": 1,
+      "equip": 0.3,
+      "semi": true,
+      "throwable": true,
+      "fuse": 2.5,
+      "speed": 14
+    },
+    "smoke": {
+      "name": "SG–2 烟雾弹",
+      "short": "烟雾弹",
+      "mag": 1,
+      "reserve": 0,
+      "damage": 0,
+      "rpm": 60,
+      "reload": 0,
+      "spread": 0,
+      "range": 3.8,
+      "pellets": 0,
+      "falloff": 0,
+      "equip": 0.3,
+      "semi": true,
+      "throwable": true,
+      "fuse": 1.8,
+      "speed": 14,
+      "duration": 14
+    },
+    "flash": {
+      "name": "FB–3 闪光弹",
+      "short": "闪光弹",
+      "mag": 2,
+      "reserve": 0,
+      "damage": 0,
+      "rpm": 60,
+      "reload": 0,
+      "spread": 0,
+      "range": 16,
+      "pellets": 0,
+      "falloff": 1,
+      "equip": 0.3,
+      "semi": true,
+      "throwable": true,
+      "fuse": 1.5,
+      "speed": 14,
+      "duration": 4
     }
   },
   "WEAPON_ORDER": [
@@ -2302,7 +2358,10 @@
     "smg",
     "dmr",
     "lmg",
-    "sniper"
+    "sniper",
+    "grenade",
+    "smoke",
+    "flash"
   ],
   "ZONES": [
     {

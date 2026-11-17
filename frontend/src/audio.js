@@ -4,6 +4,9 @@ import { makeFoley, makeAmbience, FOLEY_NAMES } from './audio-synthesis.js';
 
 // Layered, cached weapon reports. No network assets or runtime oscillators per shot.
 const REPORTS={
+  grenade:{duration:1.6,punch:42,weight:1.4,crack:.7,decay:.28,action:.8},
+  flash:{duration:.65,punch:180,weight:.4,crack:1.2,decay:.055,action:.35},
+  smoke:{duration:1.2,punch:70,weight:.2,crack:.15,decay:.38,action:.7},
   rifle:{duration:.62,punch:112,weight:.54,crack:.85,decay:.055,action:.078},
   scatter:{duration:.9,punch:69,weight:.95,crack:.68,decay:.105,action:.19},
   pistol:{duration:.44,punch:165,weight:.32,crack:.78,decay:.037,action:.065},
@@ -144,6 +147,12 @@ export class AudioEngine {
       this.shot(e.weapon,local?1:.68*spatial.volume,spatial.pan,spatial.distance,spatial.occluded);
       if(local&&e.weapon==='scatter')this.foleySound('bolt',.13,null,.17,.75);
     }
+    if(e.type==='throw')this.foleySound('cloth',local?.25:.35,local?null:a);
+    if(e.type==='detonate'){
+      const spatial=this.spatial(e.origin);
+      this.shot(e.weapon,(e.weapon==='grenade'?1:.65)*spatial.volume,spatial.pan,spatial.distance,spatial.occluded);
+    }
+    if(e.type==='blind'&&local&&e.duration>.5)this.tone(2800,Math.min(e.duration,1.5),.035,'sine',1600);
     if(e.type==='switch'){
       if(local)this.cancelReload();this.cancelActorReload(e.actor);
       this.foleySound('cloth',local?.13:.2,local?null:a);this.foleySound('bolt',local?.12:.22,local?null:a,(e.duration||.32)*.75);

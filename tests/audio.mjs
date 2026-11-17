@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import { existsSync,mkdirSync,writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from './app.mjs';
+import { WEAPONS } from '../frontend/src/game/data.js';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({port:0,host:'127.0.0.1'});
@@ -17,9 +18,16 @@ try{
     const {AudioEngine}=await import('/src/audio.js');
     const audio=new AudioEngine({volume:.8});audio.unlock();await audio.ctx.resume();
     const me={id:'me',x:0,z:0,yaw:0,weapon:'rifle'},enemy={id:'enemy',x:8,z:-8,weapon:'scatter'},state={actors:[me,enemy]};
+    const { WEAPONS }=await import('/src/game/data.js');
     for(const weapon of Object.keys(audio.reports)){
-      audio.event({type:'shot',actor:'me',weapon},'me',state);
-      audio.event({type:'shot',actor:'enemy',weapon},'me',state);
+      if(WEAPONS[weapon].throwable){
+        audio.event({type:'throw',actor:'me',weapon},'me',state);
+        audio.event({type:'detonate',actor:'enemy',weapon,origin:enemy},'me',state);
+        audio.event({type:'blind',actor:'me',duration:2},'me',state);
+      }else{
+        audio.event({type:'shot',actor:'me',weapon},'me',state);
+        audio.event({type:'shot',actor:'enemy',weapon},'me',state);
+      }
     }
     audio.event({type:'reload',actor:'me'},'me',state);
     audio.event({type:'switch',actor:'me',weapon:'sniper',duration:.65},'me',state);
@@ -31,7 +39,7 @@ try{
       const sample=variants[0],values=sample.getChannelData(0);
       const rms=(from,to)=>{const start=Math.floor(from*sample.sampleRate),end=Math.min(values.length,Math.floor(to*sample.sampleRate));let energy=0;for(let i=start;i<end;i++)energy+=values[i]*values[i];return Math.sqrt(energy/(end-start));};
       let peak=0;for(const v of values)peak=Math.max(peak,Math.abs(v));
-      reports[type]={duration:sample.duration,peak,attack:rms(0,.025),tail:rms(.3,.4),variants:variants.length,distinct:variants.every((b,i)=>!i||b.getChannelData(0)[100]!==values[100])};
+      reports[type]={duration:sample.duration,peak,attack:rms(0,.025),tail:rms(.3,.4),end:rms(sample.duration-.1,sample.duration),variants:variants.length,distinct:variants.every((b,i)=>!i||b.getChannelData(0)[100]!==values[100])};
       // Render the same gain, compressor and room graph used by the game.
       const offline=new OfflineAudioContext(2,48000*2,48000),render=new AudioEngine({volume:.8});render.ctx=offline;render.setup();
       const source=offline.createBufferSource();source.buffer=render.reports[type][0];
@@ -84,10 +92,11 @@ try{
     assert.equal(report.variants,5);assert.ok(report.distinct,'each report has independent variations');
     assert.ok(report.peak>.8&&report.peak<.9,'source reports have headroom');
     assert.ok(report.outputPeak>.05&&report.outputPeak<1,'room and limiter produce audible unclipped output');
-    assert.ok(report.attack>report.tail*4,'reports have a strong attack and decaying tail');
+    if(WEAPONS[type].throwable)assert.ok(report.attack>report.end*4,`${type} effect fades before its buffer ends`);
+    else assert.ok(report.attack>report.tail*4,`${type} report has a strong attack and decaying tail`);
     writeFileSync(`artifacts/audio-${type}.wav`,Buffer.from(report.wav,'base64'));delete report.wav;
   }
-  assert.equal(Object.keys(result).length,7);assert.ok(result.sniper.duration>result.scatter.duration);
+  assert.equal(Object.keys(result).length,10);assert.ok(result.sniper.duration>result.scatter.duration);
   assert.ok(result.scatter.duration>result.rifle.duration&&result.rifle.duration>result.pistol.duration);
   assert.deepEqual(errors,[]);
   writeFileSync('artifacts/audio-report.json',JSON.stringify({passed:true,reports:result,errors},null,2));

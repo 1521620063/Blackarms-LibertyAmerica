@@ -11,12 +11,12 @@ function fixture(primary='rifle'){
 }
 function advance(match,seconds){for(let i=0;i<Math.ceil(seconds/.01);i++)match.step(.01);}
 
-test('all seven weapons validate, initialize independent ammo and support primary loadouts',()=>{
-  assert.equal(WEAPON_ORDER.length,7);
+test('all ten weapons validate, initialize independent ammo and support primary loadouts',()=>{
+  assert.equal(WEAPON_ORDER.length,10);
   for(const type of WEAPON_ORDER){
     assert.equal(sanitizeInput({weapon:type}).weapon,type);
     const {player}=fixture(type);
-    assert.equal(Object.keys(player.ammo).length,7);
+    assert.equal(Object.keys(player.ammo).length,10);
     assert.equal(player.ammo[type].mag,WEAPONS[type].mag);
   }
   for(const type of PRIMARY_WEAPONS){
@@ -76,7 +76,7 @@ test('heavy machine gun trades movement speed for ammunition; every reload keeps
     match.setInput('player',{forward:1,yaw:player.yaw});match.step(.05);return player.x-start;
   };
   assert.ok(displacement('smg')>displacement('rifle'));assert.ok(displacement('lmg')<displacement('rifle'));
-  for(const type of WEAPON_ORDER){
+  for(const type of WEAPON_ORDER.filter(type=>!WEAPONS[type].throwable)){
     const {match,player}=fixture(type);player.ammo[type]={mag:0,reserve:2};assert.ok(match.reloadWeapon(player));
     advance(match,WEAPONS[type].reload+.02);assert.deepEqual(player.ammo[type],{mag:2,reserve:0});
   }

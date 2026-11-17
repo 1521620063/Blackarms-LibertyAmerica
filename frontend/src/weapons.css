@@ -18,7 +18,11 @@
 #inspect-stats b{float:right;font-weight:400;color:var(--signal)}
 #prepare-weapons{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 #hud{z-index:3;isolation:isolate}
-#weapon-slots{position:absolute;right:35px;bottom:157px;display:flex;gap:4px}
+#weapon-slots{position:absolute;right:35px;bottom:157px;display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 70px);gap:4px}
+#flash-overlay,#smoke-overlay{position:fixed;inset:0;pointer-events:none;opacity:0}
+#flash-overlay{background:#fff;z-index:5}
+#smoke-overlay{background:#828984;z-index:4}
+#throwable-previews{margin-bottom:16px}
 #weapon-slots>span{display:grid;grid-template-columns:auto 1fr;gap:3px;align-items:center;font-size:8px;color:#a2b0a5;background:#10201bd9;border:1px solid #adbd9b22;border-radius:2px;padding:6px 7px;min-width:55px}
 #weapon-slots>span.selected{color:var(--signal);border-color:#d5dfa6aa;background:#34412ade}
 #weapon-slots kbd{font-size:8px;margin:0;padding:1px 3px}

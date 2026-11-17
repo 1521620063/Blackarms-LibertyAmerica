@@ -26,6 +26,9 @@ export class WeaponPreview {
   select(type){
     if(this.weapon)this.pivot.remove(this.weapon);
     this.weapon=this.kit.weapon(type,this.pivot);this.pivot.rotation.set(-.08,-.5,0);
+    const throwable=['grenade','smoke','flash'].includes(type);
+    this.camera.position.set(...(throwable?[-.65,.22,.48]:[-1.65,.56,1.05]));
+    this.camera.lookAt(0,throwable?.005:-.05,throwable?-.08:-.2);
     this.render();
   }
   render(){this.ready.then(()=>this.renderer.render(this.scene,this.camera)).catch(error=>{this.canvas.dispatchEvent(new CustomEvent('rendererror',{detail:error,bubbles:true}));});}

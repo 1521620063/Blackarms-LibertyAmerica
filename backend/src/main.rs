@@ -1,4 +1,7 @@
 mod game;
+#[cfg(test)]
+mod grenade_tests;
+mod grenades;
 mod physics;
 mod server;
 #[cfg(test)]

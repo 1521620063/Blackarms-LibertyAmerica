@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { existsSync,mkdirSync,writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from './app.mjs';
-import { WEAPON_ORDER,WEAPONS } from '../frontend/src/game/data.js';
+import { WEAPON_ORDER,WEAPONS,PRIMARY_WEAPONS } from '../frontend/src/game/data.js';
 
 mkdirSync('artifacts',{recursive:true});
 const app=await createServer({production:true,port:0,host:'127.0.0.1'});
@@ -14,10 +14,16 @@ try{
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);await page.waitForFunction(()=>window.__BLA);
   await page.getByRole('button',{name:'装备库',exact:true}).click();
-  for(const type of WEAPON_ORDER.filter(t=>t!=='pistol')){
+  for(const type of PRIMARY_WEAPONS){
     await page.locator(`[data-group="primary"] [data-value="${type}"]`).click();
     assert.equal(await page.locator('#inspect-name').textContent(),WEAPONS[type].name);
   }
+  for(const type of ['grenade','smoke','flash']){
+    await page.locator(`[data-inspect="${type}"]`).click();
+    assert.equal(await page.locator('#inspect-name').textContent(),WEAPONS[type].name);
+    assert.ok(await page.evaluate(()=>window.__BLA.weaponPreview.weapon.userData.design));
+  }
+  await page.locator('[data-value="sniper"]').click();
   const preview=page.locator('#weapon-preview'),bounds=await preview.boundingBox();
   await page.mouse.move(bounds.x+bounds.width*.4,bounds.y+bounds.height*.5);await page.mouse.down();await page.mouse.move(bounds.x+bounds.width*.65,bounds.y+bounds.height*.55,{steps:10});await page.mouse.up();
   await page.screenshot({path:'artifacts/arsenal-menu.png'});
@@ -36,16 +42,29 @@ try{
   await page.locator('#view').click({position:{x:700,y:450}});await page.waitForFunction(()=>!!document.pointerLockElement);
   const shots=[];
   for(const [i,type] of WEAPON_ORDER.entries()){
-    await page.keyboard.press(`Digit${i+1}`);
+    await page.keyboard.press(`Digit${(i+1)%10}`);
     await page.waitForFunction(type=>{const g=window.__BLA,p=g.state.actors[0];return p.weapon===type&&p.switchTime===0&&p.cooldown===0;},type);
     const before=await page.evaluate(type=>window.__BLA.state.actors[0].ammo[type].mag,type);
     await page.mouse.down();await page.waitForTimeout(170);await page.mouse.up();
     await page.waitForFunction(({type,before})=>window.__BLA.state.actors[0].ammo[type].mag<before,{type,before});
     const check=await page.evaluate(type=>{const g=window.__BLA,p=g.state.actors[0];return {type,mag:p.ammo[type].mag,model:g.view.weapon.userData.design,muzzle:g.view.weapon.userData.muzzle.toArray(),errors:g.errors};},type);
-    assert.ok(check.model);assert.ok(check.muzzle[2]<-.3);assert.deepEqual(check.errors,[]);
+    assert.ok(check.model);assert.ok(check.muzzle[2]<(WEAPONS[type].throwable?0:-.3));assert.deepEqual(check.errors,[]);
     shots.push(check);
     if(['smg','dmr','lmg','sniper'].includes(type))await page.screenshot({path:`artifacts/arsenal-${type}.png`});
   }
+  await page.waitForFunction(()=>window.__BLA.state.smokes.length>0&&window.__BLA.view.grenadeFx.clouds.size>0);
+  await page.evaluate(()=>{
+    const m=window.__BLA.match,p=m.actors[0];p.flash=3;
+    m.smokes=[{id:999,x:p.x,y:1,z:p.z,radius:3.8,remaining:14}];
+  });
+  await page.waitForFunction(()=>Number(document.getElementById('flash-overlay').style.opacity)===1&&Number(document.getElementById('smoke-overlay').style.opacity)>.9);
+  await page.screenshot({path:'artifacts/arsenal-flash.png'});
+  await page.evaluate(()=>{window.__BLA.match.actors[0].flash=0;});
+  await page.waitForFunction(()=>Number(document.getElementById('flash-overlay').style.opacity)===0);
+  await page.screenshot({path:'artifacts/arsenal-smoke.png'});
+  await page.evaluate(()=>{window.__BLA.match.smokes=[];});
+  await page.keyboard.press('Digit7');
+  await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='sniper'&&window.__BLA.state.actors[0].switchTime===0);
   await page.mouse.down({button:'right'});
   await page.waitForSelector('#scope-overlay:not([hidden])');
   await page.waitForFunction(()=>window.__BLA.view.camera.fov<25);
@@ -53,14 +72,15 @@ try{
   assert.equal(await page.locator('#crosshair').isVisible(),false);
   await page.screenshot({path:'artifacts/arsenal-sniper-scope.png'});
   await page.mouse.up({button:'right'});await page.waitForSelector('#scope-overlay[hidden]',{state:'attached'});
+  await page.keyboard.press('Digit0');await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='flash');
   await page.mouse.wheel(0,120);await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='rifle');
-  await page.mouse.wheel(0,-120);await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='sniper');
+  await page.mouse.wheel(0,-120);await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='flash');
   const retained=await page.evaluate(()=>({rifle:window.__BLA.state.actors[0].ammo.rifle.mag,sniper:window.__BLA.state.actors[0].ammo.sniper.mag}));
-  assert.equal(retained.rifle,shots[0].mag);assert.equal(retained.sniper,shots.at(-1).mag);
+  assert.equal(retained.rifle,shots[0].mag);assert.equal(retained.sniper,shots.find(s=>s.type==='sniper').mag);
   // Check the low-power optic also has the correct magnification and HUD.
   await page.keyboard.press('Digit5');await page.waitForFunction(()=>window.__BLA.state.actors[0].weapon==='dmr'&&window.__BLA.state.actors[0].switchTime===0);
   await page.mouse.down({button:'right'});await page.waitForSelector('#scope-overlay:not([hidden])');assert.match(await page.locator('#scope-label').textContent(),/2.25/);await page.mouse.up({button:'right'});
   assert.deepEqual(errors,[]);
   writeFileSync('artifacts/arsenal-report.json',JSON.stringify({passed:true,shots,retained,errors},null,2));
-  console.log('Arsenal acceptance passed: six primary previews, seven keyboard slots and firing, wheel wraparound, independent ammo, 5x sniper / 2.25x DMR scopes, screenshots and no browser errors.');
+  console.log('Arsenal acceptance passed: six primary previews, three throwable previews, ten keyboard slots, firing and throwing, smoke and flash effects, wheel wraparound, independent ammo, sniper / DMR scopes and no browser errors.');
 }finally{await browser?.close();await app.close();}

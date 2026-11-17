@@ -89,6 +89,7 @@ pub struct Actor {
     pub switch_time: f64,
     pub cooldown: f64,
     pub shot_heat: f64,
+    pub flash: f64,
     pub ready: bool,
     pub crouch: bool,
     pub aim: bool,
@@ -150,6 +151,28 @@ impl Core {
         }
     }
 }
+#[derive(Clone, Debug, Serialize)]
+pub struct Projectile {
+    pub id: u64,
+    pub actor: String,
+    pub weapon: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub vx: f64,
+    pub vy: f64,
+    pub vz: f64,
+    pub fuse: f64,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct Smoke {
+    pub id: u64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub radius: f64,
+    pub remaining: f64,
+}
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Match {
@@ -169,6 +192,10 @@ pub struct Match {
     pub overtime: bool,
     pub rules: Value,
     pub core: Core,
+    pub projectiles: Vec<Projectile>,
+    pub smokes: Vec<Smoke>,
+    #[serde(skip)]
+    pub(crate) projectile_id: u64,
     #[serde(skip)]
     event_id: u64,
     #[serde(skip)]
@@ -218,6 +245,7 @@ impl Match {
                     switch_time: 0.0,
                     cooldown: 0.0,
                     shot_heat: 0.0,
+                    flash: 0.0,
                     ready: false,
                     crouch: false,
                     aim: false,
@@ -269,6 +297,9 @@ impl Match {
                 interactor: None,
                 origin: None,
             },
+            projectiles: vec![],
+            smokes: vec![],
+            projectile_id: 0,
             event_id: 0,
             seed,
         };
@@ -281,7 +312,7 @@ impl Match {
         t = t.wrapping_add((t ^ (t >> 7)).wrapping_mul(61 | t)) ^ t;
         ((t ^ (t >> 14)) as f64) / 4294967296.0
     }
-    fn emit(&mut self, kind: &str, mut value: Value) {
+    pub(crate) fn emit(&mut self, kind: &str, mut value: Value) {
         self.event_id += 1;
         value["id"] = json!(self.event_id);
         value["type"] = json!(kind);
@@ -295,6 +326,9 @@ impl Match {
         serde_json::to_value(self).unwrap()
     }
     fn reset_round(&mut self) {
+        self.projectiles.clear();
+        self.smokes.clear();
+        self.projectile_id = 0;
         self.phase = "preparation".into();
         self.remaining = num(&self.rules["prepare"]);
         self.elapsed = 0.0;
@@ -333,6 +367,7 @@ impl Match {
             a.switch_time = 0.0;
             a.cooldown = 0.0;
             a.shot_heat = 0.0;
+            a.flash = 0.0;
             a.ready = a.bot;
             a.crouch = false;
             a.aim = false;
@@ -495,6 +530,7 @@ impl Match {
                 }
             }
         }
+        self.update_grenades(dt);
         if self.config.mode == "core" {
             self.update_objective(dt);
         }
@@ -587,7 +623,8 @@ impl Match {
         let a = &mut self.actors[idx];
         let w = weapon(&a.weapon);
         let am = &a.ammo[&a.weapon];
-        if a.reload > 0.0
+        if w["throwable"] == true
+            || a.reload > 0.0
             || a.switch_time > 0.0
             || am.mag == w["mag"].as_i64().unwrap()
             || am.reserve <= 0
@@ -614,6 +651,9 @@ impl Match {
                 self.actors[idx].input.weapon = Some("pistol".into());
             }
             return false;
+        }
+        if weapon(&a.weapon)["throwable"] == true {
+            return self.throw_grenade(idx);
         }
         let a = &mut self.actors[idx];
         a.ammo.get_mut(&a.weapon).unwrap().mag -= 1;
@@ -943,6 +983,7 @@ impl Match {
                 b.alive
                     && b.squad != a.squad
                     && a.pos.distance(b.pos) <= 28.0
+                    && !self.obscured(&a, b)
                     && visible(a.pos, a.y, a.crouch, b.pos, b.y, b.crouch)
             })
             .filter(|b| {

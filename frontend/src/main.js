@@ -44,18 +44,23 @@ const weaponNotes={
   smg:['SWIFT','850 RPM，紧凑枪身与直弹匣，适合室内突击。'],
   dmr:['FALCON','半自动重击，2.25×低倍镜，稳住准星再点射。'],
   lmg:['IRONCURTAIN','60 发持续压制，箱式弹匣；移动与换弹较慢。'],
-  sniper:['RAVEN','栓动狙击枪，5×瞄准镜；重击后需拉栓，腰射精度低。']
+  sniper:['RAVEN','栓动狙击枪，5×瞄准镜；重击后需拉栓，腰射精度低。'],
+  grenade:['FRAG','延时爆炸，对敌人造成范围伤害，墙体阻挡冲击。'],
+  smoke:['SMOKE','形成持续 14 秒的烟幕，遮挡玩家与 AI 视线。'],
+  flash:['FLASH','使视线内的角色短暂致盲；背对爆点可减轻效果。']
 };
 let weaponPreview;
 function inspectWeapon(type){
   const w=WEAPONS[type];text('inspect-name',w.name);text('inspect-desc',weaponNotes[type][1]);
-  $('inspect-stats').innerHTML=`<span>弹匣 <b>${w.mag}</b></span><span>射速 <b>${w.rpm} RPM</b></span><span>换弹 <b>${w.reload}s</b></span><span>瞄具 <b>${w.zoom?`${w.zoom}×`:'红点 / 机瞄'}</b></span>`;
+  $('inspect-stats').innerHTML=w.throwable?`<span>数量 <b>${w.mag}</b></span><span>引信 <b>${w.fuse}s</b></span><span>范围 <b>${w.range}m</b></span><span>效果 <b>${w.duration?`${w.duration}s`:'范围伤害'}</b></span>`:`<span>弹匣 <b>${w.mag}</b></span><span>射速 <b>${w.rpm} RPM</b></span><span>换弹 <b>${w.reload}s</b></span><span>瞄具 <b>${w.zoom?`${w.zoom}×`:'红点 / 机瞄'}</b></span>`;
   weaponPreview?.select(type);
 }
 const armoryGroup=document.querySelector('[data-group="primary"]');
 armoryGroup.innerHTML=PRIMARY_WEAPONS.map(type=>`<button data-value="${type}" class="${type===config.primary?'selected':''}"><small>${weaponNotes[type][0]} / ${WEAPON_ORDER.indexOf(type)+1}</small><strong>${WEAPONS[type].name}</strong><p>${WEAPONS[type].mag} 发 · ${WEAPONS[type].semi?'单发':'连发'}${WEAPONS[type].zoom?` · ${WEAPONS[type].zoom}×`:''}</p></button>`).join('');
 $('prepare-weapons').innerHTML=PRIMARY_WEAPONS.map(type=>`<button data-loadout="${type}">${WEAPON_ORDER.indexOf(type)+1} / ${WEAPONS[type].short}</button>`).join('');
-$('weapon-slots').innerHTML=WEAPON_ORDER.map((type,i)=>`<span data-slot="${type}"><kbd>${i+1}</kbd>${WEAPONS[type].short}<small></small></span>`).join('');
+$('throwable-previews').innerHTML=WEAPON_ORDER.filter(type=>WEAPONS[type].throwable).map(type=>`<button class="secondary" data-inspect="${type}">${WEAPON_ORDER.indexOf(type)===9?'0':WEAPON_ORDER.indexOf(type)+1} / ${WEAPONS[type].short} ×${WEAPONS[type].mag}</button>`).join('');
+for(const b of document.querySelectorAll('[data-inspect]'))b.onclick=()=>inspectWeapon(b.dataset.inspect);
+$('weapon-slots').innerHTML=WEAPON_ORDER.map((type,i)=>`<span data-slot="${type}"><kbd>${(i+1)%10}</kbd>${WEAPONS[type].short}<small></small></span>`).join('');
 inspectWeapon(config.primary);
 function safeStore(){try{localStorage.setItem('bla.settings',JSON.stringify(settings));}catch{}}
 function applySettings(){
@@ -145,7 +150,7 @@ window.addEventListener('keydown',e=>{
   if(e.repeat)return;
   if(e.code==='Escape'){if(paused)lock();else pauseGame();return;}
   if(e.code==='Enter'&&state.phase==='preparation'){ready();return;}
-  if(/^Digit[1-7]$/.test(e.code))selectWeapon(WEAPON_ORDER[Number(e.code.slice(-1))-1]);
+  if(/^Digit[0-9]$/.test(e.code))selectWeapon(WEAPON_ORDER[(Number(e.code.slice(-1))+9)%10]);
   if(e.code==='KeyG')commands.drop=true;
   const orders={F1:'follow',F2:'hold',F3:'attack',F4:'retreat'};if(orders[e.code])commands.order=orders[e.code];
   if(e.code==='ArrowLeft')changeSpectator(-1);if(e.code==='ArrowRight')changeSpectator(1);
@@ -270,6 +275,10 @@ function renderHUD(now){
   if(lastRound!==roundKey){lastRound=roundKey;inputYaw=me.yaw;inputPitch=0;spectate=null;clearInput();paused=false;show('pause',false);}
   if(!me.alive&&(!spectate||!state.actors.find(a=>a.id===spectate)?.alive))changeSpectator(1);
   const subject=state.actors.find(a=>a.id===spectate)||me;
+  const inCombat=subject.alive&&state.phase==='combat';
+  $('flash-overlay').style.opacity=inCombat?clamp((subject.flash||0)/.7,0,1):0;
+  const smokeDepth=Math.max(0,...(state.smokes||[]).map(s=>s.radius-Math.hypot(subject.x-s.x,(subject.y||0)+(subject.crouch?1.07:1.57)-s.y,subject.z-s.z)));
+  $('smoke-overlay').style.opacity=inCombat?clamp(smokeDepth*1.7,0,.99):0;
   if(lastPhase!==state.phase){
     lastPhase=state.phase;
     if(state.phase==='roundResult'||state.phase==='matchResult'){paused=false;clearInput();document.exitPointerLock();show('pause',false);}
@@ -286,8 +295,8 @@ function renderHUD(now){
   text('armor-label',`${ARMOR[subject.armor].name} / ${Math.round(ARMOR[subject.armor].protection*100)}% 减伤`);
   show('core-carrier',state.core.carrier===subject.id);text('weapon-label',WEAPONS[subject.weapon].name);
   text('ammo',subject.ammo[subject.weapon].mag);text('reserve',subject.ammo[subject.weapon].reserve);
-  $('ammo').parentElement.parentElement.classList.toggle('low',subject.ammo[subject.weapon].mag<5);
-  text('reload-label',subject.switchTime>0?'切换武器…':subject.reload>0?`换弹中 · ${subject.reload.toFixed(1)}s`:subject.weapon==='sniper'&&subject.cooldown>0?'拉栓中…':'1–7 / 滚轮 切枪　R 换弹');
+  $('ammo').parentElement.parentElement.classList.toggle('low',subject.ammo[subject.weapon].mag<(WEAPONS[subject.weapon].throwable?1:5));
+  text('reload-label',subject.switchTime>0?'切换武器…':WEAPONS[subject.weapon].throwable?(subject.ammo[subject.weapon].mag>0?'左键投掷 · 8 手雷 / 9 烟雾 / 0 闪光':'已用完 · 切换其他武器'):subject.reload>0?`换弹中 · ${subject.reload.toFixed(1)}s`:subject.weapon==='sniper'&&subject.cooldown>0?'拉栓中…':'1–0 / 滚轮 切换武器　R 换弹');
   for(const slot of document.querySelectorAll('[data-slot]')){
     slot.classList.toggle('selected',slot.dataset.slot===subject.weapon);
     slot.querySelector('small').textContent=subject.ammo[slot.dataset.slot].mag;

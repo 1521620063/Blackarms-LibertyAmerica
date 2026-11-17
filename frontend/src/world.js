@@ -13,6 +13,7 @@ import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
 import { SoldierModels } from './visual/characters.js';
 import { CombatEffects } from './visual/effects.js';
+import { GrenadeEffects } from './visual/grenade-effects.js';
 import { createMuzzleFlash, muzzleScale } from './visual/muzzle-flash.js';
 import { loadGeneratedArt } from './visual/generated-art.js';
 import { facilityDecals } from './visual/decals.js';
@@ -327,6 +328,15 @@ export class WorldView {
       const model=this.models.get(e.actor);if(model)this.characters.fire(model);
       this.fx.shot(e,e.actor===playerId);
     }
+    if(e.type==='detonate'){
+      const p=new T.Vector3(e.origin.x,e.origin.y,e.origin.z);
+      this.fx.pulse(p,e.weapon==='grenade'?0xffb85a:e.weapon==='flash'?0xffffff:0x9ca9a0);
+      if(e.weapon==='grenade'){
+        for(let i=0;i<36;i++)this.fx.smoke.emit(p,{x:(Math.random()-.5)*4,y:Math.random()*3,z:(Math.random()-.5)*4},0x68655e,.8,.8+Math.random());
+        if(this.camera.position.distanceTo(p)<12)this.shake=.13;
+      }
+    }
+    if(e.type==='throw'&&e.actor===playerId)this.recoil=.12;
     if(e.type==='damage'&&e.actor===playerId)this.shake=.045;
     if(e.type==='core'&&['uploading','completed','defused'].includes(e.state))this.fx.pulse(new T.Vector3(OBJECTIVE.x,.7,OBJECTIVE.z));
   }
@@ -349,6 +359,10 @@ export class WorldView {
       this.coreGroup.visible=state.config.mode==='core'&&!['completed','defused','none'].includes(state.core.state)&&!state.core.carrier;
       this.coreGroup.position.set(state.core.x,0,state.core.z);this.coreLight.intensity=['uploading','defusing'].includes(state.core.state)?3+Math.sin(time*5):1.5;this.ring.visible=state.config.mode==='core';
     }else{for(const model of this.models.values())model.visible=false;this.coreGroup.visible=true;this.coreGroup.position.set(6,0,0);this.ring.visible=true;}
+    this.grenadeFx??=new GrenadeEffects(this.scene,this.kit);
+    const grenadeRound=state?`${state.round}:${state.config.mode}`:'';
+    if(this.grenadeRound!==grenadeRound){this.grenadeFx.clear();this.grenadeRound=grenadeRound;}
+    this.grenadeFx.sync(state,time);
     this.coreMesh.rotation.y=time*.6;this.coreMesh.position.y=.6+Math.sin(time*1.8)*.035;this.coreOrbit.rotation.z=time*.35;
     this.ring.material.opacity=.3+Math.sin(time*2)*.1;this.dust.rotation.y=Math.sin(time*.015)*.025;
     if(this.pendingShots?.length){

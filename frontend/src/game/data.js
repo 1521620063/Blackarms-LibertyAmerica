@@ -17,10 +17,13 @@ export const WEAPONS = {
   dmr: { name: 'MR–18 隼眼射手步枪', short: 'MR–18', mag: 10, reserve: 50, damage: 52, rpm: 240, reload: 2.4, spread: .006, range: 130, pellets: 1, falloff: .28, equip: .45, move: .93, zoom: 2.25, semi: true, kick: .09 },
   lmg: { name: 'LM–60 铁幕轻机枪', short: 'LM–60', mag: 60, reserve: 180, damage: 25, rpm: 540, reload: 4.2, spread: .022, range: 100, pellets: 1, falloff: .45, equip: .6, move: .82, kick: .075 },
   sniper: { name: 'SR–7 寒鸦狙击枪', short: 'SR–7', mag: 5, reserve: 25, damage: 115, rpm: 42, reload: 3.1, spread: .055, range: 180, pellets: 1, falloff: .18, equip: .65, move: .88, zoom: 5, semi: true, kick: .19 },
+  grenade: { name: 'FG–1 破片手雷', short: '手雷', mag: 1, reserve: 0, damage: 150, rpm: 60, reload: 0, spread: 0, range: 7, pellets: 0, falloff: 1, equip: .3, semi: true, throwable: true, fuse: 2.5, speed: 14 },
+  smoke: { name: 'SG–2 烟雾弹', short: '烟雾弹', mag: 1, reserve: 0, damage: 0, rpm: 60, reload: 0, spread: 0, range: 3.8, pellets: 0, falloff: 0, equip: .3, semi: true, throwable: true, fuse: 1.8, speed: 14, duration: 14 },
+  flash: { name: 'FB–3 闪光弹', short: '闪光弹', mag: 2, reserve: 0, damage: 0, rpm: 60, reload: 0, spread: 0, range: 16, pellets: 0, falloff: 1, equip: .3, semi: true, throwable: true, fuse: 1.5, speed: 14, duration: 4 },
 };
 // Stable slots are shared by keyboard, wheel, HUD and equipment menus.
-export const WEAPON_ORDER = ['rifle','pistol','scatter','smg','dmr','lmg','sniper'];
-export const PRIMARY_WEAPONS = WEAPON_ORDER.filter(type=>type!=='pistol');
+export const WEAPON_ORDER = ['rifle','pistol','scatter','smg','dmr','lmg','sniper','grenade','smoke','flash'];
+export const PRIMARY_WEAPONS = WEAPON_ORDER.filter(type=>type!=='pistol'&&!WEAPONS[type].throwable);
 export const ARMOR = { light: { name: '轻型护甲', protection: .15, speed: 1 }, heavy: { name: '重型护甲', protection: .32, speed: .83 } };
 export const DIFFICULTY = {
   easy: { name: '简单', reaction: .65, error: .11, delay: .28, hearing: 11 },

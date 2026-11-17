@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { expandedWeapon } from './arsenal.js';
+import { techThrowable } from './throwables.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { firstPersonArms, tacticalGlove } from './tactical-gear.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -31,6 +32,12 @@ export class ModelKit {
     const root=new T.Group();parent.add(root);const pistol=type==='pistol',scatter=type==='scatter';
     const b=(w,h,d,x,y,z,mat='dark',r=.012)=>this.box(root,w,h,d,x,y,z,mat,r);
     const barrel=(radius,length,z,y=0,mat='steel')=>{const m=this.cylinder(root,radius,radius,length,0,y,z,mat,20);m.rotation.x=Math.PI/2;return m;};
+    const throwable=['grenade','smoke','flash'].includes(type);
+    if(throwable){
+      techThrowable(this,type,root);
+      if(firstPerson){this.armKit?.glove(root,.03,-.15,.065,.05);}
+      this.batchWeapon(root,`${type}:${firstPerson}`);return root;
+    }
     if(pistol){
       b(.12,.115,.36,0,.018,-.08,'steel');b(.098,.09,.26,0,-.055,-.025,'dark');
       b(.094,.21,.13,0,-.17,.06,'rubber').rotation.x=-.27;
