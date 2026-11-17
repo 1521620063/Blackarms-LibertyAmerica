@@ -1,5 +1,6 @@
 import { RULES, OBJECTIVE, WEAPONS, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, SPAWNS, BOT_ROUTES, ORDERS, BOXES, clamp, distance, direction, rng } from './data.js';
 import { move, walkable, findPath, visible, wallHit, raySphere } from './geometry.js';
+import { moveActor } from './movement.js';
 
 const ACTIVE = new Set(['preparation','combat']);
 const UPLOADING = new Set(['uploading','defusing']);
@@ -40,7 +41,7 @@ export class Match {
       Object.assign(a,{...p,y:0,vy:0,yaw:this.side(a)==='attack'?-Math.PI/2:Math.PI/2,pitch:0,hp:100,alive:true,
         weapon:a.primary,ammo:Object.fromEntries(Object.entries(WEAPONS).map(([k,w])=>[k,{mag:w.mag,reserve:w.reserve}])),
         reload:0,switchTime:0,cooldown:0,shotHeat:0,interact:0,ready:a.bot,heard:null,target:null,memory:null,reaction:0,path:[],pathTimer:0,routeStage:0,cover:null,coverCheck:0,stuck:0,lastPos:{...p},
-        input:emptyInput(),lastInput:{},crouch:false,aim:false,sprinting:false,interactionOrigin:null});
+        input:emptyInput(),lastInput:{},jumpHeld:false,crouch:false,aim:false,sprinting:false,interactionOrigin:null});
     }
     const carrier=this.actors.find(a=>a.squad===this.attackSquad);
     this.core={state:this.config.mode==='core'?'carried':'none',carrier:this.config.mode==='core'?carrier.id:null,x:carrier.x,z:carrier.z,progress:0,upload:OBJECTIVE.upload,interactor:null};
@@ -74,7 +75,7 @@ export class Match {
     if(this.phase==='preparation') {
       for(const a of this.actors) {
         if(a.input.ready) a.ready=true;
-        a.lastInput={...a.input};
+        a.lastInput={...a.input};a.jumpHeld=!!a.input.jump;
       }
       if(this.remaining<=0||this.actors.every(a=>a.ready)) this.startCombat();
       return;
@@ -88,6 +89,7 @@ export class Match {
         if(a.reload===0) {const w=WEAPONS[a.weapon],am=a.ammo[a.weapon],n=Math.min(w.mag-am.mag,am.reserve); am.mag+=n; am.reserve-=n; this.emit('reloaded',{actor:a.id});}
       }
       if(a.bot) this.think(a,dt);
+      if(!a.bot&&a.waitingForInput)continue;
       this.updateActor(a,dt);
     }
     // Resolve actors apart without pushing anyone through world geometry.
@@ -104,8 +106,6 @@ export class Match {
   }
   updateActor(a,dt) {
     const i=a.input,last=a.lastInput;
-    a.yaw=i.yaw; a.pitch=i.pitch; a.aim=i.aim; a.crouch=i.crouch;
-    a.sprinting=i.sprint&&!i.aim&&!i.fire&&!i.crouch&&i.forward>0;
     if(i.weapon&&i.weapon!==a.weapon) {
       a.weapon=i.weapon;a.reload=0;a.switchTime=WEAPONS[a.weapon].equip??.32;
       this.emit('switch',{actor:a.id,weapon:a.weapon,duration:a.switchTime});
@@ -113,13 +113,7 @@ export class Match {
     if(i.reload&&!last.reload) this.reloadWeapon(a);
     if(i.drop&&!last.drop) this.dropCore(a);
     if(i.order&&i.order!==last.order) this.order(a,i.order);
-    if(i.jump&&!last.jump&&a.y===0&&!a.crouch) a.vy=4.5;
-    a.vy-=12*dt; a.y=Math.max(0,a.y+a.vy*dt); if(a.y===0) a.vy=0;
-    let dx=-Math.sin(a.yaw)*i.forward+Math.cos(a.yaw)*i.strafe;
-    let dz=-Math.cos(a.yaw)*i.forward-Math.sin(a.yaw)*i.strafe;
-    const len=Math.hypot(dx,dz); if(len>1) {dx/=len;dz/=len;}
-    const speed=3.5*ARMOR[a.armor].speed*(WEAPONS[a.weapon].move??1)*(a.sprinting?1.5:a.crouch?.5:a.aim?.72:1);
-    move(a,dx*dt*speed,dz*dt*speed);
+    moveActor(a,i,dt);
     if(i.fire&&!i.interact&&!a.sprinting&&(a.bot||!WEAPONS[a.weapon].semi||!last.fire)) this.shoot(a);
     if(i.interact&&!i.fire&&!a.sprinting) this.interact(a,dt);
     else if(this.core.interactor===a.id) this.cancelInteraction();
@@ -352,6 +346,6 @@ export class Match {
   snapshot() {
     return {config:this.config,time:this.time,round:this.round,scores:this.scores,attackSquad:this.attackSquad,phase:this.phase,remaining:this.remaining,elapsed:this.elapsed,
       overtime:this.overtime,result:this.result,core:this.core,rules:this.rules,orders:this.orders,history:this.history,
-      actors:this.actors.map(({input,lastInput,path,goal,heard,memory,lastPos,...a})=>a),events:this.events};
+      actors:this.actors.map(({input,lastInput,waitingForInput,path,goal,heard,memory,lastPos,...a})=>a),events:this.events};
   }
 }

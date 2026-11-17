@@ -4,6 +4,8 @@ import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
 import { RenderPacer } from './visual/performance.js';
+import { NetworkMovement } from './shared/netcode.js';
+import { SIMULATION_STEP } from './shared/movement.js';
 
 const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
@@ -28,7 +30,7 @@ try{view=new WorldView($('view'),settings);}catch(error){show('boot',false);show
 view.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 设备已断开：${info.message||info.reason}。请刷新页面重试。`));
 window.addEventListener('rendererror',event=>{errors.push(event.detail?.message||String(event.detail));fatal(event.detail);});
 const audio=new AudioEngine(settings);
-let match=null,state=null,active=false,online=false,paused=false,playerId='player',inputYaw=0,inputPitch=0;
+let match=null,state=null,networkMovement=null,active=false,online=false,paused=false,playerId='player',inputYaw=0,inputPitch=0;
 let lastEvent=0,lastRound='',lastPhase='',spectate=null,socket=null,networkId=null,lobby=null,ping=0;
 let accumulator=0,lastTime=performance.now(),lastNetwork=0,lastHUD=0,fps=60,frames=0,fpsAt=performance.now(),lastAnnouncement=0,damage=0,hit=0,radioUntil=0;
 const keys=new Set(),mouse={fire:false,aim:false};let commands={};
@@ -91,13 +93,15 @@ function pauseGame(){
 function enterGame(nextState,isOnline){
   state=nextState;online=isOnline;active=true;paused=false;lastEvent=0;lastRound='';lastPhase='';spectate=null;accumulator=0;feed.length=0;clearInput();
   const a=state.actors.find(a=>a.id===playerId);inputYaw=a.yaw;inputPitch=0;
+  networkMovement=isOnline?new NetworkMovement(playerId):null;
+  networkMovement?.receive(state,performance.now());lastNetwork=0;
   show('menu',false);show('hud',true);show('pause',false);show('result',false);$('lan-dialog').close();audio.unlock();
   text('connection-label',online?'LAN / SERVER AUTHORITY':'OFFLINE / LOCAL SIMULATION');
 }
 function startOffline(){playerId='player';match=new Match(config);enterGame(match.snapshot(),false);}
 $('start-offline').onclick=startOffline;
 function returnToMenu(){
-  active=false;paused=false;state=null;match=null;document.exitPointerLock();clearInput();if(online)leaveRoom();online=false;
+  active=false;paused=false;state=null;match=null;networkMovement=null;document.exitPointerLock();clearInput();if(online)leaveRoom();online=false;
   show('menu',true);show('hud',false);show('pause',false);show('result',false);show('scoreboard',false);
 }
 $('quit').onclick=returnToMenu;$('result-menu').onclick=returnToMenu;$('resume').onclick=lock;
@@ -171,7 +175,7 @@ async function connect(){
       if(m.type==='pong')ping=Math.max(0,Math.round(performance.now()-m.sent));
       if(m.type==='lobby'){lobby=m;renderLobby();}
       if(m.type==='started'){match=null;enterGame(m.state,true);}
-      if(m.type==='state'&&active&&online)state=m.state;
+      if(m.type==='state'&&active&&online){state=m.state;networkMovement.receive(state,performance.now());}
     };
   });
 }
@@ -298,7 +302,15 @@ function frame(now){
       accumulator+=dt;
       while(accumulator>=1/60){match.setInput(playerId,getInput());match.step(1/60);commands={};accumulator-=1/60;}
       state=match.snapshot();
-    }else if(online&&now-lastNetwork>33){send({type:'input',input:getInput()});commands={};lastNetwork=now;}
+    }else if(online){
+      accumulator+=dt;
+      while(accumulator>=SIMULATION_STEP){networkMovement.step(getInput(),state);commands={};accumulator-=SIMULATION_STEP;}
+      if(now-lastNetwork>=33){
+        const frames=networkMovement.takeInputs();
+        if(frames.length)send({type:'input',session:state.session,round:state.round,frames});
+        lastNetwork=now;
+      }
+    }
     events();if(now-lastHUD>50){renderHUD(now);lastHUD=now;}
     const me=state.actors.find(a=>a.id===playerId);audio.update(state,me,keys.has('KeyW')||keys.has('KeyA')||keys.has('KeyS')||keys.has('KeyD'));
   }
@@ -309,7 +321,9 @@ function frame(now){
   const renderDt=renderPacer.tick(now,rate,!document.hidden);
   if(renderDt===null)return;
   const me=state?.actors.find(a=>a.id===playerId);const camera=me?.alive?{yaw:inputYaw,pitch:inputPitch}:{spectate};
-  try{view.render(active?state:null,playerId,Math.min(renderDt,.1),now/1000,camera);frames++;}catch(error){fatal(error);return;}
+  camera.networkSmoothed=online;
+  const renderState=active&&online?networkMovement.render(state,now,Math.min(renderDt,.1)):state;
+  try{view.render(active?renderState:null,playerId,Math.min(renderDt,.1),now/1000,camera);frames++;}catch(error){fatal(error);return;}
 }
 view.ready.then(async()=>{
   weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;
@@ -322,7 +336,7 @@ view.ready.then(async()=>{
   ]);
   lastTime=performance.now();show('boot',false);view.renderer.setAnimationLoop(frame);
   if(debug){
-    window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get weaponPreview(){return weaponPreview;},get errors(){return errors;},get paused(){return paused;},config,settings,
+    window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get weaponPreview(){return weaponPreview;},get networkMovement(){return networkMovement;},get errors(){return errors;},get paused(){return paused;},config,settings,
       start:startOffline,input(i){if(match)match.setInput(playerId,i);},step(seconds){if(!match)return;for(let i=0;i<seconds*60;i++)match.step(1/60);state=match.snapshot();},
       pause(){paused=true;},resume(){paused=false;},get playerId(){return playerId;}};
   }

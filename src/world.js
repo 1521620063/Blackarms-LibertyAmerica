@@ -343,7 +343,7 @@ export class WorldView {
         if(!model){model=this.characters.create(side,a.name);this.models.set(a.id,model);this.scene.add(model);}
         if(model.userData.side!==side)this.characters.setSide(model,side);
         model.visible=a.id!==follow?.id;model.userData.marker.visible=a.alive&&a.squad===player?.squad;
-        const target=new T.Vector3(a.x,a.y,a.z);if(!model.userData.started||model.position.distanceTo(target)>4){model.position.copy(target);model.userData.started=true;}else model.position.lerp(target,1-Math.exp(-dt*20));
+        const target=new T.Vector3(a.x,a.y,a.z);if(view.networkSmoothed||!model.userData.started||model.position.distanceTo(target)>4){model.position.copy(target);model.userData.started=true;}else model.position.lerp(target,1-Math.exp(-dt*20));
         model.rotation.y=a.yaw;this.characters.animate(model,a,dt);
       }
       this.coreGroup.visible=state.config.mode==='core'&&!['completed','defused','none'].includes(state.core.state)&&!state.core.carrier;
@@ -359,7 +359,7 @@ export class WorldView {
     }
     if(follow){
       const desired=new T.Vector3(follow.x,(follow.crouch?1.07:1.57)+follow.y,follow.z);
-      if(!this.smoothPos||this.smoothPos.distanceTo(desired)>4)this.smoothPos=desired;else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
+      if(view.networkSmoothed||!this.smoothPos||this.smoothPos.distanceTo(desired)>4)this.smoothPos=desired;else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
       this.camera.position.copy(this.smoothPos);this.camera.position.x+=(Math.random()-.5)*this.shake;
       const pitch=view.pitch??follow.pitch,yaw=view.yaw??follow.yaw;
       this.camera.rotation.set(pitch+this.recoil*.17,yaw,0);

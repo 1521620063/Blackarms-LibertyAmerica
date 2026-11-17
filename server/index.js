@@ -8,6 +8,8 @@ import { networkInterfaces } from 'node:os';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Match } from '../src/shared/match.js';
 import { PRIMARY_WEAPONS } from '../src/shared/data.js';
+import { FixedClock, SIMULATION_STEP } from '../src/shared/movement.js';
+import { InputQueue } from '../src/shared/netcode.js';
 
 const send=(ws,data)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<1e6)ws.send(JSON.stringify(data));};
 export function attachLAN(server) {
@@ -20,17 +22,18 @@ export function attachLAN(server) {
   });
   const roster=room=>({type:'lobby',code:room.code,host:room.host,config:room.config,players:[...room.members.values()].map(({id,name,squad,primary,armor})=>({id,name,squad,primary,armor})),started:!!room.match});
   const broadcast=(room,data)=>{for(const p of room.members.values())send(p.ws,data);};
+  const snapshot=room=>({...room.match.snapshot(),session:room.session,inputAcks:Object.fromEntries([...room.members.values()].map(p=>[p.id,p.inputQueue.ack]))});
   function leave(peer) {
     const room=rooms.get(peer.code);peer.code=null;
     if(!room)return;
     room.members.delete(peer.id);
-    if(room.match) {const a=room.match.actors.find(a=>a.id===peer.id);if(a){a.bot=true;a.input={};a.name=`${peer.name} / AI`;}}
+    if(room.match) {const a=room.match.actors.find(a=>a.id===peer.id);if(a){a.bot=true;a.waitingForInput=false;a.input={};a.name=`${peer.name} / AI`;}}
     if(!room.members.size){rooms.delete(room.code);return;}
     if(room.host===peer.id)room.host=room.members.keys().next().value;
     broadcast(room,roster(room));
   }
   wss.on('connection',ws=>{
-    const peer={id:randomBytes(6).toString('hex'),ws,code:null,name:'先锋',squad:0,last:Date.now(),window:Date.now(),messages:0};peers.set(ws,peer);send(ws,{type:'hello',id:peer.id});
+    const peer={id:randomBytes(6).toString('hex'),ws,code:null,name:'先锋',squad:0,last:Date.now(),window:Date.now(),messages:0,inputQueue:new InputQueue()};peers.set(ws,peer);send(ws,{type:'hello',id:peer.id});
     ws.on('message',raw=>{
       if(Date.now()-peer.window>1000){peer.window=Date.now();peer.messages=0;}
       if(++peer.messages>100)return;
@@ -63,9 +66,14 @@ export function attachLAN(server) {
         } else if(msg.type==='start') {
           if(room.host!==peer.id)throw new Error('只有房主可以开始比赛');
           if(room.match&&room.match.phase!=='matchResult')throw new Error('比赛正在进行');
-          room.match=new Match(room.config,[...room.members.values()]);
-          broadcast(room,{type:'started',state:room.match.snapshot()});
-        } else if(msg.type==='input'&&room.match)room.match.setInput(peer.id,msg.input);
+          room.match=new Match(room.config,[...room.members.values()]);room.session=randomBytes(8).toString('hex');
+          for(const member of room.members.values())member.inputQueue=new InputQueue();
+          broadcast(room,{type:'started',state:snapshot(room)});
+        } else if(msg.type==='input'&&room.match){
+          if(Array.isArray(msg.frames)){
+            if(msg.session===room.session&&msg.round===room.match.round)peer.inputQueue.push(msg.frames);
+          }else if(!peer.inputQueue.enabled)room.match.setInput(peer.id,msg.input);
+        }
         else if(msg.type==='loadout') {
           const primary=PRIMARY_WEAPONS.includes(msg.primary)?msg.primary:'rifle',armor=msg.armor==='heavy'?'heavy':'light';
           peer.primary=primary;peer.armor=armor;room.match?.setLoadout(peer.id,primary,armor);
@@ -75,13 +83,28 @@ export function attachLAN(server) {
     ws.on('close',()=>{leave(peer);peers.delete(ws);});ws.on('error',()=>ws.close());
   });
   let ticks=0;
+  const clock=new FixedClock();
   const timer=setInterval(()=>{
-    ticks++;
     for(const peer of peers.values()) {
       if(Date.now()-peer.last>30000){peer.ws.terminate();continue;}
-      if(Date.now()-peer.last>1200)rooms.get(peer.code)?.match?.setInput(peer.id,{});
+      if(Date.now()-peer.last>1200){peer.inputQueue.discard();rooms.get(peer.code)?.match?.setInput(peer.id,{});}
     }
-    for(const room of rooms.values())if(room.match){room.match.step(1/60);if(ticks%3===0)broadcast(room,{type:'state',state:room.match.snapshot()});}
+    let broadcastDue=false;
+    clock.advance(performance.now(),()=>{
+      ticks++;if(ticks%3===0)broadcastDue=true;
+      for(const room of rooms.values())if(room.match){
+        const round=room.match.round;
+        for(const peer of room.members.values())if(peer.inputQueue.enabled){
+          const frame=peer.inputQueue.next(),actor=room.match.actors.find(a=>a.id===peer.id);
+          if(actor)actor.waitingForInput=!frame;
+          if(frame)room.match.setInput(peer.id,frame.input);
+        }
+        room.match.step(SIMULATION_STEP);
+        if(room.match.round!==round)for(const peer of room.members.values())peer.inputQueue.discard();
+      }
+    });
+    // Send only the newest result after catching up, avoiding bursts of stale snapshots.
+    if(broadcastDue)for(const room of rooms.values())if(room.match)broadcast(room,{type:'state',state:snapshot(room)});
   },1000/60);timer.unref();
   const close=()=>{clearInterval(timer);for(const ws of peers.keys())ws.terminate();wss.close();};
   server.on('close',close);

@@ -68,7 +68,19 @@ try {
   await normal.locator('#start-offline').click();await normal.locator('#ready').click();
   await normal.waitForFunction(()=>document.querySelector('#phase-label').textContent==='战斗阶段');
   assert.ok(await normal.evaluate(()=>!!document.pointerLockElement));assert.equal(await normal.locator('#pause').isVisible(),false);await normal.close();
-  // Two real browser clients create, join and run the authoritative LAN match.
+  // Two real browser clients run with 60 ms delay in each direction.
+  let holdInputs=false;const heldInputs=[];
+  await context.routeWebSocket('**/lan',route=>{
+    const upstream=route.connectToServer(),timers=new Set();
+    const later=(destination,message)=>{const timer=setTimeout(()=>{timers.delete(timer);destination.send(message);},60);timers.add(timer);};
+    route.onMessage(message=>{
+      if(holdInputs&&JSON.parse(String(message)).type==='input')heldInputs.push(()=>later(upstream,message));
+      else later(upstream,message);
+    });
+    upstream.onMessage(message=>later(route,message));
+    const clear=()=>{for(const timer of timers)clearTimeout(timer);timers.clear();};
+    route.onClose(()=>{clear();upstream.close();});upstream.onClose(()=>{clear();route.close();});
+  });
   const guest=await context.newPage();guest.on('pageerror',e=>errors.push(e.message));await guest.goto(`${base}/?debug=1`);await guest.waitForFunction(()=>window.__BLA);
   await page.locator('#open-lan').click();await page.locator('#create-room').click();await page.waitForSelector('#lobby-code:not(:empty)');
   const code=await page.locator('#lobby-code').textContent();await guest.locator('#open-lan').click();await guest.locator('#room-code').fill(code);await guest.locator('#join-room').click();
@@ -78,9 +90,33 @@ try {
   await page.locator('#ready').click();await guest.locator('#ready').click();
   await page.waitForFunction(()=>window.__BLA.state.phase==='combat');await guest.waitForFunction(()=>window.__BLA.state.phase==='combat');
   assert.equal(await page.evaluate(()=>window.__BLA.state.actors.filter(a=>!a.bot).length),2);
+  await page.bringToFront();await page.evaluate(()=>window.__BLA.resume());
+  holdInputs=true;await page.keyboard.down('KeyW');
+  let movement;
+  try{
+    await page.waitForFunction(()=>{
+      const g=window.__BLA,a=g.state.actors.find(a=>a.id===g.playerId),p=g.networkMovement.predicted;
+      return Math.hypot(p.x-a.x,p.z-a.z)>.08;
+    });
+    movement=await page.evaluate(()=>{
+      const g=window.__BLA,a=g.state.actors.find(a=>a.id===g.playerId),p=g.networkMovement.predicted,c=g.view.camera.position;
+      return {sequence:g.networkMovement.sequence,prediction:Math.hypot(p.x-a.x,p.z-a.z),camera:Math.hypot(c.x-a.x,c.z-a.z)};
+    });
+    assert.ok(movement.prediction>.08,'keyboard movement is predicted while input packets are held');
+    assert.ok(movement.camera>.04,'the rendered camera follows predicted movement');
+  }finally{
+    await page.keyboard.up('KeyW');holdInputs=false;for(const release of heldInputs.splice(0))release();
+  }
+  await page.waitForFunction(sequence=>{
+    const g=window.__BLA;return g.state.inputAcks[g.playerId]>=sequence;
+  },movement.sequence);
+  await page.waitForFunction(()=>{
+    const g=window.__BLA,a=g.state.actors.find(a=>a.id===g.playerId),p=g.networkMovement.predicted;
+    return Math.hypot(p.x-a.x,p.z-a.z)<.03;
+  });
   await page.screenshot({path:'artifacts/lan.png'});await guest.close();await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===1);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.__BLA.errors),[]);
   await page.setViewportSize({width:1280,height:720});await page.keyboard.press('Escape');await page.locator('#quit').click();await page.screenshot({path:'artifacts/menu-720p.png'});
-  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients','disconnect bot takeover']},null,2));
+  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients with 120 ms round trip','local keyboard and camera prediction before server input delivery','acknowledged movement reconciliation','disconnect bot takeover']},null,2));
   console.log('Browser acceptance passed: menu, combat, results, persistence and two-client LAN. Screenshots: artifacts/');
 } finally {await browser?.close();await app.close();}

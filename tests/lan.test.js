@@ -41,3 +41,30 @@ test('real WebSockets: room codes, host authority, roster, loadout, inputs, disc
     b.ws.close();await tick();assert.equal(lan.rooms.size,0);
   }finally{a.ws.terminate();b.ws.terminate();lan.close();await new Promise(r=>server.close(r));}
 });
+
+test('sequenced WebSocket movement is acknowledged once, stays authoritative and isolates match restarts',async()=>{
+  const server=http.createServer(),lan=attachLAN(server);await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const address=`http://127.0.0.1:${server.address().port}`,a=client(address);
+  try{
+    const hello=await a.wait(m=>m.type==='hello');
+    a.send({type:'create',config:{teamSize:1}});const lobby=await a.wait(m=>m.type==='lobby');
+    a.send({type:'start'});const started=await a.wait(m=>m.type==='started');
+    const room=lan.rooms.get(lobby.code),actor=room.match.actors.find(p=>p.id===hello.id);
+    room.match.startCombat();Object.assign(actor,{x:6,z:1});const before=actor.x;
+    const frames=Array.from({length:6},(_,i)=>({sequence:i+1,input:{forward:1,yaw:-Math.PI/2,x:999,hp:999}}));
+    a.send({type:'input',session:started.state.session,round:1,frames});
+    await a.wait(m=>m.type==='state'&&m.state.inputAcks[hello.id]===6);
+    assert.ok(Math.abs(actor.x-before-6*3.5/60)<1e-9,'one authoritative movement step per command');
+    const stopped=actor.x;
+    a.send({type:'input',session:started.state.session,round:1,frames});await tick();
+    assert.equal(actor.x,stopped,'duplicate commands and empty queues do not move the player twice');assert.ok(actor.hp<=100);
+    room.match.endRound(0,'restart test');room.match.phase='matchResult';
+    a.send({type:'start'});
+    // This old packet can arrive while the client is still waiting for the new started message.
+    a.send({type:'input',session:started.state.session,round:1,frames:[{sequence:999,input:{forward:1}}]});
+    const restarted=await a.wait(m=>m.type==='started'&&m.state.session!==started.state.session);
+    a.send({type:'input',session:restarted.state.session,round:1,frames:[{sequence:1,input:{ready:true}}]});
+    await a.wait(m=>m.type==='state'&&m.state.session===restarted.state.session&&m.state.inputAcks[hello.id]===1);
+    assert.equal(room.members.get(hello.id).inputQueue.received,1,'stale match commands cannot poison sequence numbers');
+  }finally{a.ws.terminate();lan.close();await new Promise(r=>server.close(r));}
+});
