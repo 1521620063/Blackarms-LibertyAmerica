@@ -1,11 +1,22 @@
 import { BOXES, MAP, clamp, distance } from './data.js';
 
 export const RADIUS = .29;
+const CELL=2,COLS=Math.ceil(MAP.width/CELL),ROWS=Math.ceil(MAP.depth/CELL),CLEARANCE=.5;
+const collisionCells=Array.from({length:COLS*ROWS},()=>[]);
+for(const box of BOXES){
+  const minX=clamp(Math.floor((box.minX-CLEARANCE+MAP.halfWidth)/CELL),0,COLS-1),maxX=clamp(Math.floor((box.maxX+CLEARANCE+MAP.halfWidth)/CELL),0,COLS-1);
+  const minZ=clamp(Math.floor((box.minZ-CLEARANCE+MAP.halfDepth)/CELL),0,ROWS-1),maxZ=clamp(Math.floor((box.maxZ+CLEARANCE+MAP.halfDepth)/CELL),0,ROWS-1);
+  for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++)collisionCells[z*COLS+x].push(box);
+}
 export function walkable(x,z,r=RADIUS) {
-  return x>-MAP.halfWidth+.25+r && x<MAP.halfWidth-.25-r && z>-MAP.halfDepth+.25+r && z<MAP.halfDepth-.25-r && !BOXES.some(b => {
-    const dx=x-clamp(x,b.minX,b.maxX), dz=z-clamp(z,b.minZ,b.maxZ);
-    return dx*dx+dz*dz<r*r;
-  });
+  if(!(x>-MAP.halfWidth+.25+r&&x<MAP.halfWidth-.25-r&&z>-MAP.halfDepth+.25+r&&z<MAP.halfDepth-.25-r))return false;
+  // Static map buckets include enough clearance for all normal actor radii.
+  const boxes=r>=0&&r<=CLEARANCE?collisionCells[Math.floor((z+MAP.halfDepth)/CELL)*COLS+Math.floor((x+MAP.halfWidth)/CELL)]:BOXES;
+  for(let i=0;i<boxes.length;i++){
+    const b=boxes[i],dx=x-clamp(x,b.minX,b.maxX),dz=z-clamp(z,b.minZ,b.maxZ);
+    if(dx*dx+dz*dz<r*r)return false;
+  }
+  return true;
 }
 export function move(actor,dx,dz) {
   const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.15));
@@ -15,15 +26,24 @@ export function move(actor,dx,dz) {
   }
 }
 export function rayBox(origin,dir,b) {
-  let near=0, far=Infinity;
-  for(const [p,d,lo,hi] of [[origin.x,dir.x,b.minX,b.maxX],[origin.y,dir.y,0,b.h],[origin.z,dir.z,b.minZ,b.maxZ]]) {
-    if(Math.abs(d)<1e-9) { if(p<lo || p>hi) return Infinity; continue; }
-    let a=(lo-p)/d, c=(hi-p)/d;
-    if(a>c) [a,c]=[c,a];
-    near=Math.max(near,a); far=Math.min(far,c);
-    if(near>far) return Infinity;
+  // Slab intersection without temporary arrays in this frequently called path.
+  let near=0,far=Infinity;
+  if(Math.abs(dir.x)<1e-9){if(origin.x<b.minX||origin.x>b.maxX)return Infinity;}
+  else{
+    const a=(b.minX-origin.x)/dir.x,c=(b.maxX-origin.x)/dir.x;
+    near=Math.max(near,Math.min(a,c));far=Math.min(far,Math.max(a,c));if(near>far)return Infinity;
   }
-  return far>=0 ? near : Infinity;
+  if(Math.abs(dir.y)<1e-9){if(origin.y<0||origin.y>b.h)return Infinity;}
+  else{
+    const a=-origin.y/dir.y,c=(b.h-origin.y)/dir.y;
+    near=Math.max(near,Math.min(a,c));far=Math.min(far,Math.max(a,c));if(near>far)return Infinity;
+  }
+  if(Math.abs(dir.z)<1e-9){if(origin.z<b.minZ||origin.z>b.maxZ)return Infinity;}
+  else{
+    const a=(b.minZ-origin.z)/dir.z,c=(b.maxZ-origin.z)/dir.z;
+    near=Math.max(near,Math.min(a,c));far=Math.min(far,Math.max(a,c));if(near>far)return Infinity;
+  }
+  return far>=0?near:Infinity;
 }
 export function wallHit(o,d) {
   let hit=Infinity;
@@ -69,29 +89,35 @@ function nearest(p) {
   }
   return best;
 }
-// A binary heap keeps long flank routes from scanning the entire open set per step.
+// Searches run synchronously; reuse scratch storage without sharing returned paths.
+const cost=new Float64Array(nodes.length),came=new Int32Array(nodes.length),seen=new Uint32Array(nodes.length),closed=new Uint32Array(nodes.length);
+const heapIds=[],heapScores=[];let searchId=0;
 export function findPath(from,to) {
   const start=nearest(from),end=nearest(to);
   if(start<0||end<0)return [];
-  const heap=[],cost=new Float64Array(nodes.length),came=new Int32Array(nodes.length),closed=new Uint8Array(nodes.length);
-  cost.fill(Infinity);came.fill(-1);cost[start]=0;
+  searchId=(searchId+1)>>>0;if(!searchId){seen.fill(0);closed.fill(0);searchId=1;}
+  heapIds.length=0;heapScores.length=0;cost[start]=0;seen[start]=searchId;
   const push=(id,score)=>{
-    const item={id,score};let i=heap.length;heap.push(item);
-    while(i){const p=(i-1)>>1;if(heap[p].score<=score)break;heap[i]=heap[p];i=p;}heap[i]=item;
+    let i=heapIds.length;heapIds.push(id);heapScores.push(score);
+    while(i){const p=(i-1)>>1;if(heapScores[p]<=score)break;heapIds[i]=heapIds[p];heapScores[i]=heapScores[p];i=p;}
+    heapIds[i]=id;heapScores[i]=score;
   };
   const pop=()=>{
-    const top=heap[0],last=heap.pop();if(heap.length){
-      let i=0;while(i*2+1<heap.length){let child=i*2+1;if(child+1<heap.length&&heap[child+1].score<heap[child].score)child++;if(heap[child].score>=last.score)break;heap[i]=heap[child];i=child;}heap[i]=last;
-    }return top.id;
+    const top=heapIds[0],lastId=heapIds.pop(),lastScore=heapScores.pop();if(heapIds.length){
+      let i=0;while(i*2+1<heapIds.length){let child=i*2+1;if(child+1<heapIds.length&&heapScores[child+1]<heapScores[child])child++;if(heapScores[child]>=lastScore)break;heapIds[i]=heapIds[child];heapScores[i]=heapScores[child];i=child;}
+      heapIds[i]=lastId;heapScores[i]=lastScore;
+    }return top;
   };
   push(start,distance(nodes[start],nodes[end])/STEP);
-  while(heap.length){
-    const current=pop();if(closed[current])continue;
+  while(heapIds.length){
+    const current=pop();if(closed[current]===searchId)continue;
     if(current===end){const path=[];for(let c=end;c!==start;c=came[c])path.push(nodes[c]);return path.reverse();}
-    closed[current]=1;
+    closed[current]=searchId;
     for(const [next,step] of neighbors[current]){
       const candidate=cost[current]+step;
-      if(!closed[next]&&candidate<cost[next]){cost[next]=candidate;came[next]=current;push(next,candidate+distance(nodes[next],nodes[end])/STEP);}
+      if(closed[next]!==searchId&&(seen[next]!==searchId||candidate<cost[next])){
+        cost[next]=candidate;came[next]=current;seen[next]=searchId;push(next,candidate+distance(nodes[next],nodes[end])/STEP);
+      }
     }
   }
   return [];

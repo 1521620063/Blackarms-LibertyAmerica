@@ -322,7 +322,7 @@ function frame(now){
   if(renderDt===null)return;
   const me=state?.actors.find(a=>a.id===playerId);const camera=me?.alive?{yaw:inputYaw,pitch:inputPitch}:{spectate};
   camera.networkSmoothed=online;
-  const renderState=active&&online?networkMovement.render(state,now,Math.min(renderDt,.1)):state;
+  const renderState=active&&online?networkMovement.render(state,now,Math.min(renderDt,.1),{input:getInput(),remainder:accumulator}):state;
   try{view.render(active?renderState:null,playerId,Math.min(renderDt,.1),now/1000,camera);frames++;}catch(error){fatal(error);return;}
 }
 view.ready.then(async()=>{

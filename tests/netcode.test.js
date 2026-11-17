@@ -74,6 +74,26 @@ test('input queue rejects duplicates and malformed sequences and bounds a client
   queue.discard();assert.equal(queue.ack,30);assert.equal(queue.next(),undefined);
 });
 
+test('high refresh rendering moves between simulation steps without changing prediction history',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),state=snapshot(match),input={forward:1,yaw:-Math.PI/2};
+  net.receive(state,0);let remainder=0,previous=match.actors[0].x;
+  for(let frame=1;frame<=144;frame++){
+    remainder+=1/144;
+    while(remainder+1e-9>=SIMULATION_STEP){net.step(input,state);remainder-=SIMULATION_STEP;}
+    const fixedPosition={...net.predicted};
+    const rendered=net.render(state,frame*1000/144,1/144,{input,remainder}).actors[0];
+    assert.ok(Math.abs(rendered.x-previous-3.5/144)<1e-9,'every displayed frame advances instead of holding for a 60 Hz step');
+    samePosition(net.predicted,fixedPosition);previous=rendered.x;
+  }
+});
+
+test('render projection uses collision rules and cannot add movement beyond one simulation step',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),state=snapshot(match),input={forward:1,yaw:-Math.PI/2};
+  net.receive(state,0);const before={...net.predicted};
+  const rendered=net.render(state,0,0,{input,remainder:10}).actors[0];
+  assert.ok(Math.abs(rendered.x-before.x-3.5/60)<1e-9);samePosition(net.predicted,before);
+});
+
 test('fixed clock catches up late timer callbacks without running an unbounded stall',()=>{
   const clock=new FixedClock(0);let steps=0;
   for(const now of [16,49,101,155,250,499,749,999,1000])clock.advance(now,()=>steps++);

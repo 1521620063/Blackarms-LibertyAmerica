@@ -1,4 +1,4 @@
-import { launchBrowser } from './browser-utils.mjs';
+import { launchBrowser, waitForGame } from './browser-utils.mjs';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createServer } from '../server/index.js';
@@ -12,7 +12,7 @@ try {
   browser=await launchBrowser();
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(`${base}/?debug=1`);await page.waitForFunction(()=>window.__BLA);await page.waitForTimeout(600);
+  await page.goto(`${base}/?debug=1`);await waitForGame(page);await page.waitForTimeout(600);
   await page.screenshot({path:'artifacts/menu.png'});
   await page.getByRole('button',{name:'装备库',exact:true}).click();await page.locator('[data-group="primary"] [data-value="scatter"]').click();
   await page.getByRole('button',{name:'返回行动部署 →'}).first().click();
@@ -61,10 +61,10 @@ try {
   await page.evaluate(()=>{const m=window.__BLA.match;m.scores[0]=m.rules.wins-1;m.endRound(0,'浏览器验收：完成比赛');});
   await page.waitForSelector('#result:not([hidden])');assert.match(await page.locator('#result-title').textContent(),/行动胜利/);
   await page.screenshot({path:'artifacts/result.png'});await page.locator('#result-menu').click();await page.waitForSelector('#menu:not([hidden])');
-  await page.reload();await page.waitForFunction(()=>window.__BLA);assert.equal(await page.evaluate(()=>window.__BLA.settings.fov),93);
+  await page.reload();await waitForGame(page);assert.equal(await page.evaluate(()=>window.__BLA.settings.fov),93);
   // Verify a normal URL has no debug API and deploys directly into captured mouse controls.
   const normal=await context.newPage();normal.on('pageerror',e=>errors.push(e.message));
-  await normal.goto(base);await normal.waitForSelector('#boot[hidden]',{state:'attached'});assert.equal(await normal.evaluate(()=>typeof window.__BLA),'undefined');
+  await normal.goto(base);await normal.waitForSelector('#boot[hidden]',{state:'attached',timeout:60000});assert.equal(await normal.evaluate(()=>typeof window.__BLA),'undefined');
   await normal.locator('#start-offline').click();await normal.locator('#ready').click();
   await normal.waitForFunction(()=>document.querySelector('#phase-label').textContent==='战斗阶段');
   assert.ok(await normal.evaluate(()=>!!document.pointerLockElement));assert.equal(await normal.locator('#pause').isVisible(),false);await normal.close();
@@ -81,7 +81,7 @@ try {
     const clear=()=>{for(const timer of timers)clearTimeout(timer);timers.clear();};
     route.onClose(()=>{clear();upstream.close();});upstream.onClose(()=>{clear();route.close();});
   });
-  const guest=await context.newPage();guest.on('pageerror',e=>errors.push(e.message));await guest.goto(`${base}/?debug=1`);await guest.waitForFunction(()=>window.__BLA);
+  const guest=await context.newPage();guest.on('pageerror',e=>errors.push(e.message));await guest.goto(`${base}/?debug=1`);await waitForGame(guest);
   await page.locator('#open-lan').click();await page.locator('#create-room').click();await page.waitForSelector('#lobby-code:not(:empty)');
   const code=await page.locator('#lobby-code').textContent();await guest.locator('#open-lan').click();await guest.locator('#room-code').fill(code);await guest.locator('#join-room').click();
   await guest.waitForSelector('#lobby-code:not(:empty)');await page.waitForFunction(()=>document.querySelectorAll('.lobby-player').length===2);

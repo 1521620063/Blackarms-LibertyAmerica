@@ -11,7 +11,7 @@ import { PRIMARY_WEAPONS } from '../src/shared/data.js';
 import { FixedClock, SIMULATION_STEP } from '../src/shared/movement.js';
 import { InputQueue } from '../src/shared/netcode.js';
 
-const send=(ws,data)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<1e6)ws.send(JSON.stringify(data));};
+const send=(ws,data)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<1e6)ws.send(typeof data==='string'?data:JSON.stringify(data));};
 export function attachLAN(server) {
   const rooms=new Map(),peers=new Map();
   const wss=new WebSocketServer({noServer:true,maxPayload:4096});
@@ -21,7 +21,7 @@ export function attachLAN(server) {
     wss.handleUpgrade(request,socket,head,ws=>wss.emit('connection',ws,request));
   });
   const roster=room=>({type:'lobby',code:room.code,host:room.host,config:room.config,players:[...room.members.values()].map(({id,name,squad,primary,armor})=>({id,name,squad,primary,armor})),started:!!room.match});
-  const broadcast=(room,data)=>{for(const p of room.members.values())send(p.ws,data);};
+  const broadcast=(room,data)=>{const encoded=JSON.stringify(data);for(const p of room.members.values())send(p.ws,encoded);};
   const snapshot=room=>({...room.match.snapshot(),session:room.session,inputAcks:Object.fromEntries([...room.members.values()].map(p=>[p.id,p.inputQueue.ack]))});
   function leave(peer) {
     const room=rooms.get(peer.code);peer.code=null;

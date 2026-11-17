@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node server/index.js",
     "compress:images": "node scripts/compress-images.mjs",
-    "build": "vite build",
+    "build": "node scripts/build.mjs",
+    "benchmark:simulation": "node scripts/benchmark-simulation.mjs",
     "start": "node server/index.js --production",
     "test": "node --test tests/*.test.js",
     "test:webgpu": "node tests/webgpu.mjs",

@@ -49,7 +49,14 @@ export class NetworkMovement {
     if(this.predicted?.alive&&state.phase==='combat')simulate(this.predicted,input);
   }
   takeInputs(){return this.outbox.splice(0,6);}
-  render(state,now,dt){
+  render(state,now,dt,{input=null,remainder=0}={}){
+    // Project only the displayed pose between fixed simulation ticks. Prediction history
+    // and server reconciliation remain on the exact same 60 Hz movement steps.
+    let local=this.predicted;
+    if(local?.alive&&state.phase==='combat'&&input&&remainder>0){
+      local={...local};const movement=sanitizeInput(input);if(movement.weapon)local.weapon=movement.weapon;
+      moveActor(local,movement,Math.min(remainder,SIMULATION_STEP));
+    }
     const decay=Math.exp(-dt*18);for(const axis of ['x','y','z'])this.offset[axis]*=decay;
     const target=(now-this.clockOffset)/1000-.1;
     let before=this.samples[0]||state,after=before;
@@ -58,8 +65,8 @@ export class NetworkMovement {
     const previousActors=new Map(before.actors.map(a=>[a.id,a])),nextActors=new Map(after.actors.map(a=>[a.id,a]));
     return {...state,actors:state.actors.map(actor=>{
       if(actor.id===this.playerId){
-        if(!actor.alive||state.phase!=='combat'||!this.predicted)return actor;
-        const result={...actor};for(const key of poseKeys)result[key]=this.predicted[key];
+        if(!actor.alive||state.phase!=='combat'||!local)return actor;
+        const result={...actor};for(const key of poseKeys)result[key]=local[key];
         for(const axis of ['x','y','z'])result[axis]+=this.offset[axis];
         return result;
       }
