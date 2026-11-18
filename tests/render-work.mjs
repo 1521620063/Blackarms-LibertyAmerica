@@ -22,7 +22,11 @@ try{
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const result=await page.evaluate(async quality=>{
       const g=window.__BLA,v=g.view;g.settings.quality=quality;v.resize();
-      v.render(g.state,g.playerId,1/60,30);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+      const draw=(time)=>{
+        v.renderer._nodes.nodeFrame.update();
+        v.render(g.state,g.playerId,1/60,time);
+      };
+      draw(30);await v.renderer.backend.device.queue.onSubmittedWorkDone();
       const lights=[v.sun,v.gunLight,...v.localShadowLights],updates=lights.map(()=>0);
       const originals=lights.map((light,index)=>{
         const original=light.shadow.updateMatrices;
@@ -36,11 +40,11 @@ try{
         const perFrame=[];
         for(let frame=0;frame<12;frame++){
           const before=[...updates];
-          v.render(g.state,g.playerId,1/60,30.1+frame/60);await v.renderer.backend.device.queue.onSubmittedWorkDone();
+          draw(30.1+frame/60);await v.renderer.backend.device.queue.onSubmittedWorkDone();
           perFrame.push(updates.map((count,index)=>count-before[index]));
         }
         const volume=v.atmosphere.scatteringPass?.renderTarget,reflection=v.wetFloor.getRenderTarget();
-        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflection:v.wetFloor.visible?{width:reflection.width,height:reflection.height}:null,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value),localLights:[...v.localLights,...v.lowLights].filter(light=>light.visible).length,geometryReduced:v.facilityDetail.every(({mesh,full,simple})=>mesh.geometry===(quality==='high'?full:simple)&&simple.attributes.position.count<full.attributes.position.count)};
+        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflection:v.wetFloor.visible?{width:reflection.width,height:reflection.height}:null,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value),localLights:[...v.localLights,...v.lightPool].filter(light=>light.visible).length,geometryReduced:v.facilityDetail.every(({mesh,full,simple})=>mesh.geometry===(quality==='high'?full:simple)&&simple.attributes.position.count<full.attributes.position.count)};
       }finally{lights.forEach((light,index)=>light.shadow.updateMatrices=originals[index]);}
     },quality);
     checks.push({viewport,...result});
@@ -58,6 +62,7 @@ try{
       assert.equal(check.localLights,6,'low quality uses a fixed pool of nearby lights');
       assert.ok(check.width*check.height<=960*540);
     }else{
+      assert.equal(check.localLights,check.quality==='high'?26:8,'medium limits unshadowed lamps while high keeps the full set');
       assert.equal(check.updates[0],check.quality==='high'?6:4,'sun shadows update at 30/20 Hz during 60 Hz rendering');
       assert.equal(check.updates[1],12,'weapon shadows still follow every animation frame');
       assert.deepEqual(check.updates.slice(2),check.quality==='high'?[12,12]:[12,0],'active local shadows update once per frame');
@@ -96,7 +101,7 @@ try{
     const draw=async(target)=>{
       color=0;shadows=0;v.camera.position.set(-8,1.5,0);v.camera.lookAt(...target);
       v.sun.shadow.needsUpdate=true;
-      v.camera.updateMatrixWorld(true);v.atmosphere.update();v.composer.render();
+      v.camera.updateMatrixWorld(true);v.atmosphere.update();v.renderer._nodes.nodeFrame.update();v.composer.render();
       // WebGPU also calls onBeforeRender for shadow submissions.
       await v.renderer.backend.device.queue.onSubmittedWorkDone();return {color:color-shadows,shadows};
     };

@@ -88,3 +88,13 @@ test('auto quality respects the frame cap, ignores pauses and backs off repeated
   samples(controller,now,1000/30,9,30);
   assert.equal(controller.profile.quality,'medium');
 });
+
+test('auto quality steps through reduced-resolution medium and leaves high opt-in',()=>{
+  const controller=new AdaptiveQuality();
+  let now=samples(controller,0,1000/60,9,60);
+  assert.deepEqual(controller.profile,{quality:'medium',resolution:.8});
+  now=samples(controller,now,1000/60,30,60);
+  assert.deepEqual(controller.profile,{quality:'medium',resolution:1});
+  samples(controller,now,20,3,60);
+  assert.deepEqual(controller.profile,{quality:'medium',resolution:.8});
+});

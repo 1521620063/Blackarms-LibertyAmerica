@@ -34,6 +34,9 @@ try{
         v.renderer.info.autoReset=false;
         g.state.smokes=variant==='smoke'?[{id:41,x:-30,y:1.4,z:0,radius:3.2,remaining:14}]:[];
         const render=(index)=>{
+          // The realtime loop normally advances this. Without it, nodes that
+          // render once per frame reuse stale targets in this manual loop.
+          v.renderer._nodes.nodeFrame.update();
           v.render(g.state,g.playerId,1/60,30+index/60,{yaw:variant==='rear-view'?Math.PI/2:-Math.PI/2,pitch:0,prepareOnly:true});
           if(variant==='no-reflections')v.wetFloor.visible=false;
           if(variant==='no-shadows')for(const light of [v.sun,v.gunLight,...v.localShadowLights]){light.shadow.autoUpdate=false;light.shadow.needsUpdate=false;}
@@ -48,6 +51,7 @@ try{
           await v.renderer.backend.device.queue.onSubmittedWorkDone();
           samples.push(performance.now()-start);calls.push(v.renderer.info.render.drawCalls);triangles.push(v.renderer.info.render.triangles);
         }
+        if(calls.some(count=>count<=1))throw new Error(`${variant}: a sample did not render the scene`);
         const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
         const size=target=>({width:target.width,height:target.height});
         return {variant,frameMs:median(samples),cpuMs:median(cpu),drawCalls:median(calls),triangles:median(triangles),width:v.renderer.domElement.width,height:v.renderer.domElement.height,reflection:v.wetFloor.visible?size(v.wetFloor.getRenderTarget()):null,volume:v.atmosphere.enabled.value?size(v.atmosphere.scatteringPass.renderTarget):null,samples};

@@ -53,7 +53,8 @@ export class WorldView {
       this.sunShadowUniforms=facilitySunShadows(this);
       this.sunShadowUniforms.facilityShadowTaps.value=this.quality==='high'?16:10;
       this.facilityProbes=await captureFacilityProbes(this);
-      this.lowLights=Array.from({length:6},()=>{
+      this.nearbyLights=this.localLights.slice();
+      this.lightPool=Array.from({length:8},()=>{
         const light=new T.SpotLight(0xffffff,0,17,.82,.55,2);light.visible=false;this.scene.add(light,light.target);return light;
       });
       // Allocate every shadow attachment before postprocessing samples it.
@@ -347,8 +348,8 @@ export class WorldView {
     if(this.composer){
       for(const {mesh,full,simple} of this.facilityDetail)mesh.geometry=high?full:simple;
       // Moving around changes light uniforms, not the light IDs in the shader.
-      for(const light of this.localLights){light.visible=enabled;light.intensity=light.userData.baseIntensity;}
-      for(const light of this.lowLights)light.visible=!enabled;
+      for(const light of this.localLights){light.visible=high;light.intensity=light.userData.baseIntensity;}
+      this.lightPool.forEach((light,index)=>{light.visible=!high&&(enabled||index<6);});
     }
     this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.sunShadowElapsed=0;
     this.gunLight.shadow.autoUpdate=false;this.gunLight.shadow.needsUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=high;this.dust.visible=enabled;
@@ -448,16 +449,23 @@ export class WorldView {
     }
     const scoped=follow?.aim&&WEAPONS[follow.weapon].zoom>1&&!follow.reload&&!follow.switchTime;
     const quality=this.quality,shadowCount=quality==='high'?2:quality==='medium'?1:0;
-    const nearby=[...this.localLights].sort((a,b)=>a.position.distanceToSquared(this.camera.position)-b.position.distanceToSquared(this.camera.position));
-    for(const light of this.localLights)light.intensity=light.userData.baseIntensity;
-    if(!shadowCount){
-      // Fade near the selection boundary to limit abrupt lighting changes.
-      const cutoff=nearby[this.lowLights.length].position.distanceTo(this.camera.position);
-      this.lowLights.forEach((light,i)=>{
-        const source=nearby[i];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
-        const weight=T.MathUtils.smoothstep(cutoff-source.position.distanceTo(this.camera.position),0,4);
+    const nearby=this.nearbyLights;
+    for(const light of nearby){
+      light.userData.distanceSq=light.position.distanceToSquared(this.camera.position);
+      light.intensity=light.userData.baseIntensity;
+    }
+    nearby.sort((a,b)=>a.userData.distanceSq-b.userData.distanceSq);
+    if(quality!=='high'){
+      // Keep the light IDs fixed while recycling slots for the nearest lamps.
+      // The closest lamp gets a separate shadowed slot on medium.
+      const count=shadowCount?this.lightPool.length:6;
+      const cutoff=Math.sqrt(nearby[count+shadowCount].userData.distanceSq);
+      for(let i=0;i<count;i++){
+        const light=this.lightPool[i],source=nearby[i+shadowCount];
+        light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
+        const weight=T.MathUtils.smoothstep(cutoff-Math.sqrt(source.userData.distanceSq),0,4);
         light.intensity=source.intensity*weight;
-      });
+      }
     }
     this.localShadowLights.forEach((light,index)=>{
       const enabled=index<shadowCount;

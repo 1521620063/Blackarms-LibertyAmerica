@@ -33,8 +33,9 @@ const autoProfiles=[
   {quality:'low',resolution:2/3},
   {quality:'low',resolution:.8},
   {quality:'low',resolution:1},
+  // Keep the extra scene render for planar reflections opt-in.
+  {quality:'medium',resolution:.8},
   {quality:'medium',resolution:1},
-  {quality:'high',resolution:1},
 ];
 
 // Measure delivered frames, not the CPU cost of submitting GPU commands.
@@ -49,7 +50,7 @@ export class AdaptiveQuality {
     if(elapsed<1000)return false;
     const fps=this.frames*1000/elapsed,target=Math.min(maxFPS||60,60);
     this.start=now;this.frames=0;
-    this.slow=fps<target*.78?this.slow+1:0;
+    this.slow=fps<target*.9?this.slow+1:0;
     this.stable=fps>=target*.95?this.stable+elapsed/1000:0;
     let next=this.level;
     if(fps<target*.5)next=Math.max(0,this.level-2);
