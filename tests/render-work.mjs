@@ -40,7 +40,7 @@ try{
           perFrame.push(updates.map((count,index)=>count-before[index]));
         }
         const volume=v.atmosphere.scatteringPass?.renderTarget,reflection=v.wetFloor.getRenderTarget();
-        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflection:{width:reflection.width,height:reflection.height},reflectionScale:v.wetFloor.userData.reflection.reflector.resolutionScale,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value)};
+        return {quality,updates,perFrame,steps:v.atmosphere.steps.value,mipmaps:v.wetFloor.userData.reflection.reflector.generateMipmaps,hiddenPoseDelta:self.userData.mixer.time-selfBefore,visiblePoseDelta:other.userData.mixer.time-otherBefore,reflection:v.wetFloor.visible?{width:reflection.width,height:reflection.height}:null,volume:volume?{width:volume.width,height:volume.height}:null,width:v.renderer.domElement.width,height:v.renderer.domElement.height,active:v.atmosphere.bindings.map(binding=>binding.active.value),localLights:[...v.localLights,...v.lowLights].filter(light=>light.visible).length,geometryReduced:v.facilityDetail.every(({mesh,full,simple})=>mesh.geometry===(quality==='high'?full:simple)&&simple.attributes.position.count<full.attributes.position.count)};
       }finally{lights.forEach((light,index)=>light.shadow.updateMatrices=originals[index]);}
     },quality);
     checks.push({viewport,...result});
@@ -51,19 +51,23 @@ try{
     assert.equal(check.hiddenPoseDelta,0,'the hidden first-person body skips skeletal animation and IK');
     assert.ok(check.visiblePoseDelta>0,'visible actors keep animating');
     assert.ok(check.perFrame.every(updates=>updates.every(count=>count<=1)),`${check.quality}: each shadow map is rendered at most once per frame, including reflections: ${check.updates}`);
-    if(check.quality==='low')assert.deepEqual(check.updates,[0,0,0,0]);
-    else{
+    assert.ok(check.geometryReduced,'geometry detail matches the selected quality');
+    if(check.quality!=='high')assert.equal(check.reflection,null,'only high rerenders the scene for planar reflections');
+    if(check.quality==='low'){
+      assert.deepEqual(check.updates,[0,0,0,0]);
+      assert.equal(check.localLights,6,'low quality uses a fixed pool of nearby lights');
+      assert.ok(check.width*check.height<=960*540);
+    }else{
       assert.equal(check.updates[0],check.quality==='high'?6:4,'sun shadows update at 30/20 Hz during 60 Hz rendering');
       assert.equal(check.updates[1],12,'weapon shadows still follow every animation frame');
       assert.deepEqual(check.updates.slice(2),check.quality==='high'?[12,12]:[12,0],'active local shadows update once per frame');
       assert.equal(check.active[0],1,'cached shadow maps remain active for volumetric light');
       assert.equal(check.steps,check.quality==='high'?20:16,'volumetric sample count scales with quality');
       assert.ok(check.volume,'volumetric scattering has an independent render target');
-      const scale=check.quality==='high'?1/3:1/4,budget=check.quality==='high'?640*360:480*270;
+      const budget=check.quality==='high'?640*360:480*270;
       assert.ok(check.volume.width*check.volume.height<=Math.min(budget,check.width*check.height/16),'ray marching stays within its pixel budget at 1080p and 1440p');
-      assert.ok(check.reflection.width*check.reflection.height<=budget,'actual reflection attachment stays within its pixel budget');
-      assert.ok(check.reflectionScale>0&&check.reflectionScale<=scale,'reflections stay within their quality pixel budget');
       if(check.quality==='high'){
+        assert.ok(check.reflection.width*check.reflection.height<=budget,'actual reflection attachment stays within its pixel budget');
         assert.equal(check.width,check.viewport.width,'high quality preserves native scene width');
         assert.equal(check.height,check.viewport.height,'high quality preserves native scene height');
       }

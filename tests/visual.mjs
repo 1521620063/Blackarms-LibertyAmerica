@@ -150,7 +150,7 @@ try{
     v.fx.clear();return {before,after,runWeight,feetBefore,feetCrouched,facing,qualities,probes,localReflections,captureRestored,limits,expired,errors:g.errors,geometries:v.renderer.info.memory.geometries};
   });
   assert.deepEqual(checks.qualities.map(q=>[q.ao,q.atmosphere,q.weaponShadows,q.localShadows]),[[false,false,false,0],[true,true,true,1],[true,true,true,2]],'quality settings disable expensive lighting on low and enable local contact shadows on medium/high');
-  assert.deepEqual(checks.qualities.map(q=>q.reflections),[false,true,true],'damp-floor reflections are disabled on low');
+  assert.deepEqual(checks.qualities.map(q=>q.reflections),[false,false,true],'planar reflections only run on high');
   for(const q of checks.qualities)assert.ok(q.reflectionSize>0&&q.reflectionSize<=(q.quality==='high'?512:384),'damp-floor reflection height stays within its quality budget');
   assert.deepEqual(checks.qualities.map(q=>q.sunShadowTaps),[10,10,16],'sun shadow filtering scales with quality');
   assert.deepEqual(checks.probes,[{name:'freight',source:'local-facility-capture'},{name:'service',source:'local-facility-capture'}]);

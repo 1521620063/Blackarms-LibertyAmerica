@@ -30,8 +30,8 @@ class ParticlePool {
 }
 
 export class CombatEffects {
-  constructor(scene,settings){
-    this.scene=scene;this.settings=settings;this.spark=new ParticlePool(scene,1400,true);this.smoke=new ParticlePool(scene,320,false);this.traces=[];this.decals=[];this.lightCursor=0;
+  constructor(scene){
+    this.scene=scene;this.spark=new ParticlePool(scene,1400,true);this.smoke=new ParticlePool(scene,320,false);this.traces=[];this.decals=[];this.lightCursor=0;
     this.lights=Array.from({length:4},()=>{const light=new T.PointLight(0xffb966,0,5,2);scene.add(light);return {light,life:0};});
     this.decalGeometry=new T.PlaneGeometry(1,1);this.decalMaterial=this.makeDecal();
     const geo=new T.CylinderGeometry(.012,.012,.065,8),mat=new T.MeshStandardMaterial({color:0xc39b52,metalness:.8,roughness:.3});
@@ -45,10 +45,10 @@ export class CombatEffects {
     const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;
     return new T.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3,toneMapped:false});
   }
-  shot(e,local){
+  shot(e,local,low=false){
     const origin=new T.Vector3(e.origin.x,e.origin.y,e.origin.z),end=e.traces[0]?.end;if(!end)return;
     const forward=new T.Vector3(end.x,end.y,end.z).sub(origin).normalize(),right=new T.Vector3(-forward.z,0,forward.x),muzzle=origin.clone().addScaledVector(forward,.65).addScaledVector(right,.1);muzzle.y-=.16;
-    const low=this.settings.quality==='low',n=local?0:low?4:8;
+    const n=local?0:low?4:8;
     for(let i=0;i<n;i++)this.spark.emit(muzzle,{x:forward.x*(3+Math.random()*4)+(Math.random()-.5),y:forward.y*4+(Math.random()-.5),z:forward.z*(3+Math.random()*4)+(Math.random()-.5)},i%2?0xffbc62:0xffedc4,.06+Math.random()*.12,.045+Math.random()*.08);
     this.smoke.emit(muzzle,{x:forward.x*.3,y:.35,z:forward.z*.3},0x8a9696,.13,.65);
     const lamp=this.lights[this.lightCursor++%this.lights.length];lamp.light.position.copy(muzzle);lamp.life=.06;lamp.light.intensity=local?5:8;

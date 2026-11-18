@@ -6,8 +6,9 @@ import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import { transparentPass, compositeOverlay } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
-import { renderPixelRatio, renderEffectScale } from './visual/performance.js';
+import { renderPixelRatio, renderEffectScale, AdaptiveQuality } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { BOXES, MAP, OBJECTIVE, WEAPONS, WEAPON_ORDER, rng } from './game/data.js';
 import { makeMaterials, labelTexture } from './visual/materials.js';
 import { ModelKit } from './visual/models.js';
@@ -29,7 +30,7 @@ export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T
 
 export class WorldView {
   constructor(canvas,settings){
-    this.settings=settings;this.renderer=createRenderer({canvas,antialias:false});
+    this.settings=settings;this.adaptiveQuality=new AdaptiveQuality();this.renderer=createRenderer({canvas,antialias:false});
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;
     this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
     this.scene=new T.Scene();this.scene.background=new T.Color(0x82979f);this.scene.fog=new T.FogExp2(0x82918e,.006);
@@ -50,8 +51,11 @@ export class WorldView {
       this.scannedAssets=await loadScannedSurfaces(this);
       this.facilityAssets=await loadFacilitySurfaces(this);
       this.sunShadowUniforms=facilitySunShadows(this);
-      this.sunShadowUniforms.facilityShadowTaps.value=this.settings.quality==='high'?16:10;
+      this.sunShadowUniforms.facilityShadowTaps.value=this.quality==='high'?16:10;
       this.facilityProbes=await captureFacilityProbes(this);
+      this.lowLights=Array.from({length:6},()=>{
+        const light=new T.SpotLight(0xffffff,0,17,.82,.55,2);light.visible=false;this.scene.add(light,light.target);return light;
+      });
       // Allocate every shadow attachment before postprocessing samples it.
       this.wetFloor.visible=false;
       for(const light of [this.sun,this.gunLight,...this.localShadowLights])light.shadow.autoUpdate=true;
@@ -63,9 +67,10 @@ export class WorldView {
     Object.assign(gunLight.shadow.camera,{left:-1.3,right:1.3,top:1.3,bottom:-1.3,near:.1,far:8});gunLight.shadow.camera.updateProjectionMatrix();gunLight.shadow.bias=-.0001;gunLight.shadow.normalBias=.0008;this.gunScene.add(gunLight,gunLight.target);this.gunLight=gunLight;
     this.gunCamera=new T.PerspectiveCamera(65,1,.01,10);this.gun=new T.Group();this.gun.scale.setScalar(.82);this.gunScene.add(this.gun);
     this.flash=new T.PointLight(0xffbc75,0,4,2);this.gunScene.add(this.flash);
-    this.fx=new CombatEffects(this.scene,settings);this.effects=this.fx.traces;
+    this.fx=new CombatEffects(this.scene);this.effects=this.fx.traces;
     this.createDust();this.wetFloor=createWetFloor(this);this.resize();
   }
+  get quality(){return this.settings.quality==='auto'?this.adaptiveQuality.profile.quality:this.settings.quality;}
   box(w,h,d,x,y,z,material,parent=this.facility,r=0){return this.kit.box(parent,w,h,d,x,y,z,material,r);}
   cylinder(r,rt,h,x,y,z,material,parent=this.facility,segments=16){return this.kit.cylinder(parent,r,rt,h,x,y,z,material,segments);}
   sign(title,subtitle,w,x,y,z,rotation=0,color='#c4dcd9'){
@@ -148,8 +153,19 @@ export class WorldView {
     }
     const grimeCanvas=document.createElement('canvas');grimeCanvas.width=grimeCanvas.height=128;const gc=grimeCanvas.getContext('2d'),g=gc.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(12,20,17,.36)');g.addColorStop(1,'rgba(12,20,17,0)');gc.fillStyle=g;gc.fillRect(0,0,128,128);
     const grime=new T.MeshBasicMaterial({map:new T.CanvasTexture(grimeCanvas),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
-    for(let i=0;i<28;i++){const mesh=new T.Mesh(new T.PlaneGeometry(.8+random()*2,.5+random()*1.5),grime);mesh.rotation.x=-Math.PI/2;mesh.rotation.z=random()*6;mesh.position.set(random()*(MAP.width-2)-MAP.halfWidth+1,.013,random()*(MAP.depth-2)-MAP.halfDepth+1);this.facility.add(mesh);}
-    for(const b of BOXES.filter(b=>b.h<3.9)){const shadow=new T.Mesh(new T.PlaneGeometry(b.w+.7,b.d+.7),grime);shadow.rotation.x=-Math.PI/2;shadow.position.set(b.x,.017,b.z);this.facility.add(shadow);}
+    // Identically tinted alpha decals can share a draw without sorting each patch.
+    const patches=[],matrix=new T.Matrix4(),rotation=new T.Euler(-Math.PI/2,0,0,'YXZ');
+    const patch=(w,d,x,y,z,angle=0)=>{
+      const plane=new T.PlaneGeometry(w,d);rotation.y=angle;
+      matrix.makeRotationFromEuler(rotation).setPosition(x,y,z);plane.applyMatrix4(matrix);patches.push(plane);
+    };
+    for(let i=0;i<28;i++){
+      const w=.8+random()*2,d=.5+random()*1.5,angle=random()*6;
+      patch(w,d,random()*(MAP.width-2)-MAP.halfWidth+1,.013,random()*(MAP.depth-2)-MAP.halfDepth+1,angle);
+    }
+    for(const b of BOXES.filter(b=>b.h<3.9))patch(b.w+.7,b.d+.7,b.x,.017,b.z);
+    const grimeMesh=new T.Mesh(mergeGeometries(patches,false),grime);this.facility.add(grimeMesh);
+    for(const plane of patches)plane.dispose();
     this.sign('BLACKARMS','ZERO FACILITY / RESTRICTED AREA',6,-MAP.halfWidth+.23,2.8,0,Math.PI/2,'#9bbfc5');
     this.sign('SECTOR 06','DATA OPERATIONS / AUTHORIZED ACCESS',5,MAP.halfWidth-.23,2.8,0,-Math.PI/2,'#d8b38a');
     for(const [title,z] of [['02 / WEST',6],['03 / CENTRAL',0],['04 / EAST',-6]])this.sign(title,'OPERATIONS • KEEP CLEAR',2.4,-2.215,3.35,z,-Math.PI/2);
@@ -197,7 +213,8 @@ export class WorldView {
   }
   batchFacility(){
     // Merge static surfaces by material so detail does not mean thousands of draw calls.
-    this.facility.updateMatrixWorld(true);const groups=new Map(),old=[];
+    this.facility.updateMatrixWorld(true);const groups=new Map(),old=[],simplified=new Map();
+    this.facilityDetail=[];
     // Pack facility signs into one atlas, so distinct labels share one draw call.
     const signs=[];this.facility.traverse(mesh=>{if(mesh.isMesh&&mesh.material.isMeshBasicMaterial&&!mesh.material.transparent&&mesh.material.map)signs.push(mesh);});
     const tiles=new Map();let signMaterial;
@@ -211,32 +228,54 @@ export class WorldView {
     this.facility.traverse(mesh=>{
       if(!mesh.isMesh||mesh.material.transparent)return;
       const tile=tiles.get(mesh),material=tile?signMaterial:mesh.material;
-      let list=groups.get(material);if(!list){list=[];groups.set(material,list);}
-      // RoundedBoxGeometry is non-indexed; normalize every primitive before merging.
-      const geometry=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();
-      if(tile){
-        const uv=geometry.attributes.uv,{width,height}=signMaterial.map.image;
-        for(let i=0;i<uv.count;i++)uv.setXY(i,(tile.x+.5+uv.getX(i)*511)/width,1-(tile.y+.5+(1-uv.getY(i))*127)/height);
-      }
-      geometry.applyMatrix4(mesh.matrixWorld);
-      if(mesh.material===this.materials.concrete||mesh.material===this.materials.wall||['paintedWall','stagingFloor','containerRed','containerGreen','containerEdge','rack','hvac','caseShell','crane','conduit','ceiling'].some(name=>mesh.material===this.materials[name])){
-        const positions=geometry.attributes.position,normals=geometry.attributes.normal,uv=geometry.attributes.uv;
-        const scale=mesh.material===this.materials.concrete||mesh.material===this.materials.wall?.25:mesh.material===this.materials.stagingFloor?1/3:mesh.material===this.materials.paintedWall?.5:1;
-        for(let i=0;i<positions.count;i++){
-          const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
-          uv.setXY(i,(Math.abs(normals.getX(i))>.5?z:x)*scale,(Math.abs(normals.getY(i))>.5?z:y)*scale);
+      let batch=groups.get(material);if(!batch){batch={full:[],simplified:[],changed:false};groups.set(material,batch);}
+      // Merge both detail levels under the same material and bounds group. On
+      // low/medium, tiny edge bevels aren't visible at the render resolution.
+      const source=mesh.geometry;
+      let simpler=source;
+      if(source.type==='RoundedBoxGeometry'){
+        if(!simplified.has(source)){
+          const {width,height,depth,radius}=source.parameters;
+          simplified.set(source,radius>.025?new RoundedBoxGeometry(width,height,depth,1,radius):new T.BoxGeometry(width,height,depth));
         }
+        simpler=simplified.get(source);batch.changed=true;
       }
-      list.push(geometry);old.push(mesh);
+      const bake=primitive=>{
+        const geometry=primitive.index?primitive.toNonIndexed():primitive.clone();
+        if(tile){
+          const uv=geometry.attributes.uv,{width,height}=signMaterial.map.image;
+          for(let i=0;i<uv.count;i++)uv.setXY(i,(tile.x+.5+uv.getX(i)*511)/width,1-(tile.y+.5+(1-uv.getY(i))*127)/height);
+        }
+        geometry.applyMatrix4(mesh.matrixWorld);
+        if(mesh.material===this.materials.concrete||mesh.material===this.materials.wall||['paintedWall','stagingFloor','containerRed','containerGreen','containerEdge','rack','hvac','caseShell','crane','conduit','ceiling'].some(name=>mesh.material===this.materials[name])){
+          const positions=geometry.attributes.position,normals=geometry.attributes.normal,uv=geometry.attributes.uv;
+          const scale=mesh.material===this.materials.concrete||mesh.material===this.materials.wall?.25:mesh.material===this.materials.stagingFloor?1/3:mesh.material===this.materials.paintedWall?.5:1;
+          for(let i=0;i<positions.count;i++){
+            const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+            uv.setXY(i,(Math.abs(normals.getX(i))>.5?z:x)*scale,(Math.abs(normals.getY(i))>.5?z:y)*scale);
+          }
+        }
+        return geometry;
+      };
+      const baked=bake(source);batch.full.push(baked);batch.simplified.push(simpler===source?baked:bake(simpler));old.push(mesh);
     });
+    for(const primitive of simplified.values())primitive.dispose();
     for(const mesh of old){mesh.removeFromParent();if(tiles.has(mesh)){mesh.material.map.dispose();mesh.material.dispose();mesh.geometry.dispose();}}
-    for(const [material,geometries] of groups){const merged=mergeGeometries(geometries,false);if(merged){const mesh=new T.Mesh(merged,material);mesh.castShadow=material!==this.materials.window&&material!==this.materials.lamp;mesh.receiveShadow=true;this.facility.add(mesh);}for(const g of geometries)g.dispose();}
+    for(const [material,batch] of groups){
+      const full=mergeGeometries(batch.full,false);
+      if(full){
+        const mesh=new T.Mesh(full,material);mesh.castShadow=material!==this.materials.window&&material!==this.materials.lamp;mesh.receiveShadow=true;this.facility.add(mesh);
+        if(batch.changed){const simple=mergeGeometries(batch.simplified,false);if(simple)this.facilityDetail.push({mesh,full,simple});}
+      }
+      for(let i=0;i<batch.full.length;i++){batch.full[i].dispose();if(batch.simplified[i]!==batch.full[i])batch.simplified[i].dispose();}
+    }
   }
   createPostprocessing(){
     this.worldPass=pass(this.scene,this.camera,{samples:0});
     this.occlusion=ao(this.worldPass.getTextureNode('depth'),null,this.camera);this.occlusion.radius.value=.65;this.occlusion.resolutionScale=.5;
     this.atmosphere=atmospherePass(this,this.worldPass);
     this.weaponPass={enabled:false,node:transparentPass(this.gunScene,this.gunCamera,{samples:0})};
+    this.weaponPass.node.isActive=()=>this.weaponPass.enabled;
     this.weaponVisible=uniform(0);this.qualityEffects=uniform(1);this.gradeTime=uniform(0);
     const weapon=this.weaponPass.node.getTextureNode(),world=this.atmosphere.node;
     const shaded=vec4(world.rgb.mul(mix(1,this.occlusion.getTextureNode().r,this.qualityEffects)),1);
@@ -252,7 +291,9 @@ export class WorldView {
     this.highQualityOutput=renderOutput(this.smaa,this.renderer.toneMapping,this.renderer.outputColorSpace);
     this.mediumQualityOutput=fxaa(renderOutput(vec4(graded,1),this.renderer.toneMapping,this.renderer.outputColorSpace));
     const simple=compositeOverlay(this.worldPass.getTextureNode(),weapon,this.weaponVisible);
-    this.lowQualityOutput=fxaa(renderOutput(simple,this.renderer.toneMapping,this.renderer.outputColorSpace));
+    // Low resolution already uses bilinear upscaling; avoid re-sampling both
+    // the world and weapon textures for every FXAA tap.
+    this.lowQualityOutput=renderOutput(simple,this.renderer.toneMapping,this.renderer.outputColorSpace);
     this.composer=new T.PostProcessing(this.renderer,this.highQualityOutput);this.composer.outputColorTransform=false;
   }
   createDust(){
@@ -294,17 +335,25 @@ export class WorldView {
     this.muzzle.visible=false;this.gun.add(this.weapon);
   }
   resize(){
-    const w=innerWidth,h=innerHeight,quality=this.settings.quality;
-    const scale=renderPixelRatio(w,h,devicePixelRatio,quality);
+    const w=innerWidth,h=innerHeight,quality=this.quality,high=quality==='high';
+    const resolution=this.settings.quality==='auto'?this.adaptiveQuality.profile.resolution:1;
+    const scale=renderPixelRatio(w,h,devicePixelRatio,quality,resolution);
     if(this.renderer.getPixelRatio()!==scale||this.renderWidth!==w||this.renderHeight!==h){
       this.renderer.setPixelRatio(scale);this.renderer.setSize(w,h,false);this.renderWidth=w;this.renderHeight=h;
     }
     this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.gunCamera.aspect=w/h;this.gunCamera.updateProjectionMatrix();
     const enabled=quality!=='low';
+    // Change scene detail only after the high-detail reflection probes are baked.
+    if(this.composer){
+      for(const {mesh,full,simple} of this.facilityDetail)mesh.geometry=high?full:simple;
+      // Moving around changes light uniforms, not the light IDs in the shader.
+      for(const light of this.localLights){light.visible=enabled;light.intensity=light.userData.baseIntensity;}
+      for(const light of this.lowLights)light.visible=!enabled;
+    }
     this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=enabled;this.sun.shadow.intensity=enabled?1:0;this.sunShadowElapsed=0;
-    this.gunLight.shadow.autoUpdate=false;this.gunLight.shadow.needsUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=enabled;this.dust.visible=enabled;
+    this.gunLight.shadow.autoUpdate=false;this.gunLight.shadow.needsUpdate=enabled;this.gunLight.shadow.intensity=enabled?1:0;this.wetFloor.visible=high;this.dust.visible=enabled;
     if(this.sunShadowUniforms)this.sunShadowUniforms.facilityShadowTaps.value=quality==='high'?16:10;
-    // Limit reflection pixels at 1080p/1440p independently of scene resolution.
+    // Planar reflections re-render the entire scene; reserve them for high.
     this.wetFloor.userData.reflection.reflector.resolutionScale=renderEffectScale(w*scale,h*scale,quality,quality==='high'?1/3:1/4);
     if(!this.composer)return;
     this.qualityEffects.value=enabled?1:0;this.atmosphere.enabled.value=enabled?1:0;
@@ -329,7 +378,7 @@ export class WorldView {
     if(e.type==='shot'){
       if(e.actor===playerId){const kick=WEAPONS[e.weapon]?.kick??(e.weapon==='scatter'?.125:e.weapon==='pistol'?.052:.063);this.recoil=Math.min(.23,this.recoil+kick);this.shotTimer=this.flashDuration=e.weapon==='scatter'?.065:.045;this.muzzle.material.uniforms.seed.value=Math.random()*100;this.muzzle.rotation.z=Math.random()*Math.PI*2;this.muzzle.scale.setScalar(muzzleScale(e.weapon)*(.85+Math.random()*.3));}
       const model=this.models.get(e.actor);if(model)this.characters.fire(model);
-      this.fx.shot(e,e.actor===playerId);
+      this.fx.shot(e,e.actor===playerId,this.quality==='low');
     }
     if(e.type==='detonate'){
       const p=new T.Vector3(e.origin.x,e.origin.y,e.origin.z);
@@ -348,7 +397,7 @@ export class WorldView {
     this.wetFloor.material.uniforms.time.value=time;
     let follow=null,player=null;
     if(state){
-      const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;this.sun.shadow.needsUpdate=this.settings.quality!=='low';}
+      const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;this.sun.shadow.needsUpdate=this.quality!=='low';}
       player=state.actors.find(a=>a.id===playerId);follow=state.actors.find(a=>a.id===(view.spectate||playerId))||player;
       const ids=new Set(state.actors.map(a=>a.id));for(const [id,model] of this.models)if(!ids.has(id)){this.characters.release(model);this.scene.remove(model);this.models.delete(id);}
       for(const a of state.actors){
@@ -398,18 +447,28 @@ export class WorldView {
       this.smoothPos=null;this.lastLook=null;this.camera.fov=65;this.camera.updateProjectionMatrix();this.camera.position.set(10.2+Math.sin(time*.07)*.4,3.4,4.6);this.camera.lookAt(1.5,1.2,-3);
     }
     const scoped=follow?.aim&&WEAPONS[follow.weapon].zoom>1&&!follow.reload&&!follow.switchTime;
-    const shadowCount=this.settings.quality==='high'?2:this.settings.quality==='medium'?1:0;
+    const quality=this.quality,shadowCount=quality==='high'?2:quality==='medium'?1:0;
     const nearby=[...this.localLights].sort((a,b)=>a.position.distanceToSquared(this.camera.position)-b.position.distanceToSquared(this.camera.position));
     for(const light of this.localLights)light.intensity=light.userData.baseIntensity;
+    if(!shadowCount){
+      // Fade near the selection boundary to limit abrupt lighting changes.
+      const cutoff=nearby[this.lowLights.length].position.distanceTo(this.camera.position);
+      this.lowLights.forEach((light,i)=>{
+        const source=nearby[i];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
+        const weight=T.MathUtils.smoothstep(cutoff-source.position.distanceTo(this.camera.position),0,4);
+        light.intensity=source.intensity*weight;
+      });
+    }
     this.localShadowLights.forEach((light,index)=>{
-      const source=nearby[index],enabled=index<shadowCount;
-      light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
-      light.intensity=enabled?source.intensity:0;light.shadow.intensity=enabled?1:0;light.shadow.autoUpdate=false;light.shadow.needsUpdate=enabled;light.userData.active=enabled;
-      if(enabled)source.intensity=0;
+      const enabled=index<shadowCount;
+      light.visible=enabled;light.shadow.intensity=enabled?1:0;light.shadow.needsUpdate=enabled;light.userData.active=enabled;
+      if(!enabled){light.intensity=0;return;}
+      const source=nearby[index];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);
+      light.intensity=source.intensity;source.intensity=0;
     });
     // needsUpdate is consumed by the first view, so reflections reuse the same
     // map. Keep weapon/local shadows responsive; cap the large sun map at 30/20 Hz.
-    const shadowsEnabled=this.settings.quality!=='low',sunInterval=1/(this.settings.quality==='high'?30:20);
+    const shadowsEnabled=quality!=='low',sunInterval=1/(quality==='high'?30:20);
     this.sunShadowElapsed+=Math.max(0,dt);
     if(shadowsEnabled&&this.sunShadowElapsed+1e-8>=sunInterval){
       this.sun.shadow.needsUpdate=true;this.sunShadowElapsed=Math.max(0,this.sunShadowElapsed-sunInterval*Math.floor((this.sunShadowElapsed+1e-8)/sunInterval));

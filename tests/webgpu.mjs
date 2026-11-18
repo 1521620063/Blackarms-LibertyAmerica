@@ -15,6 +15,16 @@ try{
   await page.goto(`${base}/?debug=1`);await waitForGame(page);
   const backends=await page.evaluate(()=>({main:window.__BLA.view.renderer.backend.isWebGPUBackend,preview:window.__BLA.weaponPreview.renderer.backend.isWebGPUBackend,contexts:window.__graphicsContexts}));
   assert.equal(backends.main,true);assert.equal(backends.preview,true);assert.ok(backends.contexts.includes('webgpu'));assert.ok(!backends.contexts.some(type=>/^webgl/.test(type)));
+  const qualityControl=page.locator('#settings-form select[name="quality"]');
+  assert.equal(await qualityControl.inputValue(),'auto','new players default to auto');
+  await page.evaluate(()=>localStorage.setItem('bla.settings',JSON.stringify({quality:'high',fov:93})));
+  await page.reload();await waitForGame(page);
+  assert.equal(await qualityControl.inputValue(),'auto','old saved quality migrates to auto');
+  assert.equal(await page.locator('#settings-form input[name="fov"]').inputValue(),'93','migration preserves other settings');
+  await page.locator('#open-settings').click();
+  await qualityControl.selectOption('medium');
+  await page.reload();await waitForGame(page);
+  assert.equal(await qualityControl.inputValue(),'medium','manual quality persists after migration');
   await page.screenshot({path:'artifacts/webgpu-menu.png'});
   await page.locator('#start-offline').click();await page.locator('#ready').click();await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   const qualities=await page.evaluate(async()=>{
@@ -33,7 +43,7 @@ try{
     v.makeGun('rifle');v.event({type:'shot',actor:g.playerId,weapon:'rifle',origin:{x:p.x,y:1.5,z:p.z},traces:[{end:{x:10,y:1,z:0},hit:false}]},g.playerId);
     v.render(g.state,g.playerId,1/240,21,{yaw:-Math.PI/2,pitch:0});return result;
   });
-  assert.deepEqual(qualities.map(q=>[q.samples,q.reflections,q.atmosphere,q.shadows]),[[0,false,0,0],[0,true,1,1],[0,true,1,2]]);
+  assert.deepEqual(qualities.map(q=>[q.samples,q.reflections,q.atmosphere,q.shadows]),[[0,false,0,0],[0,false,1,1],[0,true,1,2]]);
   const firing=await page.evaluate(()=>{
     const g=window.__BLA,v=g.view,p=g.state.actors.find(a=>a.id===g.playerId);
     const remote=g.state.actors.find(a=>a.id!==g.playerId&&a.alive);

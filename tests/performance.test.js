@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RenderPacer, renderPixelRatio, renderEffectScale } from '../frontend/src/visual/performance.js';
+import { AdaptiveQuality, RenderPacer, renderPixelRatio, renderEffectScale } from '../frontend/src/visual/performance.js';
 
 test('render cap keeps its cadence across common display refresh rates',()=>{
   for(const refresh of [60,120,144,165,240]){
@@ -46,7 +46,7 @@ test('fog and reflection budgets remain bounded at 1080p, 1440p and high display
 });
 
 test('quality pixel budgets bound render cost on high resolution displays',()=>{
-  const budgets={low:1280*720,medium:1920*1080,high:2560*1440};
+  const budgets={low:960*540,medium:1920*1080,high:2560*1440};
   for(const [width,height,dpr] of [[1280,720,1],[1920,1080,2],[3840,2160,2],[5120,1440,1]]){
     for(const [quality,budget] of Object.entries(budgets)){
       const scale=renderPixelRatio(width,height,dpr,quality);
@@ -58,4 +58,33 @@ test('quality pixel budgets bound render cost on high resolution displays',()=>{
   assert.equal(renderPixelRatio(2560,1440,1,'high'),1,'native resolution stays within the pixel budget');
   assert.equal(renderPixelRatio(1280,720,1,'medium'),1);
   assert.equal(renderPixelRatio(3840,2160,2,'medium'),.5);
+  assert.equal(renderPixelRatio(1920,1080,1,'low',2/3),1/3);
+});
+
+function samples(controller,now,frameMs,seconds,cap){
+  const end=now+seconds*1000;
+  for(;now<=end;now+=frameMs)controller.sample(now,cap);
+  return now;
+}
+
+test('auto quality quickly lowers resolution on sustained single-digit FPS',()=>{
+  const controller=new AdaptiveQuality();
+  assert.deepEqual(controller.profile,{quality:'low',resolution:1});
+  samples(controller,0,125,1,60);
+  assert.equal(controller.profile.resolution,2/3);
+});
+
+test('auto quality respects the frame cap, ignores pauses and backs off repeated upgrades',()=>{
+  const controller=new AdaptiveQuality();
+  let now=samples(controller,0,1000/30,9,30);
+  assert.equal(controller.profile.quality,'medium');
+  controller.resetSamples();
+  now=samples(controller,now+60000,1000/30,1,30);
+  assert.equal(controller.profile.quality,'medium');
+  now=samples(controller,now,50,3,30);
+  assert.equal(controller.profile.quality,'low');
+  now=samples(controller,now,1000/30,9,30);
+  assert.equal(controller.profile.quality,'low');
+  samples(controller,now,1000/30,9,30);
+  assert.equal(controller.profile.quality,'medium');
 });

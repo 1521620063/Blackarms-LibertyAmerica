@@ -12,8 +12,10 @@ class TransparentPassNode extends PassNode {
   constructor(scene,camera,options){
     super(PassNode.COLOR,scene,camera,options);
     this.clearColor=new Color();
+    this.isActive=()=>true;
   }
   updateBefore(frame){
+    if(!this.isActive())return;
     const {renderer}=frame;
     renderer.getClearColor(this.clearColor);
     const alpha=renderer.getClearAlpha(),autoClear=renderer.autoClear;

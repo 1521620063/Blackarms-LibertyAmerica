@@ -5,7 +5,7 @@ import { RULES, WEAPONS, WEAPON_ORDER, PRIMARY_WEAPONS, ARMOR, DIFFICULTY, BOXES
 import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
-import { RenderPacer } from './visual/performance.js';
+import { AdaptiveQuality, RenderPacer } from './visual/performance.js';
 import { NetworkMovement } from './game/netcode.js';
 import { SIMULATION_STEP } from './game/movement.js';
 
@@ -13,11 +13,13 @@ const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
 const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=value;};
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const params=new URLSearchParams(location.search),debug=params.has('debug');
-const defaults={sensitivity:1,fov:85,quality:'high',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:true};
+const defaults={sensitivity:1,fov:85,quality:'auto',maxFPS:60,volume:.65,subtitles:true,crosshair:true,colorblind:false,showFPS:true};
+const qualityPreferenceVersion=1;
 const saved=readPreferences('bla.settings');
 const settings={...defaults,...Object.fromEntries(Object.keys(defaults).filter(k=>typeof saved[k]===typeof defaults[k]).map(k=>[k,saved[k]]))};
 settings.sensitivity=clamp(settings.sensitivity,.4,3);settings.fov=clamp(settings.fov,65,110);settings.volume=clamp(settings.volume,0,1);
-if(!['low','medium','high'].includes(settings.quality))settings.quality=defaults.quality;
+// Older saves include the old default even when the player never chose a preset.
+if(saved.qualityVersion!==qualityPreferenceVersion||!['auto','low','medium','high'].includes(settings.quality))settings.quality=defaults.quality;
 if(![0,30,60,90,120,144].includes(settings.maxFPS))settings.maxFPS=60;
 const renderPacer=new RenderPacer();
 const config={mode:'elimination',teamSize:3,difficulty:'normal',primary:'rifle',armor:'light'};
@@ -62,7 +64,7 @@ $('throwable-previews').innerHTML=WEAPON_ORDER.filter(type=>WEAPONS[type].throwa
 for(const b of document.querySelectorAll('[data-inspect]'))b.onclick=()=>inspectWeapon(b.dataset.inspect);
 $('weapon-slots').innerHTML=WEAPON_ORDER.map((type,i)=>`<span data-slot="${type}"><kbd>${(i+1)%10}</kbd>${WEAPONS[type].short}<small></small></span>`).join('');
 inspectWeapon(config.primary);
-function safeStore(){try{localStorage.setItem('bla.settings',JSON.stringify(settings));}catch{}}
+function safeStore(){try{localStorage.setItem('bla.settings',JSON.stringify({...settings,qualityVersion:qualityPreferenceVersion}));}catch{}}
 function applySettings(){
   document.body.classList.toggle('colorblind',settings.colorblind);
   for(const k of ['sensitivity','fov','volume'])text(`${k}-output`,k==='volume'?`${Math.round(settings[k]*100)}%`:k==='fov'?`${settings[k]}°`:settings[k].toFixed(1));
@@ -71,7 +73,12 @@ function applySettings(){
 for(const [key,value] of Object.entries(settings)){
   const el=$('settings-form').elements.namedItem(key);if(!el)continue;
   if(el.type==='checkbox')el.checked=value;else el.value=value;
-  el.addEventListener('input',()=>{settings[key]=el.type==='checkbox'?el.checked:el.type==='range'||key==='maxFPS'?+el.value:el.value;applySettings();});
+  el.addEventListener('input',()=>{
+    const previous=settings[key];settings[key]=el.type==='checkbox'?el.checked:el.type==='range'||key==='maxFPS'?+el.value:el.value;
+    if(key==='quality'&&previous!==settings.quality&&settings.quality==='auto')view.adaptiveQuality=new AdaptiveQuality();
+    if(key==='maxFPS')view.adaptiveQuality.resetSamples();
+    applySettings();
+  });
 }
 applySettings();
 function openSettings(){if(active)pauseGame();$('settings').showModal();}
@@ -335,6 +342,7 @@ function renderHUD(now){
   while(feed[0]?.until<now)feed.shift();const html=feed.slice(-5).map(f=>`<div class="kill-entry">${escape(f.killer)}<b>${f.weak?'◇':'╾━'}</b>${escape(f.victim)}</div>`).join('');if($('kill-feed').innerHTML!==html)$('kill-feed').innerHTML=html;
   if(!$('scoreboard').hidden)renderBoard();mapDraw(me);
 }
+document.addEventListener('visibilitychange',()=>view.adaptiveQuality.resetSamples());
 function frame(now){
   const dt=Math.min((now-lastTime)/1000,.1);lastTime=now;
   if(now-fpsAt>=1000){fps=frames*1000/(now-fpsAt);frames=0;fpsAt=now;text('fps',settings.showFPS?`${Math.round(fps)} FPS · ${view.renderer.info.render.drawCalls} calls`:'');}
@@ -358,13 +366,18 @@ function frame(now){
   hit=Math.max(0,hit-dt*5);damage=Math.max(0,damage-dt*.55);$('hitmarker').style.opacity=hit;$('damage-overlay').style.opacity=damage;$('damage-direction').style.opacity=damage;
   if(now-lastAnnouncement>2500)$('announcement').classList.remove('visible');if(now>radioUntil)text('radio','');
   const idle=!active||paused||!!document.querySelector('dialog[open]');
+  const adapting=settings.quality==='auto'&&!idle&&!document.hidden&&state?.phase==='combat';
+  if(!adapting&&view.adaptiveQuality.start!==null)view.adaptiveQuality.resetSamples();
   const rate=idle?Math.min(settings.maxFPS||60,active?15:30):settings.maxFPS;
   const renderDt=renderPacer.tick(now,rate,!document.hidden);
   if(renderDt===null)return;
   const me=state?.actors.find(a=>a.id===playerId);const camera=me?.alive?{yaw:inputYaw,pitch:inputPitch}:{spectate};
   camera.networkSmoothed=online;
   const renderState=active&&online?networkMovement.render(state,now,Math.min(renderDt,.1),{input:getInput(),remainder:accumulator}):state;
-  try{view.render(active?renderState:null,playerId,Math.min(renderDt,.1),now/1000,camera);frames++;}catch(error){fatal(error);return;}
+  try{
+    view.render(active?renderState:null,playerId,renderDt,now/1000,camera);frames++;
+    if(adapting&&view.adaptiveQuality.sample(now,settings.maxFPS))view.resize();
+  }catch(error){fatal(error);return;}
 }
 view.ready.then(async()=>{
   weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;

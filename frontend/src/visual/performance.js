@@ -23,8 +23,40 @@ export function renderEffectScale(width,height,quality,maxScale=1/4){
   return Math.min(maxScale,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))));
 }
 
-export function renderPixelRatio(width,height,deviceRatio,quality){
-  const cap=quality==='low'?.8:quality==='high'?1.75:1.25;
-  const pixels=quality==='low'?1280*720:quality==='high'?2560*1440:1920*1080;
-  return Math.min(deviceRatio,cap,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))));
+export function renderPixelRatio(width,height,deviceRatio,quality,resolution=1){
+  const cap=quality==='low'?.75:quality==='high'?1.75:1.25;
+  const pixels=quality==='low'?960*540:quality==='high'?2560*1440:1920*1080;
+  return Math.min(deviceRatio,cap,Math.sqrt(pixels/(Math.max(1,width)*Math.max(1,height))))*resolution;
+}
+
+const autoProfiles=[
+  {quality:'low',resolution:2/3},
+  {quality:'low',resolution:.8},
+  {quality:'low',resolution:1},
+  {quality:'medium',resolution:1},
+  {quality:'high',resolution:1},
+];
+
+// Measure delivered frames, not the CPU cost of submitting GPU commands.
+export class AdaptiveQuality {
+  constructor(){this.level=2;this.backoff=8;this.resetSamples();}
+  get profile(){return autoProfiles[this.level];}
+  resetSamples(){this.start=null;this.frames=0;this.stable=0;this.slow=0;}
+  sample(now,maxFPS){
+    if(this.start===null){this.start=now;return false;}
+    this.frames++;
+    const elapsed=now-this.start;
+    if(elapsed<1000)return false;
+    const fps=this.frames*1000/elapsed,target=Math.min(maxFPS||60,60);
+    this.start=now;this.frames=0;
+    this.slow=fps<target*.78?this.slow+1:0;
+    this.stable=fps>=target*.95?this.stable+elapsed/1000:0;
+    let next=this.level;
+    if(fps<target*.5)next=Math.max(0,this.level-2);
+    else if(this.slow>=2)next=Math.max(0,this.level-1);
+    else if(this.stable>=this.backoff)next=Math.min(autoProfiles.length-1,this.level+1);
+    if(next===this.level)return false;
+    if(next<this.level)this.backoff=Math.min(120,this.backoff*2);
+    this.level=next;this.resetSamples();return true;
+  }
 }
