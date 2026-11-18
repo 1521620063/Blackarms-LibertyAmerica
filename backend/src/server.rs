@@ -112,6 +112,24 @@ impl Hub {
     fn roster(&self, room: &Room) -> Value {
         json!({"type":"lobby","code":room.code,"host":room.host,"config":room.config,"players":room.members.iter().filter_map(|id|self.peers.get(id).map(|p|&p.human)).collect::<Vec<_>>(),"started":room.game.is_some()})
     }
+    fn room_list(&self) -> Value {
+        let mut rooms = self.rooms.values().collect::<Vec<_>>();
+        rooms.sort_by_key(|room| {
+            (
+                room.members.len() >= room.config.team_size * 2,
+                room.game.is_some(),
+            )
+        });
+        json!({"type":"rooms","rooms":rooms.iter().map(|room| json!({
+            "code":room.code,
+            "hostName":self.peers[&room.host].human.name,
+            "mode":room.config.mode,
+            "teamSize":room.config.team_size,
+            "players":room.members.len(),
+            "capacity":room.config.team_size * 2,
+            "phase":room.game.as_ref().map_or("lobby", |game| game.phase.as_str()),
+        })).collect::<Vec<_>>()})
+    }
     fn snapshot(&self, room: &Room) -> Value {
         let mut v = room.game.as_ref().unwrap().snapshot();
         v["session"] = json!(room.session);
@@ -161,6 +179,10 @@ impl Hub {
             self.send(id, json!({"type":"pong","sent":msg["sent"]}));
             return Ok(());
         }
+        if kind == "list" {
+            self.send(id, self.room_list());
+            return Ok(());
+        }
         if kind == "leave" {
             self.leave(id);
             return Ok(());
@@ -183,9 +205,6 @@ impl Hub {
                     .rooms
                     .get(&code)
                     .ok_or("房间不存在，请检查房间码和服务器地址")?;
-                if room.game.is_some() {
-                    return Err("比赛已开始，请等待本场比赛结束");
-                }
                 if self.peers.get(id).and_then(|p| p.code.as_deref()) == Some(code.as_str()) {
                     self.send(id, self.roster(room));
                     return Ok(());
@@ -229,12 +248,28 @@ impl Hub {
             } else {
                 name
             };
-            p.human.squad = if count0 <= count1 { 0 } else { 1 };
+            p.human.squad = room
+                .game
+                .as_ref()
+                .and_then(|game| game.actors.iter().find(|a| a.bot && a.id == id))
+                .map_or(if count0 <= count1 { 0 } else { 1 }, |a| a.squad);
             p.human.primary = room.config.primary.clone();
             p.human.armor = room.config.armor.clone();
             p.queue = InputQueue::default();
+            if let Some(game) = &mut room.game {
+                game.take_over_bot(&p.human);
+                let actor = game.actors.iter().find(|a| a.id == id).unwrap();
+                p.human.primary.clone_from(&actor.primary);
+                p.human.armor.clone_from(&actor.armor);
+            }
             room.members.push(id.into());
             self.broadcast(&room, self.roster(&room));
+            if room.game.is_some() {
+                self.send(
+                    id,
+                    json!({"type":"started","state":self.snapshot(&room),"lateJoin":true}),
+                );
+            }
             self.rooms.insert(code, room);
             return Ok(());
         }

@@ -103,6 +103,68 @@ fn five_vs_five_limits_teams_and_room_capacity() {
 }
 
 #[test]
+fn room_list_and_bot_takeover_preserve_a_running_match() {
+    let mut hub = hub_with_peers(&["host", "guest", "extra"]);
+    assert_eq!(hub.room_list()["rooms"], json!([]));
+    hub.message(
+        "host",
+        &json!({"type":"create","config":{"teamSize":1,"mode":"core"}}),
+    )
+    .unwrap();
+    let code = hub.peers["host"].code.clone().unwrap();
+    let (tx, mut rx) = mpsc::channel(8);
+    hub.peers.get_mut("guest").unwrap().tx = tx;
+    hub.message("guest", &json!({"type":"list"})).unwrap();
+    let list: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+    assert_eq!(
+        list,
+        json!({"type":"rooms","rooms":[{"code":code,"hostName":"先锋","phase":"lobby","players":1,"capacity":2,"mode":"core","teamSize":1}]})
+    );
+
+    hub.message("host", &json!({"type":"start"})).unwrap();
+    let room = hub.rooms.get_mut(&code).unwrap();
+    let session = room.session.clone();
+    let game = room.game.as_mut().unwrap();
+    game.phase = "combat".into();
+    game.round = 2;
+    game.scores = [1, 0];
+    game.remaining = 30.0;
+    let bot = game.actors.iter_mut().find(|a| a.bot).unwrap();
+    bot.hp = 45.0;
+    bot.kills = 2;
+    game.core.carrier = Some(bot.id.clone());
+
+    assert_eq!(hub.room_list()["rooms"][0]["phase"], "combat");
+    hub.message("guest", &json!({"type":"join","code":code,"name":"Guest"}))
+        .unwrap();
+    let lobby: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+    assert_eq!(lobby["type"], "lobby");
+    let start: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+    assert_eq!(start["type"], "started");
+    assert_eq!(start["lateJoin"], true);
+    assert_eq!(start["state"]["session"], session);
+    assert_eq!(start["state"]["scores"], json!([1, 0]));
+    assert_eq!(start["state"]["round"], 2);
+    assert_eq!(start["state"]["remaining"], 30.0);
+    assert_eq!(start["state"]["core"]["carrier"], "guest");
+    let guest = &start["state"]["actors"][1];
+    assert_eq!(guest["id"], "guest");
+    assert_eq!(guest["bot"], false);
+    assert_eq!(guest["hp"], 45.0);
+    assert_eq!(guest["kills"], 0);
+    assert_eq!(hub.room_list()["rooms"][0]["players"], 2);
+    assert_eq!(
+        hub.message("extra", &json!({"type":"join","code":code})),
+        Err("房间已满")
+    );
+    hub.remove("guest");
+    assert!(hub.rooms[&code].game.as_ref().unwrap().actors[1].bot);
+    assert_eq!(hub.room_list()["rooms"][0]["players"], 1);
+    hub.remove("host");
+    assert_eq!(hub.room_list()["rooms"], json!([]));
+}
+
+#[test]
 fn heartbeats_do_not_keep_abandoned_inputs_active() {
     let mut hub = hub_with_peers(&["host"]);
     hub.message("host", &json!({"type":"create","config":{"teamSize":1}}))

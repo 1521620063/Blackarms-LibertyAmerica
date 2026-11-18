@@ -7,6 +7,7 @@
 <style>html{background:#101715;color-scheme:dark}</style>
 <link rel="stylesheet" href="/src/style.css">
 <link rel="stylesheet" href="/src/weapons.css">
+<link rel="stylesheet" href="/src/room-browser.css">
 </head>
 <body>
 <canvas id="view" aria-label="零号设施游戏画面"></canvas>
@@ -57,7 +58,28 @@
 <div id="result" class="screen-overlay" hidden><div class="result-card"><small id="result-kicker" class="eyebrow">ROUND COMPLETE</small><h2 id="result-title">回合胜利</h2><p id="result-reason"></p><div class="result-scores"><span>ALPHA <b id="result-alpha">0</b></span><i>:</i><span><b id="result-bravo">0</b> BRAVO</span></div><div id="result-stats"></div><div id="result-actions"><button id="restart" class="primary">再次行动 <span>↗</span></button><button id="result-menu" class="secondary">返回主菜单</button></div><p id="next-round"></p></div></div>
 <div id="scoreboard" class="screen-overlay" hidden><div class="board-card"><div class="panel-top"><span>战术记分板</span><small>TAB / 松开关闭</small></div><div id="board-content"></div></div></div>
 <dialog id="settings"><div class="dialog-header"><span>系统设置 <small>SETTINGS</small></span><button class="close-dialog" aria-label="关闭设置">×</button></div><form id="settings-form"><label>鼠标灵敏度 <output id="sensitivity-output"></output><input name="sensitivity" type="range" min="0.4" max="3" step="0.1"></label><label>视野角度 <output id="fov-output"></output><input name="fov" type="range" min="65" max="110" step="1"></label><label>画面质量<select name="quality"><option value="auto">自动 · 推荐</option><option value="low">性能优先</option><option value="medium">均衡</option><option value="high">高画质</option></select></label><label>帧率上限<select name="maxFPS"><option value="30">30 FPS · 节能</option><option value="60">60 FPS · 推荐</option><option value="90">90 FPS</option><option value="120">120 FPS</option><option value="144">144 FPS</option><option value="0">不限</option></select></label><label>总音量 <output id="volume-output"></output><input name="volume" type="range" min="0" max="1" step="0.05"></label><label class="checkbox-label"><input name="subtitles" type="checkbox">战术字幕</label><label class="checkbox-label"><input name="crosshair" type="checkbox">显示准星</label><label class="checkbox-label"><input name="colorblind" type="checkbox">色盲辅助 · 阵营符号</label><label class="checkbox-label"><input name="showFPS" type="checkbox">显示帧率</label><button type="button" id="fullscreen" class="secondary wide">切换全屏</button><p class="muted">设置自动保存在当前浏览器。ESC 关闭设置。</p></form></dialog>
-<dialog id="lan-dialog"><div class="dialog-header"><span>联机房间 <small>ONLINE OPERATIONS</small></span><button class="close-dialog" aria-label="关闭房间">×</button></div><div id="lan-connect"><p class="muted" id="network-help">同一局域网的玩家访问相同服务器，再输入房间码；公网模式可邀请异地玩家。</p><label>连接模式<select id="network-mode"><option value="lan">局域网联机</option><option value="public">公网联机</option></select></label><label>房间服务器<input id="backend-address" placeholder="留空使用当前网站服务器" autocomplete="url" spellcheck="false"></label><label>呼号<input id="player-name" value="先锋" maxlength="18" autocomplete="nickname"></label><button id="create-room" class="primary wide">创建房间 <span>＋</span></button><div class="or-line">或加入现有房间</div><label>六位房间码<input id="room-code" maxlength="6" placeholder="例如 A1B2C3" autocomplete="off"></label><button id="join-room" class="secondary wide">加入房间 →</button></div><div id="lan-lobby" hidden><small class="muted">房间码 · 分享给队友</small><div id="lobby-code"></div><p id="lobby-config" class="muted"></p><div id="lobby-players"></div><div class="segments"><button id="join-alpha">加入 ALPHA</button><button id="join-bravo">加入 BRAVO</button></div><button id="launch-room" class="primary wide">开始比赛 <span>↗</span></button><button id="leave-room" class="text-button wide">离开房间</button></div><p id="lan-message" role="status"></p></dialog>
+<dialog id="lan-dialog">
+  <div class="dialog-header"><span>联机房间 <small>ONLINE OPERATIONS</small></span><button class="close-dialog" aria-label="关闭房间">×</button></div>
+  <div id="lan-connect">
+    <p class="muted" id="network-help"></p>
+    <label>连接模式<select id="network-mode"><option value="lan">局域网联机</option><option value="public">公网联机</option></select></label>
+    <label>房间服务器<input id="backend-address" placeholder="留空使用当前网站服务器" autocomplete="url" spellcheck="false"></label>
+    <label>呼号<input id="player-name" value="先锋" maxlength="18" autocomplete="nickname"></label>
+    <button id="create-room" class="primary wide">创建房间 <span>＋</span></button>
+    <section class="room-browser" aria-labelledby="room-list-heading">
+      <div class="room-browser-header"><h2 id="room-list-heading">房间列表</h2><button id="refresh-rooms" class="secondary" title="刷新房间列表" aria-label="刷新房间列表">↻</button></div>
+      <p id="room-list-status" class="muted" role="status"></p>
+      <ul id="room-list" class="room-list" aria-label="服务器房间"></ul>
+    </section>
+    <details class="room-code-entry">
+      <summary>使用房间码加入</summary>
+      <label>六位房间码<input id="room-code" maxlength="6" placeholder="例如 A1B2C3" autocomplete="off"></label>
+      <button id="join-room" class="secondary wide">加入房间 →</button>
+    </details>
+  </div>
+  <div id="lan-lobby" hidden><small class="muted">房间码 · 分享给队友</small><div id="lobby-code"></div><p id="lobby-config" class="muted"></p><div id="lobby-players"></div><div class="segments"><button id="join-alpha">加入 ALPHA</button><button id="join-bravo">加入 BRAVO</button></div><button id="launch-room" class="primary wide">开始比赛 <span>↗</span></button><button id="leave-room" class="text-button wide">离开房间</button></div>
+  <p id="lan-message" role="status"></p>
+</dialog>
 <script src="/config.js"></script>
 <script type="module" src="/src/main.js"></script>
 </body></html>

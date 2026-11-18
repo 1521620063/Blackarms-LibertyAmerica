@@ -13,7 +13,8 @@ export function buildBackend(){
 // Used only by development tooling and tests. Deployment runs the Rust executable directly.
 export async function startBackend({port=3000,host,mode='local',allowedOrigins=[],log=false}={}){
   await buildBackend();
-  const executable=resolve(backendRoot,'target','debug',`blackarms-backend${process.platform==='win32'?'.exe':''}`);
+  const targetDir=process.env.CARGO_TARGET_DIR?resolve(backendRoot,process.env.CARGO_TARGET_DIR):resolve(backendRoot,'target');
+  const executable=resolve(targetDir,'debug',`blackarms-backend${process.platform==='win32'?'.exe':''}`);
   const env={...process.env,APP_MODE:mode,PORT:String(port),...(host?{HOST:host}:{}),ALLOWED_ORIGINS:allowedOrigins.join(',')};
   const child=spawn(executable,[],{cwd:backendRoot,env,stdio:['ignore','pipe','pipe']});
   let output='',errors='';child.stderr.on('data',data=>{errors+=data;if(log)process.stderr.write(data);});

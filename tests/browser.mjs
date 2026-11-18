@@ -90,7 +90,9 @@ try {
   });
   const guest=await context.newPage();guest.on('pageerror',e=>errors.push(e.message));await guest.goto(`${base}/?debug=1`);await waitForGame(guest);
   await page.locator('#open-lan').click();await page.locator('#create-room').click();await page.waitForSelector('#lobby-code:not(:empty)');
-  const code=await page.locator('#lobby-code').textContent();await guest.locator('#open-lan').click();await guest.locator('#room-code').fill(code);await guest.locator('#join-room').click();
+  const code=await page.locator('#lobby-code').textContent();await guest.locator('#open-lan').click();
+  const listedRoom=guest.locator('#room-list li').filter({hasText:code});
+  await listedRoom.getByRole('button',{name:'加入',exact:true}).click();
   await guest.waitForSelector('#lobby-code:not(:empty)');await page.waitForFunction(()=>document.querySelectorAll('.lobby-player').length===2);
   await guest.locator('#join-bravo').click();await page.locator('#launch-room').click();
   await page.waitForFunction(()=>window.__BLA.state?.actors.some(a=>!a.bot&&a.squad===1));await guest.waitForFunction(()=>window.__BLA.state?.phase==='preparation');
@@ -122,6 +124,21 @@ try {
     return Math.hypot(p.x-a.x,p.z-a.z)<.03;
   });
   await page.screenshot({path:'artifacts/lan.png'});await guest.close();await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===1);
+  const currentMatch=await page.evaluate(()=>({session:window.__BLA.state.session,round:window.__BLA.state.round}));
+  const late=await context.newPage({viewport:{width:390,height:720}});late.on('pageerror',e=>errors.push(e.message));
+  await late.goto(`${base}/?debug=1`);await waitForGame(late);await late.locator('#open-lan').click();
+  const activeRoom=late.locator('#room-list li').filter({hasText:code});
+  await activeRoom.getByText('战斗阶段',{exact:true}).waitFor();
+  await activeRoom.scrollIntoViewIfNeeded();
+  assert.ok(await activeRoom.evaluate(row=>row.scrollWidth<=row.clientWidth),'the room row fits a narrow viewport');
+  await late.screenshot({path:'artifacts/room-list-390.png'});
+  await activeRoom.getByRole('button',{name:'加入',exact:true}).click();
+  await late.waitForFunction(({session,round})=>{
+    const g=window.__BLA;return g.state?.session===session&&g.state.round===round&&g.state.actors.some(a=>!a.bot&&a.id===g.playerId);
+  },currentMatch);
+  await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===2);
+  await late.close();await page.waitForFunction(()=>window.__BLA.state.actors.filter(a=>!a.bot).length===1);
+  await page.bringToFront();
   await page.evaluate(()=>document.querySelector('#view').requestPointerLock());
   await page.waitForFunction(()=>!!document.pointerLockElement);
   connections[0].upstream.close();connections[0].route.close();
@@ -135,6 +152,6 @@ try {
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.__BLA.errors),[]);
   await page.setViewportSize({width:1280,height:720});await page.locator('#quit').click();await page.screenshot({path:'artifacts/menu-720p.png'});
   await page.locator('#start-offline').click();assert.equal(await page.locator('#resume').isDisabled(),false,'offline play works after leaving a disconnected match');
-  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['null stored preferences do not prevent startup','disconnect releases pointer lock and cannot be resumed','offline play after disconnect','menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients with 120 ms round trip','local keyboard and camera prediction before server input delivery','acknowledged movement reconciliation','disconnect bot takeover']},null,2));
+  writeFileSync('artifacts/browser-report.json',JSON.stringify({passed:true,errors,screenshots:['menu','combat','result','lan','menu-720p'],checks:['null stored preferences do not prevent startup','disconnect releases pointer lock and cannot be resumed','offline play after disconnect','menu/loadout','mouse look up/down and shot alignment','movement','firing','team orders','scoreboard','offline pause','settings persistence','spectate','match result','two browser LAN clients with 120 ms round trip','room list and late join into the same match','local keyboard and camera prediction before server input delivery','acknowledged movement reconciliation','disconnect bot takeover']},null,2));
   console.log('Browser acceptance passed: menu, combat, results, persistence and two-client LAN. Screenshots: artifacts/');
 } finally {await browser?.close();await app.close();}

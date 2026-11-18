@@ -325,6 +325,43 @@ impl Match {
     pub fn snapshot(&self) -> Value {
         serde_json::to_value(self).unwrap()
     }
+    pub fn take_over_bot(&mut self, human: &Human) {
+        let actor = self
+            .actors
+            .iter_mut()
+            .filter(|a| a.bot && a.squad == human.squad)
+            .min_by_key(|a| (a.id != human.id, !a.alive))
+            .expect("a free team slot must have an AI actor");
+        let old_id = std::mem::replace(&mut actor.id, human.id.clone());
+        actor.name.clone_from(&human.name);
+        actor.bot = false;
+        actor.ready = false;
+        actor.waiting = false;
+        actor.input = Input::default();
+        actor.last = Input::default();
+        actor.kills = 0;
+        actor.deaths = 0;
+        actor.damage = 0.0;
+        actor.contribution = 0;
+        actor.headshots = 0;
+
+        // Preserve the slot's role and any action already in progress.
+        for id in [&mut self.core.carrier, &mut self.core.interactor] {
+            if id.as_ref() == Some(&old_id) {
+                *id = Some(human.id.clone());
+            }
+        }
+        for projectile in &mut self.projectiles {
+            if projectile.actor == old_id {
+                projectile.actor.clone_from(&human.id);
+            }
+        }
+        for a in &mut self.actors {
+            if a.target.as_ref() == Some(&old_id) {
+                a.target = Some(human.id.clone());
+            }
+        }
+    }
     fn reset_round(&mut self) {
         self.projectiles.clear();
         self.smokes.clear();

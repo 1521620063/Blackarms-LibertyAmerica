@@ -107,8 +107,8 @@ function pauseGame(){
   $('resume').disabled=disconnected;
   text('pause-title',disconnected?'连接已断开':online?'行动仍在进行':'行动暂停');text('pause-desc',disconnected?'请返回主菜单，重新连接房间。':online?'联机比赛继续运行，点击继续返回战场。':'调整呼吸，重新投入战斗。');show('pause',true);
 }
-function enterGame(nextState,isOnline){
-  state=nextState;online=isOnline;active=true;paused=false;lastEvent=0;lastRound='';lastPhase='';spectate=null;accumulator=0;feed.length=0;clearInput();
+function enterGame(nextState,isOnline,lateJoin=false){
+  state=nextState;online=isOnline;active=true;paused=false;lastEvent=lateJoin?(nextState.events.at(-1)?.id??0):0;lastRound='';lastPhase='';spectate=null;accumulator=0;feed.length=0;clearInput();
   const a=state.actors.find(a=>a.id===playerId);inputYaw=a.yaw;inputPitch=0;
   networkMovement=isOnline?new NetworkMovement(playerId):null;
   networkMovement?.receive(state,performance.now());lastNetwork=0;
@@ -186,34 +186,87 @@ $('network-mode').value=networkMode;
 function updateConnectionMode(){
   networkMode=$('network-mode').value;
   $('backend-address').value=typeof connectionSettings[networkMode]==='string'?connectionSettings[networkMode]:configuredBackend;
-  text('network-help',networkMode==='public'?'异地玩家连接同一个公网房间服务器，分享房间码即可加入。':'局域网玩家访问同一个房间服务器，分享房间码即可加入。');
+  text('network-help',networkMode==='public'?'公网房间服务器':'局域网房间服务器');
 }
-$('network-mode').onchange=updateConnectionMode;updateConnectionMode();
+updateConnectionMode();
+let connecting=null;
+const selectedRoomServer=()=>roomServerUrl($('backend-address').value.trim(),location.href);
 function send(message){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));}
-async function connect(){
-  const url=roomServerUrl($('backend-address').value.trim(),location.href);
+async function connect(url){
   if(socket?.readyState===WebSocket.OPEN&&socket.url===url&&networkId){playerId=networkId;return;}
-  if(socket){socket.onclose=null;socket.close();}networkId=null;
-  await new Promise((resolve,reject)=>{
+  if(connecting?.url===url)return connecting.promise;
+  if(socket)socket.close();networkId=null;
+  const mode=networkMode,address=$('backend-address').value.trim();
+  const promise=new Promise((resolve,reject)=>{
     const current=new WebSocket(url);socket=current;
     const timer=setTimeout(()=>{current.close();reject(new Error('房间服务器连接超时，请检查连接地址。'));},8000);
     current.onerror=()=>{clearTimeout(timer);reject(new Error('无法连接房间服务，请检查后台是否启动及连接地址是否正确。'));};
-    current.onclose=()=>{clearTimeout(timer);reject(new Error('房间服务已断开，请重试。'));if(socket!==current)return;networkId=null;lobby=null;if(active&&online)pauseGame();else text('lan-message','房间服务已断开，请重试。');};
+    current.onclose=()=>{clearTimeout(timer);reject(new Error('房间服务已断开，请重试。'));if(socket!==current)return;networkId=null;lobby=null;if(active&&online)pauseGame();else if(listVisible()&&current.url===roomListServer){clearRoomList('房间服务已断开');}else text('lan-message','房间服务已断开，请重试。');};
     current.onmessage=e=>{
       if(socket!==current)return;
       let m;try{m=JSON.parse(e.data);}catch{return;}
       if(!m||typeof m!=='object')return;
-      if(m.type==='hello'&&typeof m.id==='string'&&m.id){networkId=m.id;playerId=m.id;clearTimeout(timer);connectionSettings[networkMode]=$('backend-address').value.trim();try{localStorage.setItem('bla.connections',JSON.stringify(connectionSettings));}catch{}resolve();}
-      if(m.type==='error'){text('lan-message',m.message);radio(m.message,'房间');}
+      if(m.type==='hello'&&typeof m.id==='string'&&m.id){networkId=m.id;playerId=m.id;clearTimeout(timer);connectionSettings[mode]=address;try{localStorage.setItem('bla.connections',JSON.stringify(connectionSettings));}catch{}resolve();}
+      if(m.type==='rooms'&&listVisible()&&current.url===roomListServer&&Array.isArray(m.rooms))renderRoomList(m.rooms);
+      if(m.type==='error'){text('lan-message',m.message);radio(m.message,'房间');if(listVisible()&&roomListTimer&&m.message==='请先创建或加入房间'){clearRoomList('当前服务器不支持房间列表');}}
       if(m.type==='pong')ping=Math.max(0,Math.round(performance.now()-m.sent));
-      if(m.type==='lobby'&&($('lan-dialog').open||(active&&online))){lobby=m;renderLobby();}
-      if(m.type==='started'&&lobby){match=null;enterGame(m.state,true);}
+      if(m.type==='lobby'){
+        if($('lan-dialog').open||lobby||(active&&online)){lobby=m;renderLobby();}
+        else send({type:'leave'});
+      }
+      if(m.type==='started'&&lobby){match=null;enterGame(m.state,true,m.lateJoin);}
       if(m.type==='state'&&active&&online){state=m.state;networkMovement.receive(state,performance.now());}
     };
   });
+  connecting={url,promise};
+  try{await promise;}finally{if(connecting?.promise===promise)connecting=null;}
 }
+const listVisible=()=>$('lan-dialog').open&&!lobby;
+let roomListServer=null,roomListTimer=null,roomListVersion=0,roomListHtml='';
+function stopRoomListRequest(){clearTimeout(roomListTimer);roomListTimer=null;}
+function clearRoomList(status=''){
+  stopRoomListRequest();roomListServer=null;roomListVersion++;roomListHtml='';
+  $('room-list').replaceChildren();text('room-list-status',status);
+}
+function renderRoomList(rooms){
+  stopRoomListRequest();
+  const html=rooms.filter(r=>r&&/^[A-F0-9]{6}$/.test(r.code)).map(r=>{
+    const full=r.players>=r.capacity,phase=r.phase==='lobby'?'等待开赛':PHASES[r.phase]||'进行中';
+    return `<li><div><strong>${escape(r.hostName)}的房间</strong><small>${r.mode==='core'?'数据核心攻防':'团队歼灭'} · ${escape(r.teamSize)}v${escape(r.teamSize)} · ${escape(r.code)}</small></div><div class="room-occupancy"><span>${escape(r.players)}/${escape(r.capacity)}</span><small>${phase}</small></div><button class="secondary" data-room-code="${escape(r.code)}" ${full?'disabled':''}>${full?'已满':'加入'}</button></li>`;
+  }).join('');
+  if(html!==roomListHtml){
+    const focused=document.activeElement?.dataset.roomCode;
+    $('room-list').innerHTML=roomListHtml=html;
+    if(focused)$('room-list').querySelector(`button[data-room-code="${CSS.escape(focused)}"]:not(:disabled)`)?.focus({preventScroll:true});
+  }
+  text('room-list-status',rooms.length?`共 ${rooms.length} 个房间`:'暂无房间');
+}
+async function refreshRooms(manual=false){
+  if(!listVisible()||roomActionPending||(!manual&&(roomListTimer||!roomListServer||!networkId)))return;
+  const version=++roomListVersion;
+  stopRoomListRequest();
+  if(manual)text('room-list-status','正在查询房间…');
+  try{
+    const url=selectedRoomServer();
+    await connect(url);
+    if(!listVisible()||version!==roomListVersion||roomActionPending||selectedRoomServer()!==url)return;
+    roomListServer=url;
+    roomListTimer=setTimeout(()=>clearRoomList('房间列表未响应，请刷新重试'),5000);
+    send({type:'list'});
+  }catch(e){if(version===roomListVersion&&listVisible())clearRoomList(e.message);}
+}
+function connectionChanged(){
+  clearRoomList();text('lan-message','');refreshRooms(true);
+}
+$('network-mode').onchange=()=>{updateConnectionMode();connectionChanged();};
+$('backend-address').oninput=()=>{clearRoomList('地址已更改');text('lan-message','');};
+$('backend-address').onchange=connectionChanged;
+$('refresh-rooms').onclick=()=>refreshRooms(true);
+$('room-list').onclick=e=>{const code=e.target.closest('button[data-room-code]')?.dataset.roomCode;if(code)roomAction({type:'join',code,name:$('player-name').value});};
+$('lan-dialog').addEventListener('close',()=>{if(!$('lan-dialog').open)clearRoomList();});
+setInterval(refreshRooms,4000);
 function renderLobby(){
-  if(!lobby)return;show('lan-connect',false);show('lan-lobby',true);text('lobby-code',lobby.code);
+  if(!lobby)return;clearRoomList();show('lan-connect',false);show('lan-lobby',true);text('lobby-code',lobby.code);
   text('lobby-config',`${lobby.config.mode==='core'?'数据核心攻防':'团队歼灭'} · ${lobby.config.teamSize}v${lobby.config.teamSize} · ${DIFFICULTY[lobby.config.difficulty].name}`);
   $('lobby-players').innerHTML=lobby.players.map(p=>`<div class="lobby-player"><span class="${p.squad===0?'alpha':'bravo'}">${escape(p.name)}${p.id===playerId?' / YOU':''}</span><small>${p.squad===0?'ALPHA':'BRAVO'}${p.id===lobby.host?' · 房主':''}</small></div>`).join('')+`<p class="muted">剩余 ${lobby.config.teamSize*2-lobby.players.length} 个位置由 AI 补齐</p>`;
   $('launch-room').disabled=lobby.host!==playerId;text('lan-message',lobby.host===playerId?'等待队友加入后，由你开始比赛。':'等待房主开始比赛…');
@@ -223,13 +276,15 @@ function leaveRoom(){
   send({type:'leave'});
   if(socket&&!networkId){socket.close();socket=null;}
   lobby=null;show('lan-connect',true);show('lan-lobby',false);$('resume').disabled=false;
+  if(listVisible())refreshRooms(true);
 }
-$('open-lan').onclick=()=>{show('lan-connect',!lobby);show('lan-lobby',!!lobby);text('lan-message','');$('lan-dialog').showModal();};
+$('open-lan').onclick=()=>{show('lan-connect',!lobby);show('lan-lobby',!!lobby);text('lan-message','');$('lan-dialog').showModal();if(!lobby)refreshRooms(true);};
 let roomActionPending=false;
 async function roomAction(message){
   if(roomActionPending)return;
   roomActionPending=true;$('create-room').disabled=true;$('join-room').disabled=true;
-  try{await connect();if($('lan-dialog').open)send(message);}catch(e){text('lan-message',e.message);}
+  text('lan-message','');
+  try{const url=selectedRoomServer();await connect(url);if(listVisible()&&selectedRoomServer()===url)send(message);}catch(e){text('lan-message',e.message);}
   finally{roomActionPending=false;$('create-room').disabled=false;$('join-room').disabled=false;}
 }
 $('create-room').onclick=()=>roomAction({type:'create',config:{...config},name:$('player-name').value});
