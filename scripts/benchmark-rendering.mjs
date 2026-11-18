@@ -23,12 +23,14 @@ try{
     await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
     await page.evaluate(()=>{
       const g=window.__BLA;g.pause();g.view.renderer.setAnimationLoop(null);
+      for(const el of document.querySelectorAll('.screen-overlay,#hud,#preparation'))el.hidden=true;
       const player=g.state.actors.find(actor=>actor.id===g.playerId);
       for(const [index,actor] of g.state.actors.entries())Object.assign(actor,{x:actor.squad?32:-32,y:0,z:(index%3-1)*2,yaw:actor.squad?Math.PI/2:-Math.PI/2,pitch:0,reload:0,switchTime:0,alive:true});
       Object.assign(player,{x:-35,y:0,z:0,yaw:-Math.PI/2,pitch:0,alive:true,reload:0,switchTime:0});
     });
     for(const variant of cases){
-      const result=await page.evaluate(async variant=>{
+      const capture=process.env.RENDER_SCREENSHOTS&&['high','smoke','rear-view'].includes(variant);
+      const result=await page.evaluate(async ({variant,capture})=>{
         const g=window.__BLA,v=g.view,quality=['medium','low'].includes(variant)?variant:'high';
         g.settings.quality=quality;v.resize();
         v.renderer.info.autoReset=false;
@@ -52,10 +54,15 @@ try{
           samples.push(performance.now()-start);calls.push(v.renderer.info.render.drawCalls);triangles.push(v.renderer.info.render.triangles);
         }
         if(calls.some(count=>count<=1))throw new Error(`${variant}: a sample did not render the scene`);
+        if(capture){
+          render(24);
+          await v.renderer.backend.device.queue.onSubmittedWorkDone();
+        }
         const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
         const size=target=>({width:target.width,height:target.height});
         return {variant,frameMs:median(samples),cpuMs:median(cpu),drawCalls:median(calls),triangles:median(triangles),width:v.renderer.domElement.width,height:v.renderer.domElement.height,reflection:v.wetFloor.visible?size(v.wetFloor.getRenderTarget()):null,volume:v.atmosphere.enabled.value?size(v.atmosphere.scatteringPass.renderTarget):null,samples};
-      },variant);
+      },{variant,capture});
+      if(capture)await page.screenshot({path:`${process.env.RENDER_SCREENSHOTS}/${viewport.width}x${viewport.height}-${variant}.png`});
       measurements.push({viewport,...result});
     }
     await page.close();

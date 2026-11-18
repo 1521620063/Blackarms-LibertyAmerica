@@ -208,6 +208,8 @@ npm run benchmark:rendering
 
 可用 `CHROME_PATH` 指定 Chrome / Edge。浏览器检查产生的截图与报告保存在 `artifacts/`。通过 `?debug=1` 提供测试入口 `window.__BLA`。
 
+高画质保留全部局部灯、阴影、湿地反射和 SMAA 抗锯齿。普通聚光灯只在灯锥和有效照射距离内计算材质受光，灯光衰减不变。渲染基准默认测量 1080p 和 1440p 的固定场景；设置 `RENDER_SCREENSHOTS=artifacts/rendering-captures` 可额外保存高画质、烟雾和反向视角的截图，便于对照。
+
 ```text
 frontend/             独立前端、静态素材、构建与开发服务
   src/game/           离线规则、移动与网络预测

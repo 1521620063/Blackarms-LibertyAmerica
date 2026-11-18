@@ -48,7 +48,7 @@ try{
       const v=window.__BLA.view;v.weaponVisible.value=0;v.camera.position.fromArray(position);v.camera.lookAt(...target);v.camera.updateMatrixWorld(true);
       const nearby=[...v.localLights].sort((a,b)=>a.position.distanceToSquared(v.camera.position)-b.position.distanceToSquared(v.camera.position));
       v.localLights.forEach(l=>l.intensity=l.userData.baseIntensity);
-      v.localShadowLights.forEach((light,i)=>{const source=nearby[i];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);light.intensity=source.intensity;source.intensity=0;light.shadow.autoUpdate=true;light.shadow.intensity=1;});
+      v.localShadowLights.forEach((light,i)=>{const source=nearby[i];light.position.copy(source.position);light.target.position.copy(source.target.position);light.color.copy(source.color);light.intensity=source.intensity;source.intensity=0;light.visible=true;light.shadow.autoUpdate=true;light.shadow.intensity=1;});
       v.wetFloor.material.uniforms.time.value=20;
       const width=v.renderer.domElement.width,height=v.renderer.domElement.height;
       const output=new v.worldPass.renderTarget.constructor(width,height,{type:1009,depthBuffer:false});

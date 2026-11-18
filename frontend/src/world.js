@@ -6,6 +6,7 @@ import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import { transparentPass, compositeOverlay } from './visual/transparent-pass.js';
 import { createRenderer, initializeRenderer } from './visual/renderer.js';
+import { FacilitySpotLight, registerFacilitySpotLight } from './visual/facility-spotlight.js';
 import { renderPixelRatio, renderEffectScale, AdaptiveQuality } from './visual/performance.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -31,6 +32,7 @@ export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T
 export class WorldView {
   constructor(canvas,settings){
     this.settings=settings;this.adaptiveQuality=new AdaptiveQuality();this.renderer=createRenderer({canvas,antialias:false});
+    registerFacilitySpotLight(this.renderer);
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;
     this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
     this.scene=new T.Scene();this.scene.background=new T.Color(0x82979f);this.scene.fog=new T.FogExp2(0x82918e,.006);
@@ -124,7 +126,7 @@ export class WorldView {
     for(const [x,z] of [[-22,0],[-10,0],[6,0],[22,0],[-18,-14],[-2,-14],[18,-14],[-14,14],[2,14],[14,14],
       [-35,-20],[-35,0],[-35,20],[35,-20],[35,0],[35,20],[-27,-23],[-15,-23],[0,-23],[16,-23],[28,-23],
       [-27,23],[-16,23],[0,23],[16,23],[28,23]]){
-      const light=new T.SpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?125:170,17,.82,.55,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
+      const light=new FacilitySpotLight(z<0?0xb8d9ed:z>0?0xffce97:0xe3edf0,z===0?125:170,17,.82,.55,2);light.position.set(x,4.55,z);light.target.position.set(x,0,z);
       this.box(.86,.12,.42,x,4.63,z,'steel',this.facility,.025);this.box(.7,.025,.3,x,4.54,z,'lamp');
       light.shadow.mapSize.set(1024,1024);light.shadow.camera.near=.2;light.shadow.camera.far=18;light.shadow.bias=-.00015;light.shadow.normalBias=.006;
       this.scene.add(light,light.target);this.localLights.push(light);
