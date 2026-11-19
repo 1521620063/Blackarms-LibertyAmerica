@@ -15,6 +15,30 @@ try{
   await page.locator('#start-offline').click();await page.locator('#ready').click();
   await page.waitForFunction(()=>window.__BLA.state.phase==='combat');
   await page.evaluate(()=>{const g=window.__BLA;g.pause();g.view.renderer.setAnimationLoop(null);});
+  const pools=await page.evaluate(()=>{
+    const v=window.__BLA.view,fx=v.fx;
+    const snapshot=()=>({particles:fx.smoke.geometry.instanceCount,shells:fx.casings.count,
+      visible:[fx.smoke.mesh.visible,fx.casings.visible],
+      uploads:[fx.smoke.geometry.attributes.alpha.version,fx.casings.instanceMatrix.version]});
+    const emit=()=>{
+      const origin={x:0,y:1,z:0};
+      fx.smoke.emit(origin,{x:0,y:1,z:0},0xffffff,.2,.1);
+      fx.shell(v.camera.position,{x:1,y:0,z:0},{x:0,y:0,z:1});
+      fx.update(0);return snapshot();
+    };
+    fx.clear();const empty=snapshot();fx.update(1/60);const idle=snapshot();
+    const active=emit();fx.update(3);const expired=snapshot();
+    const reused=emit();fx.clear();return {empty,idle,active,expired,reused,cleared:snapshot()};
+  });
+  assert.deepEqual(pools.empty,pools.idle,'empty pools never upload buffers');
+  for(const sample of [pools.empty,pools.expired,pools.cleared]){
+    assert.equal(sample.particles+sample.shells,0);
+    assert.deepEqual(sample.visible,[false,false]);
+  }
+  for(const sample of [pools.active,pools.reused]){
+    assert.equal(sample.particles,1);assert.equal(sample.shells,1);
+    assert.deepEqual(sample.visible,[true,true]);
+  }
   const checks=[];
   for(const {viewport,quality} of [{width:1920,height:1080},{width:2560,height:1440}].flatMap(viewport=>['high','medium','low','high'].map(quality=>({viewport,quality})))){
     await page.setViewportSize(viewport);

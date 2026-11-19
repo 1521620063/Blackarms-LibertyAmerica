@@ -49,7 +49,7 @@ export class WorldView {
     this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
     this.scene=new T.Scene();this.scene.background=new T.Color(0x82979f);this.scene.fog=new T.FogExp2(0x82918e,.006);
     this.camera=new T.PerspectiveCamera(settings.fov,1,.035,150);this.camera.rotation.order='YXZ';
-    this.models=new Map();this.recoil=0;this.shake=0;this.shotTimer=0;this.weaponType='';this.smoothPos=null;this.lastRound='';this.sway=new T.Vector2();this.lastLook=null;this.moveBlend=0;
+    this.models=new Map();this.actorIds=new Set();this.renderTargetPosition=new T.Vector3();this.cameraTargetPosition=new T.Vector3();this.smoothedCameraPosition=new T.Vector3();this.recoil=0;this.shake=0;this.shotTimer=0;this.weaponType='';this.smoothPos=null;this.lastRound='';this.sway=new T.Vector2();this.lastLook=null;this.moveBlend=0;
     this.environment=null;
     this.scene.environmentIntensity=.48;
     this.scene.add(new T.HemisphereLight(0xc1d3de,0x4c4337,.62));
@@ -288,6 +288,9 @@ export class WorldView {
       }
       for(let i=0;i<batch.full.length;i++){batch.full[i].dispose();if(batch.simplified[i]!==batch.full[i])batch.simplified[i].dispose();}
     }
+    // Facility transforms never change after baking, even across quality switches.
+    this.facility.updateMatrixWorld(true);
+    this.facility.traverse(object=>{object.matrixAutoUpdate=false;object.matrixWorldAutoUpdate=false;});
   }
   createPostprocessing(){
     this.worldPass=pass(this.scene,this.camera,{samples:0});
@@ -328,7 +331,12 @@ export class WorldView {
     const advance=()=>onProgress(++completed/total);
     // Build the combat variants while the loading screen still covers the canvas.
     this.render(state,playerId,0,0,{prepareOnly:true});
-    await this.renderer.compileAsync(this.scene,this.camera);advance();
+    // Precompile the previously always-visible pools without showing placeholders.
+    const pools=[this.fx.spark.mesh,this.fx.smoke.mesh,this.fx.casings];
+    for(const mesh of pools)mesh.visible=true;
+    try{await this.renderer.compileAsync(this.scene,this.camera);}
+    finally{for(const mesh of pools)mesh.visible=false;}
+    advance();
     for(const type of WEAPON_ORDER){
       await new Promise(resolve=>setTimeout(resolve,0));
       this.makeGun(type);this.gun.visible=true;this.muzzle.visible=true;
@@ -422,13 +430,15 @@ export class WorldView {
     if(state){
       const round=`${state.round}:${state.config.mode}`;if(round!==this.lastRound){this.fx.clear();this.lastRound=round;this.sun.shadow.needsUpdate=this.quality!=='low';}
       player=state.actors.find(a=>a.id===playerId);follow=state.actors.find(a=>a.id===(view.spectate||playerId))||player;
-      const ids=new Set(state.actors.map(a=>a.id));for(const [id,model] of this.models)if(!ids.has(id)){this.characters.release(model);this.scene.remove(model);this.models.delete(id);}
+      const ids=this.actorIds;ids.clear();for(const a of state.actors)ids.add(a.id);
+      for(const [id,model] of this.models)if(!ids.has(id)){this.characters.release(model);this.scene.remove(model);this.models.delete(id);}
+      const positionBlend=1-Math.exp(-dt*20);
       for(const a of state.actors){
         const side=a.squad===state.attackSquad?0:1;let model=this.models.get(a.id);
         if(!model){model=this.characters.create(side,a.name);this.models.set(a.id,model);this.scene.add(model);}
         if(model.userData.side!==side)this.characters.setSide(model,side);
         model.visible=a.id!==follow?.id;model.userData.marker.visible=a.alive&&a.squad===player?.squad;
-        const target=new T.Vector3(a.x,a.y,a.z);if(view.networkSmoothed||!model.userData.started||model.position.distanceTo(target)>4){model.position.copy(target);model.userData.started=true;}else model.position.lerp(target,1-Math.exp(-dt*20));
+        const target=this.renderTargetPosition.set(a.x,a.y,a.z);if(view.networkSmoothed||!model.userData.started||model.position.distanceToSquared(target)>16){model.position.copy(target);model.userData.started=true;}else model.position.lerp(target,positionBlend);
         model.rotation.y=a.yaw;this.characters.animate(model,a,dt);
       }
       this.coreGroup.visible=state.config.mode==='core'&&!['completed','defused','none'].includes(state.core.state)&&!state.core.carrier;
@@ -447,8 +457,8 @@ export class WorldView {
       this.pendingShots.length=0;this.fx.update(0);
     }
     if(follow){
-      const desired=new T.Vector3(follow.x,(follow.crouch?1.07:1.57)+follow.y,follow.z);
-      if(view.networkSmoothed||!this.smoothPos||this.smoothPos.distanceTo(desired)>4)this.smoothPos=desired;else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
+      const desired=this.cameraTargetPosition.set(follow.x,(follow.crouch?1.07:1.57)+follow.y,follow.z);
+      if(view.networkSmoothed||!this.smoothPos||this.smoothPos.distanceToSquared(desired)>16)this.smoothPos=this.smoothedCameraPosition.copy(desired);else this.smoothPos.lerp(desired,1-Math.exp(-dt*25));
       this.camera.position.copy(this.smoothPos);this.camera.position.x+=(Math.random()-.5)*this.shake;
       const pitch=view.pitch??follow.pitch,yaw=view.yaw??follow.yaw;
       this.camera.rotation.set(pitch+this.recoil*.17,yaw,0);
@@ -462,10 +472,10 @@ export class WorldView {
       const bob=(follow.sprinting?.02:.008)*this.moveBlend,aim=follow.aim;
       this.kit.animateWeapon(this.weapon,follow);
       const swapping=follow.switchTime>0;
-      const target=new T.Vector3((aim?0:.24)-this.sway.x*.7,(swapping?-.65:follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
+      const target=this.renderTargetPosition.set((aim?0:.24)-this.sway.x*.7,(swapping?-.65:follow.reload>0?-.4:aim?-.128:-.235)+Math.sin(time*(follow.sprinting?13:9))*bob-this.sway.y*.5,-.5+this.recoil*.6);
       this.gun.position.lerp(target,1-Math.exp(-dt*18));this.gun.rotation.set(this.recoil*.8+(follow.sprinting?-.12:0),follow.reload>0?-.55:0,swapping?-.35:follow.reload>0?-.6:-.025+Math.cos(time*8)*bob);
       if(aim)this.gun.rotation.z=T.MathUtils.damp(this.gun.rotation.z,0,25,dt);
-      this.muzzle.visible=this.shotTimer>0&&!follow.reload&&!swapping;const flashFade=this.muzzle.visible?Math.pow(this.shotTimer/(this.flashDuration||.045),1.5):0;this.muzzle.material.uniforms.intensity.value=flashFade*5;this.flash.intensity=flashFade*9;this.gun.updateMatrixWorld(true);this.muzzle.getWorldPosition(this.flash.position);
+      this.muzzle.visible=this.shotTimer>0&&!follow.reload&&!swapping;const flashFade=this.muzzle.visible?Math.pow(this.shotTimer/(this.flashDuration||.045),1.5):0;this.muzzle.material.uniforms.intensity.value=flashFade*5;this.flash.intensity=flashFade*9;if(this.muzzle.visible)this.muzzle.getWorldPosition(this.flash.position);
     }else{
       this.smoothPos=null;this.lastLook=null;this.camera.fov=65;this.camera.updateProjectionMatrix();this.camera.position.set(10.2+Math.sin(time*.07)*.4,3.4,4.6);this.camera.lookAt(1.5,1.2,-3);
     }

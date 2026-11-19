@@ -4,28 +4,38 @@ import { BOXES, WEAPONS } from '../game/data.js';
 
 class ParticlePool {
   constructor(scene,count,additive){
-    this.count=count;this.cursor=0;this.particles=Array.from({length:count},()=>({life:0}));
+    this.count=count;this.cursor=0;this.end=0;this.color=new T.Color();this.colorsDirty=false;this.particles=Array.from({length:count},()=>({life:0}));
     this.positions=new Float32Array(count*3);this.colors=new Float32Array(count*3);this.sizes=new Float32Array(count);this.alphas=new Float32Array(count);
-    this.geometry=new T.InstancedBufferGeometry().copy(new T.PlaneGeometry(1,1));this.geometry.instanceCount=count;
+    this.geometry=new T.InstancedBufferGeometry().copy(new T.PlaneGeometry(1,1));this.geometry.instanceCount=0;
     for(const [name,array,size] of [['particlePosition',this.positions,3],['color',this.colors,3],['size',this.sizes,1],['alpha',this.alphas,1]])this.geometry.setAttribute(name,new T.InstancedBufferAttribute(array,size).setUsage(T.DynamicDrawUsage));
     this.material=new T.SpriteNodeMaterial({transparent:true,depthWrite:false,blending:additive?T.AdditiveBlending:T.NormalBlending});
     this.material.positionNode=attribute('particlePosition','vec3');this.material.scaleNode=attribute('size','float');this.material.colorNode=attribute('color','vec3');
     const p=uv().sub(.5),d=p.length().mul(2);
     const soft=additive?float(1).sub(d).max(0).pow(2):float(1).sub(smoothstep(.12,1,d)).mul(sin(p.x.mul(24).add(sin(p.y.mul(19)))).mul(sin(p.y.mul(21).add(p.x.mul(9)))).mul(.35).add(.65));
     this.material.opacityNode=attribute('alpha','float').mul(soft);
-    this.mesh=new T.Mesh(this.geometry,this.material);this.mesh.frustumCulled=false;this.mesh.renderOrder=2;scene.add(this.mesh);
+    this.mesh=new T.Mesh(this.geometry,this.material);this.mesh.frustumCulled=false;this.mesh.renderOrder=2;this.mesh.visible=false;scene.add(this.mesh);
   }
   emit(p,v,color,size,life,gravity=0){
     const i=this.cursor++%this.count,particle=this.particles[i];Object.assign(particle,{x:p.x,y:p.y,z:p.z,vx:v.x,vy:v.y,vz:v.z,size,life,max:life,gravity});
-    const c=new T.Color(color);this.colors.set([c.r,c.g,c.b],i*3);
+    const c=this.color.set(color),offset=i*3;
+    this.colors[offset]=c.r;this.colors[offset+1]=c.g;this.colors[offset+2]=c.b;
+    this.colorsDirty=true;this.end=Math.max(this.end,i+1);
   }
   update(dt){
-    for(let i=0;i<this.count;i++){
+    if(!this.end)return;
+    let end=0;
+    for(let i=0;i<this.end;i++){
       const p=this.particles[i];if(p.life<=0){this.alphas[i]=0;this.sizes[i]=0;continue;}
       p.life-=dt;p.vy-=p.gravity*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
-      this.positions.set([p.x,p.y,p.z],i*3);this.alphas[i]=Math.max(0,p.life/p.max);this.sizes[i]=p.size*(1+(1-p.life/p.max)*(p.gravity?0:2));
+      if(p.life<=0){this.alphas[i]=0;this.sizes[i]=0;continue;}
+      const offset=i*3;
+      this.positions[offset]=p.x;this.positions[offset+1]=p.y;this.positions[offset+2]=p.z;
+      this.alphas[i]=p.life/p.max;this.sizes[i]=p.size*(1+(1-p.life/p.max)*(p.gravity?0:2));end=i+1;
     }
-    for(const name of ['particlePosition','color','alpha','size'])this.geometry.attributes[name].needsUpdate=true;
+    // Keep slot order for transparent blending. Clear holes before the next draw.
+    this.end=this.geometry.instanceCount=end;this.mesh.visible=end>0;if(!end)this.cursor=0;
+    for(const name of ['particlePosition','alpha','size'])this.geometry.attributes[name].needsUpdate=true;
+    if(this.colorsDirty){this.geometry.attributes.color.needsUpdate=true;this.colorsDirty=false;}
   }
 }
 
@@ -35,7 +45,7 @@ export class CombatEffects {
     this.lights=Array.from({length:4},()=>{const light=new T.PointLight(0xffb966,0,5,2);scene.add(light);return {light,life:0};});
     this.decalGeometry=new T.PlaneGeometry(1,1);this.decalMaterial=this.makeDecal();
     const geo=new T.CylinderGeometry(.012,.012,.065,8),mat=new T.MeshStandardMaterial({color:0xc39b52,metalness:.8,roughness:.3});
-    this.casings=new T.InstancedMesh(geo,mat,40);this.casings.instanceMatrix.setUsage(T.DynamicDrawUsage);this.casings.frustumCulled=false;scene.add(this.casings);this.shells=Array.from({length:40},()=>({life:0}));this.shellCursor=0;this.dummy=new T.Object3D();
+    this.casings=new T.InstancedMesh(geo,mat,40);this.casings.instanceMatrix.setUsage(T.DynamicDrawUsage);this.casings.frustumCulled=false;this.casings.count=0;this.casings.visible=false;scene.add(this.casings);this.shells=Array.from({length:40},()=>({life:0}));this.shellCursor=0;this.shellEnd=0;this.dummy=new T.Object3D();
     this.update(0);
   }
   makeDecal(){
@@ -94,7 +104,8 @@ export class CombatEffects {
   }
   shell(origin,right,forward){
     const p=origin.clone().addScaledVector(right,.23).addScaledVector(forward,.3),i=this.shellCursor++%this.shells.length;
-    this.shells[i]={x:p.x,y:p.y-.2,z:p.z,vx:right.x*(1.2+Math.random()),vy:1+Math.random(),vz:right.z*(1.2+Math.random()),life:2.5,angle:Math.random()*6};
+    this.shellEnd=Math.max(this.shellEnd,i+1);
+    Object.assign(this.shells[i],{x:p.x,y:p.y-.2,z:p.z,vx:right.x*(1.2+Math.random()),vy:1+Math.random(),vz:right.z*(1.2+Math.random()),life:2.5,angle:Math.random()*6});
   }
   pulse(position,color=0x80e8ff){for(let i=0;i<70;i++){const angle=Math.random()*Math.PI*2,r=Math.random()*3;this.spark.emit(position,{x:Math.cos(angle)*r,y:Math.random()*3,z:Math.sin(angle)*r},color,.04+Math.random()*.06,.4+Math.random()*.6,1);}}
   removeTrace(i){const fx=this.traces[i];this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();this.traces.splice(i,1);}
@@ -103,12 +114,15 @@ export class CombatEffects {
     this.spark.update(dt);this.smoke.update(dt);
     for(const lamp of this.lights){lamp.life-=dt;lamp.light.intensity=lamp.life>0?lamp.light.intensity*Math.exp(-35*dt):0;}
     for(let i=this.traces.length-1;i>=0;i--){const f=this.traces[i];f.life-=dt;if(f.life<=0)this.removeTrace(i);else{const head=Math.min(f.length,(1-f.life/f.max)*f.length+.8),tail=Math.max(0,head-2.2),p=f.mesh.geometry.attributes.position;p.setXYZ(0,f.start.x+f.dir.x*tail,f.start.y+f.dir.y*tail,f.start.z+f.dir.z*tail);p.setXYZ(1,f.start.x+f.dir.x*head,f.start.y+f.dir.y*head,f.start.z+f.dir.z*head);p.needsUpdate=true;f.mesh.frustumCulled=false;f.mesh.material.opacity=Math.min(.9,f.life/.025);}}
-    for(let i=0;i<this.shells.length;i++){
+    if(!this.shellEnd)return;
+    let end=0;
+    for(let i=0;i<this.shellEnd;i++){
       const p=this.shells[i];p.life-=dt;
-      if(p.life>0){p.vy-=8*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.y<.03){p.y=.03;p.vy=Math.abs(p.vy)*.3;p.vx*=.7;p.vz*=.7;}p.angle+=dt*12;this.dummy.position.set(p.x,p.y,p.z);this.dummy.rotation.set(p.angle,p.angle*.7,1.3);this.dummy.scale.setScalar(Math.min(1,p.life*3));}
+      if(p.life>0){end=i+1;p.vy-=8*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.y<.03){p.y=.03;p.vy=Math.abs(p.vy)*.3;p.vx*=.7;p.vz*=.7;}p.angle+=dt*12;this.dummy.position.set(p.x,p.y,p.z);this.dummy.rotation.set(p.angle,p.angle*.7,1.3);this.dummy.scale.setScalar(Math.min(1,p.life*3));}
       else this.dummy.scale.setScalar(0);
       this.dummy.updateMatrix();this.casings.setMatrixAt(i,this.dummy.matrix);
     }
+    this.shellEnd=this.casings.count=end;this.casings.visible=end>0;if(!end)this.shellCursor=0;
     this.casings.instanceMatrix.needsUpdate=true;
   }
 }

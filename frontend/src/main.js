@@ -317,15 +317,21 @@ function events(){
     if(e.type==='overtime')announce('加时 15 秒','OVERTIME / 最后机会');
   }
 }
+let minimapBackground;
 function mapDraw(me){
-  const ctx=$('minimap').getContext('2d'),w=ctx.canvas.width,h=ctx.canvas.height;ctx.clearRect(0,0,w,h);
+  const ctx=$('minimap').getContext('2d'),w=ctx.canvas.width,h=ctx.canvas.height;
   const sx=Math.min((w-28)/MAP.width,(h-28)/MAP.depth),sz=sx,px=x=>w/2+x*sx,pz=z=>h/2+z*sz;
-  for(const zone of ZONES){
-    ctx.fillStyle=zone.code.startsWith('N')?'#7ac8e311':zone.code.startsWith('S')?'#d8b38a15':'#98bdc408';
-    ctx.fillRect(px(zone.x-zone.w/2),pz(zone.z-zone.d/2),zone.w*sx,zone.d*sz);
+  if(!minimapBackground||minimapBackground.width!==w||minimapBackground.height!==h){
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const bg=canvas.getContext('2d');minimapBackground=canvas;
+    for(const zone of ZONES){
+      bg.fillStyle=zone.code.startsWith('N')?'#7ac8e311':zone.code.startsWith('S')?'#d8b38a15':'#98bdc408';
+      bg.fillRect(px(zone.x-zone.w/2),pz(zone.z-zone.d/2),zone.w*sx,zone.d*sz);
+    }
+    bg.strokeStyle='#98bdc414';bg.lineWidth=1;for(let x=-MAP.halfWidth;x<=MAP.halfWidth;x+=4){bg.beginPath();bg.moveTo(px(x),pz(-MAP.halfDepth));bg.lineTo(px(x),pz(MAP.halfDepth));bg.stroke();}
+    for(const b of BOXES){bg.fillStyle=b.h<1.5?'#566760':'#8b9e9677';bg.fillRect(px(b.minX),pz(b.minZ),b.w*sx,b.d*sz);}
   }
-  ctx.strokeStyle='#98bdc414';ctx.lineWidth=1;for(let x=-MAP.halfWidth;x<=MAP.halfWidth;x+=4){ctx.beginPath();ctx.moveTo(px(x),pz(-MAP.halfDepth));ctx.lineTo(px(x),pz(MAP.halfDepth));ctx.stroke();}
-  for(const b of BOXES){ctx.fillStyle=b.h<1.5?'#566760':'#8b9e9677';ctx.fillRect(px(b.minX),pz(b.minZ),b.w*sx,b.d*sz);}
+  ctx.clearRect(0,0,w,h);ctx.drawImage(minimapBackground,0,0);
   if(state.config.mode==='core'){
     ctx.strokeStyle='#c9dd9c';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(px(OBJECTIVE.x),pz(OBJECTIVE.z),OBJECTIVE.radius*sx,0,Math.PI*2);ctx.stroke();
     const c=state.core;if(c.carrier===playerId||!c.carrier||state.actors.find(a=>a.id===c.carrier)?.squad===me.squad){ctx.fillStyle='#dde9a8';ctx.fillRect(px(c.x)-3,pz(c.z)-3,6,6);}
@@ -411,8 +417,10 @@ function frame(now){
   if(active){
     if(!online&&!paused&&!document.querySelector('dialog[open]')){
       accumulator+=dt;
-      while(accumulator>=1/60){match.setInput(playerId,getInput());match.step(1/60);commands={};accumulator-=1/60;}
-      state=match.snapshot();
+      if(accumulator>=1/60){
+        do{match.setInput(playerId,getInput());match.step(1/60);commands={};accumulator-=1/60;}while(accumulator>=1/60);
+        state=match.snapshot();
+      }
     }else if(online){
       accumulator+=dt;
       while(accumulator>=SIMULATION_STEP){networkMovement.step(getInput(),state);commands={};accumulator-=SIMULATION_STEP;}
