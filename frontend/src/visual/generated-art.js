@@ -11,8 +11,8 @@ const specs={
   'service-panel':{materials:['panel'],repeat:[1,1],normal:.15}
 };
 
-export async function loadGeneratedArt(materials,renderer,{skip=[]}={}){
-  const loader=new T.TextureLoader(),oldTextures=new Set(),loaded=[];
+export async function loadGeneratedArt(materials,renderer,{skip=[],manager}={}){
+  const loader=new T.TextureLoader(manager),oldTextures=new Set(),loaded=[];
   const anisotropy=Math.min(8,maxAnisotropy(renderer));
   await Promise.all(Object.entries(specs).filter(([id])=>!skip.includes(id)).map(async([id,spec])=>{
     const maps=await Promise.all(['albedo','normal','roughness'].map(async channel=>{

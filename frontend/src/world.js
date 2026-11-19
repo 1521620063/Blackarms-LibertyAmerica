@@ -30,7 +30,19 @@ import { captureFacilityProbes } from './visual/facility-probe.js';
 export const settingsFov=(fov,zoom)=>T.MathUtils.radToDeg(2*Math.atan(Math.tan(T.MathUtils.degToRad(fov)/2)/zoom));
 
 export class WorldView {
-  constructor(canvas,settings){
+  constructor(canvas,settings,reportProgress=()=>{}){
+    reportProgress(0,'正在初始化 WebGPU 与场景…');
+    // Each texture batch has its own counter; GPU work advances at completion milestones.
+    const trackTextures=(from,to,label)=>{
+      reportProgress(from,label);
+      const manager=new T.LoadingManager();
+      let failed=false;
+      manager.onError=()=>{failed=true;};
+      manager.onProgress=(_url,loaded,total)=>{
+        if(!failed)reportProgress(from+(to-from)*loaded/total,label);
+      };
+      return manager;
+    };
     this.settings=settings;this.adaptiveQuality=new AdaptiveQuality();this.renderer=createRenderer({canvas,antialias:false});
     registerFacilitySpotLight(this.renderer);
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;
@@ -45,13 +57,17 @@ export class WorldView {
     Object.assign(this.sun.shadow.camera,{left:-52,right:52,top:44,bottom:-44,near:.5,far:150});this.sun.shadow.camera.updateProjectionMatrix();this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.009;this.scene.add(this.sun);
     this.materials=makeMaterials();this.kit=new ModelKit(this.materials);this.facility=new T.Group();this.scene.add(this.facility);this.buildFacility();facilityArchitecture(this);facilityDecals(this.facility);this.batchFacility();
     this.characters=new SoldierModels(this.kit);
-    this.ready=initializeRenderer(this.renderer).then(()=>Promise.all([this.characters.ready,loadGeneratedArt(this.materials,this.renderer,{skip:['concrete','floor']})])).then(async([,assets])=>{
+    this.ready=initializeRenderer(this.renderer).then(()=>Promise.all([
+      this.characters.ready,
+      loadGeneratedArt(this.materials,this.renderer,{skip:['concrete','floor'],manager:trackTextures(10,25,'正在加载基础材质…')})
+    ])).then(async([,assets])=>{
       this.artAssets=assets;
       const sleeve=this.characters.sideMaterials[0].get('cloth').clone();sleeve.vertexColors=false;sleeve.name='first-person-uniform';
       this.materials.sleeve.dispose();this.materials.sleeve=sleeve;
       const nylon=this.characters.sideMaterials[0].get('webbing');for(const key of ['map','normalMap','roughnessMap'])this.materials.glovePanel[key]=nylon[key];this.materials.glovePanel.needsUpdate=true;
-      this.scannedAssets=await loadScannedSurfaces(this);
-      this.facilityAssets=await loadFacilitySurfaces(this);
+      this.scannedAssets=await loadScannedSurfaces(this,trackTextures(25,36,'正在加载地面与墙面贴图…'),()=>reportProgress(36,'正在准备环境光照…'));
+      this.facilityAssets=await loadFacilitySurfaces(this,trackTextures(45,60,'正在加载设施材质…'));
+      reportProgress(60,'正在准备灯光与后处理…');
       this.sunShadowUniforms=facilitySunShadows(this);
       this.sunShadowUniforms.facilityShadowTaps.value=this.quality==='high'?16:10;
       this.facilityProbes=await captureFacilityProbes(this);
@@ -305,23 +321,27 @@ export class WorldView {
     const material=new T.SpriteNodeMaterial({color:0xc1d2cf,transparent:true,opacity:.35,depthWrite:false});material.positionNode=attribute('particlePosition','vec3');material.scaleNode=float(.014);material.opacityNode=float(.35).mul(float(1).sub(smoothstep(.1,.5,uv().sub(.5).length())));
     this.dust=new T.Mesh(geometry,material);this.dust.frustumCulled=false;this.scene.add(this.dust);
   }
-  async prepareGameplay(state,playerId){
+  async prepareGameplay(state,playerId,onProgress=()=>{}){
+    // Scene, each view model, and three postprocessing variants.
+    const total=WEAPON_ORDER.length+4;
+    let completed=0;
+    const advance=()=>onProgress(++completed/total);
     // Build the combat variants while the loading screen still covers the canvas.
     this.render(state,playerId,0,0,{prepareOnly:true});
-    await this.renderer.compileAsync(this.scene,this.camera);
+    await this.renderer.compileAsync(this.scene,this.camera);advance();
     for(const type of WEAPON_ORDER){
       await new Promise(resolve=>setTimeout(resolve,0));
       this.makeGun(type);this.gun.visible=true;this.muzzle.visible=true;
       await this.renderer.compileAsync(this.gunScene,this.gunCamera);
-      this.muzzle.visible=false;
+      this.muzzle.visible=false;advance();
     }
     this.render(state,playerId,0,0,{prepareOnly:true});
-    await this.composer.renderAsync();
+    await this.composer.renderAsync();advance();
     this.render({...state,config:{...state.config,mode:'elimination'}},playerId,0,0,{prepareOnly:true});
-    await this.composer.renderAsync();
+    await this.composer.renderAsync();advance();
     // Render the menu too, so its postprocessing variants are ready before reveal.
     this.render(null,playerId,0,0,{prepareOnly:true});
-    await this.composer.renderAsync();
+    await this.composer.renderAsync();advance();
     this.smoothPos=null;this.lastLook=null;this.lastRound='';
   }
   makeGun(type){

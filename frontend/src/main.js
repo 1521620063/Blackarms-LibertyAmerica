@@ -25,12 +25,19 @@ const renderPacer=new RenderPacer();
 const config={mode:'elimination',teamSize:3,difficulty:'normal',primary:'rifle',armor:'light'};
 const errors=[];window.addEventListener('error',e=>errors.push(e.message));window.addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
 let view;
+function updateBootProgress(percent,stage){
+  if($('boot').hidden)return;
+  const progress=$('boot-progress');
+  progress.value=Math.max(progress.value,Math.floor(percent));
+  text('boot-percent',`${progress.value}%`);
+  text('boot-stage',stage);
+}
 function fatal(error){
   console.error(error);
   active=false;view?.renderer.setAnimationLoop(null);show('boot',false);show('fatal',true);
   text('fatal',`无法启动 WebGPU 画面。\n请使用支持 WebGPU 的浏览器并启用硬件加速，通过 HTTPS 或本机 localhost 访问。\n请确认服务器包含 public/art/ 资源。\n\n${error.message||error}`);
 }
-try{view=new WorldView($('view'),settings);}catch(error){show('boot',false);show('fatal',true);text('fatal',`无法初始化 WebGPU 画面。\n请使用支持 WebGPU 的浏览器并启用硬件加速，通过 HTTPS 或本机 localhost 访问。\n\n${error.message}`);throw error;}
+try{view=new WorldView($('view'),settings,updateBootProgress);}catch(error){show('boot',false);show('fatal',true);text('fatal',`无法初始化 WebGPU 画面。\n请使用支持 WebGPU 的浏览器并启用硬件加速，通过 HTTPS 或本机 localhost 访问。\n\n${error.message}`);throw error;}
 view.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 设备已断开：${info.message||info.reason}。请刷新页面重试。`));
 window.addEventListener('rendererror',event=>{errors.push(event.detail?.message||String(event.detail));fatal(event.detail);});
 const audio=new AudioEngine(settings);
@@ -435,14 +442,20 @@ function frame(now){
   }catch(error){fatal(error);return;}
 }
 view.ready.then(async()=>{
+  updateBootProgress(72,'正在初始化装备预览…');
   weaponPreview=new WeaponPreview($('weapon-preview'),view.kit);await weaponPreview.ready;
   weaponPreview.renderer.onDeviceLost=info=>fatal(new Error(`WebGPU 预览设备已断开：${info.message||info.reason}`));
   inspectWeapon(config.primary);
-  $('boot').querySelector('small').textContent='正在准备战场与武器…';
+  const warmupStage='正在预热战场渲染…',audioStage='正在准备音效…';
+  let warmup=0,audioReady=false;
+  const report=()=>updateBootProgress(78+18*warmup+(audioReady?3:0),warmup<1?warmupStage:audioStage);
+  report();
   await Promise.all([
-    view.prepareGameplay(new Match({...config,mode:'core',teamSize:3}).snapshot(),'player'),
-    audio.prepare()
+    view.prepareGameplay(new Match({...config,mode:'core',teamSize:3}).snapshot(),'player',fraction=>{warmup=fraction;report();}),
+    audio.prepare().then(()=>{audioReady=true;report();})
   ]);
+  if($('fatal').hidden===false)return;
+  updateBootProgress(100,'启动完成');
   lastTime=performance.now();show('boot',false);view.renderer.setAnimationLoop(frame);
   if(debug){
     window.__BLA={get state(){return state;},get match(){return match;},get view(){return view;},get weaponPreview(){return weaponPreview;},get networkMovement(){return networkMovement;},get errors(){return errors;},get paused(){return paused;},config,settings,

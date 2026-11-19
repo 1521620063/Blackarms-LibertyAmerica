@@ -6,13 +6,19 @@
 <link rel="icon" type="image/svg+xml" href="/mark.svg">
 <style>html{background:#101715;color-scheme:dark}</style>
 <link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/boot.css">
 <link rel="stylesheet" href="/src/weapons.css">
 <link rel="stylesheet" href="/src/room-browser.css">
 </head>
 <body>
 <canvas id="view" aria-label="零号设施游戏画面"></canvas>
 <div class="grain"></div><div class="vignette"></div>
-<div id="boot"><img src="/mark.svg" width="70" height="70" alt=""><span>BLACKARMS</span><small>正在接入零号设施…</small></div>
+<div id="boot"><img src="/mark.svg" width="70" height="70" alt=""><span>BLACKARMS</span>
+  <div class="boot-progress">
+    <div class="boot-progress-label"><small id="boot-stage" role="status">正在加载启动程序…</small><span id="boot-percent" aria-hidden="true">0%</span></div>
+    <progress id="boot-progress" max="100" value="0" aria-label="启动进度" aria-describedby="boot-stage"></progress>
+  </div>
+</div>
 <div id="fatal" hidden></div>
 <main id="menu">
   <header class="masthead"><a class="brand" href="/" aria-label="黑枪首页"><img src="/mark.svg" width="39" alt=""><span>BLACKARMS<small>LIBERTY AMERICA</small></span></a><nav><button class="nav-item active" data-tab="operation">行动部署</button><button class="nav-item" data-tab="armory">装备库</button><button class="nav-item" data-tab="guide">战术手册</button></nav><button class="icon-button" id="open-settings" aria-label="打开设置">⚙ <span>设置</span></button></header>

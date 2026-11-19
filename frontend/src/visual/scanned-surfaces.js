@@ -5,8 +5,8 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { MAP } from '../game/data.js';
 import { bakeFacilityOcclusion } from './facility-occlusion.js';
 
-export async function loadScannedSurfaces(view){
-  const loader=new T.TextureLoader(),anisotropy=maxAnisotropy(view.renderer);
+export async function loadScannedSurfaces(view,manager,onEnvironment=()=>{}){
+  const loader=new T.TextureLoader(manager),anisotropy=maxAnisotropy(view.renderer);
   const specs=[['concrete_floor_02',['floor'],[MAP.width/4,MAP.depth/4]],['concrete_wall_008',['wall','concrete'],[1,1]]];
   const replaced=new Set();
   await Promise.all(specs.map(async([id,names,repeat])=>{
@@ -25,6 +25,7 @@ export async function loadScannedSurfaces(view){
       m.normalScale.setScalar(name==='floor'?.4:.65);m.roughness=1;m.metalness=0;m.needsUpdate=true;
     }
   }));
+  onEnvironment();
   const live=new Set(Object.values(view.materials).flatMap(m=>[m.map,m.normalMap,m.roughnessMap]));for(const t of replaced)if(!live.has(t))t.dispose();
   view.staticContact=bakeFacilityOcclusion(view.materials.floor);
   const source=await new HDRLoader().loadAsync('/art/scanned/warehouse-1k.hdr');

@@ -9,8 +9,27 @@ try{
   browser=await launchBrowser();
   const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{
+    window.startupProgress=[];
+    new MutationObserver(records=>{
+      for(const {target,oldValue} of records){
+        if(target.id==='boot-progress'&&oldValue!==target.getAttribute('value'))window.startupProgress.push(Number(oldValue));
+      }
+    }).observe(document,{subtree:true,attributes:true,attributeFilter:['value'],attributeOldValue:true});
+  });
   await page.goto(`http://127.0.0.1:${app.server.address().port}/?debug=1`);
   await waitForGame(page);
+  const boot=await page.evaluate(()=>({
+    values:[...window.startupProgress,document.getElementById('boot-progress').value],
+    hidden:document.getElementById('boot').hidden,
+    label:document.getElementById('boot-percent').textContent
+  }));
+  assert.equal(boot.values[0],0);
+  assert.ok(boot.values.some(value=>value>10&&value<25),'expected intermediate texture progress');
+  assert.ok(boot.values.every((value,i)=>i===0||value>=boot.values[i-1]),'startup progress must not go backwards');
+  assert.equal(boot.values.at(-1),100);
+  assert.equal(boot.label,'100%');
+  assert.equal(boot.hidden,true);
   await page.evaluate(()=>{
     const v=window.__BLA.view,render=v.render.bind(v);
     window.startupFrames=[];

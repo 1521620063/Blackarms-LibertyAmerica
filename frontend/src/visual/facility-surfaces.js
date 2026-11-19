@@ -37,8 +37,8 @@ export function weatherSurface(material,kind){
   material.needsUpdate=true;
 }
 
-export async function loadFacilitySurfaces(view){
-  const loader=new T.TextureLoader(),old=new Set(),loaded=[];
+export async function loadFacilitySurfaces(view,manager){
+  const loader=new T.TextureLoader(manager),old=new Set(),loaded=[];
   const anisotropy=maxAnisotropy(view.renderer);
   await Promise.all(Object.entries(packs).map(async([id,spec])=>{
     const textures=await Promise.all(['albedo','normal','roughness'].map(async(channel,index)=>{
