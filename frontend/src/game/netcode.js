@@ -38,23 +38,28 @@ export class NetworkMovement {
   constructor(playerId){
     this.playerId=playerId;this.sequence=0;this.pending=[];this.outbox=[];this.samples=[];
     this.predicted=null;this.offset={x:0,y:0,z:0};this.key=null;this.phase=null;this.clockOffset=null;
-    this.playhead=-Infinity;this.remoteShots=[];
+    this.playhead=-Infinity;this.remoteShots=[];this.replayFloor=0;
   }
   receive(state,now){
     const actor=state.actors.find(a=>a.id===this.playerId),key=generation(state);
     const newRound=this.key!==key;
     const reset=newRound||this.phase!==state.phase||actor?.alive!==this.predicted?.alive;
     const previous=this.predicted&&{x:this.predicted.x+this.offset.x,y:this.predicted.y+this.offset.y,z:this.predicted.z+this.offset.z};
-    if(reset){this.pending=[];this.outbox=[];}
+    if(reset){this.pending=[];this.outbox=[];this.replayFloor=0;}
     if(newRound){this.samples=[];this.clockOffset=null;this.playhead=-Infinity;this.remoteShots=[];}
     this.key=key;this.phase=state.phase;
-    this.pending=this.pending.filter(frame=>frame.sequence>(state.inputAcks?.[this.playerId]??0));
-    this.predicted=actor?{...actor}:null;
-    if(actor?.alive&&state.phase==='combat')for(const frame of this.pending)simulate(this.predicted,frame.input);
-    const error=previous&&actor?Math.hypot(previous.x-this.predicted.x,previous.y-this.predicted.y,previous.z-this.predicted.z):Infinity;
-    // Limit the visual offset without turning a slightly larger correction into a full snap.
-    const scale=!reset&&previous&&actor?Math.min(1,2/Math.max(error,1e-9)):0;
-    for(const axis of axes)this.offset[axis]=scale?(previous[axis]-this.predicted[axis])*scale:0;
+    const ack=state.inputAcks?.[this.playerId]??0;
+    this.pending=this.pending.filter(frame=>frame.sequence>ack);
+    // An older ack needs inputs we have already evicted. Keep predicting until
+    // replay is complete again, but continue accepting remote state and events.
+    if(reset||!actor?.alive||state.phase!=='combat'||ack>=this.replayFloor){
+      this.predicted=actor?{...actor}:null;
+      if(actor?.alive&&state.phase==='combat')for(const frame of this.pending)simulate(this.predicted,frame.input);
+      const error=previous&&actor?Math.hypot(previous.x-this.predicted.x,previous.y-this.predicted.y,previous.z-this.predicted.z):Infinity;
+      // Limit the visual offset without turning a slightly larger correction into a full snap.
+      const scale=!reset&&previous&&actor?Math.min(1,2/Math.max(error,1e-9)):0;
+      for(const axis of axes)this.offset[axis]=scale?(previous[axis]-this.predicted[axis])*scale:0;
+    }
     const offset=now-state.time*1000;
     this.clockOffset=this.clockOffset===null?offset:Math.min(this.clockOffset,offset);
     this.samples.push(state);if(this.samples.length>20)this.samples.shift();
@@ -62,7 +67,7 @@ export class NetworkMovement {
   step(rawInput,state){
     const input=sanitizeInput(rawInput),frame={sequence:++this.sequence,input};
     this.pending.push(frame);this.outbox.push(frame);
-    if(this.pending.length>120)this.pending.shift();
+    if(this.pending.length>120)this.replayFloor=this.pending.shift().sequence;
     if(this.outbox.length>120)this.outbox.shift();
     if(this.predicted?.alive&&state.phase==='combat')simulate(this.predicted,input);
   }
@@ -84,7 +89,9 @@ export class NetworkMovement {
     let local=this.predicted;
     if(local?.alive&&state.phase==='combat'&&input&&remainder>0){
       local={...local};const movement=sanitizeInput(input);if(movement.weapon)local.weapon=movement.weapon;
-      moveActor(local,movement,Math.min(remainder,SIMULATION_STEP));
+      moveActor(local,movement,SIMULATION_STEP);
+      const fraction=Math.min(1,remainder/SIMULATION_STEP);
+      for(const axis of axes)local[axis]=this.predicted[axis]+(local[axis]-this.predicted[axis])*fraction;
     }
     const decay=Math.exp(-dt*18);for(const axis of axes)this.offset[axis]*=decay;
     const target=this.playbackTime(now);

@@ -151,6 +151,35 @@ test('remote shots play once at the interpolated aim time, including while spect
   assert.deepEqual(net.takeRemoteShots(1400),[],'queued effects do not spill into the next round');
 });
 
+test('an ack older than retained inputs cannot rewind a sustained strafe',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),input={strafe:-1,yaw:-Math.PI/2};
+  Object.assign(match.actors[0],{x:-36,z:20});
+  const first=snapshot(match);net.receive(first,0);
+  let previous=20;
+  for(let tick=1;tick<=166;tick++){
+    net.step(input,first);net.takeInputs();
+    match.setInput('player',input);match.step(SIMULATION_STEP);
+    if(tick===165)net.receive(first,tick*1000/60);
+    if(tick===166)net.receive(snapshot(match,tick),tick*1000/60);
+    const z=net.render(first,tick*1000/60,SIMULATION_STEP).actors[0].z;
+    assert.ok(z<previous,`frame ${tick} reversed from ${previous} to ${z}`);
+    previous=z;
+  }
+  samePosition(net.predicted,match.actors[0]);assert.equal(net.pending.length,0);
+});
+
+test('render frames never step past the fixed collision stop then recoil',()=>{
+  const m=fixture(),net=new NetworkMovement('player'),input={strafe:-1,yaw:-Math.PI/2};
+  Object.assign(m.actors[0],{x:-36,z:20});const state=snapshot(m);net.receive(state,0);
+  let previous=20;
+  for(let frame=1;frame<=450;frame++){
+    if(frame%2===0)net.step(input,state);
+    const remainder=frame%2*.001; // Just after a tick, before the blocked full step.
+    const z=net.render(state,(Math.floor(frame/2)/60+remainder)*1000,1/120,{input,remainder}).actors[0].z;
+    assert.ok(z<=previous+1e-9,`frame ${frame}: ${previous} -> ${z}`);previous=z;
+  }
+});
+
 test('fixed clock catches up late timer callbacks without running an unbounded stall',()=>{
   const clock=new FixedClock(0);let steps=0;
   for(const now of [16,49,101,155,250,499,749,999,1000])clock.advance(now,()=>steps++);
