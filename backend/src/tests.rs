@@ -50,6 +50,43 @@ fn queue_is_bounded_deduplicated_and_discardable() {
     assert!(q.next().is_none());
 }
 #[test]
+fn queued_tap_uses_press_direction_without_turning_the_actor() {
+    let mut m = game("elimination");
+    m.start_combat();
+    m.actors[0].pos = Point { x: 6.0, z: 1.0 };
+    m.actors[0].weapon = "dmr".into();
+    m.actors[0].cooldown = 1.0;
+    m.set_input("human-0", Input::parse(&json!({"fire":true})));
+    m.step(STEP);
+    m.actors[0].cooldown = 0.0;
+    let before = m.actors[0].ammo["dmr"].mag;
+    let mut queue = InputQueue::default();
+    queue.push(&json!([{"sequence":1,"input":{
+        "forward":1,"yaw":0,"pitch":0,"fire":true,
+        "firePose":{"yaw":-std::f64::consts::FRAC_PI_2,"pitch":0.05}
+    }}]));
+    m.set_input("human-0", queue.next().unwrap());
+    m.step(STEP);
+    assert_eq!(queue.ack, 1);
+    assert_eq!(m.actors[0].ammo["dmr"].mag, before - 1);
+    near(m.actors[0].yaw, 0.0);
+    near(m.actors[0].pos.x, 6.0);
+    assert!(m.actors[0].pos.z < 1.0);
+    let snapshot = m.snapshot();
+    let shot = snapshot["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["type"] == "shot")
+        .unwrap();
+    let end = &shot["traces"][0]["end"];
+    assert!(num(&end["x"]) - 6.0 > (num(&end["z"]) - m.actors[0].pos.z).abs());
+    m.actors[0].cooldown = 0.0;
+    m.step(STEP);
+    assert_eq!(m.actors[0].ammo["dmr"].mag, before - 1);
+}
+
+#[test]
 fn movement_matches_frontend_at_sixty_hz() {
     let cases: serde_json::Value =
         serde_json::from_str(include_str!("../tests/movement.json")).unwrap();

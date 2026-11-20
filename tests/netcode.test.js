@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../frontend/src/game/match.js';
-import { NetworkMovement, InputQueue } from '../frontend/src/game/netcode.js';
+import { NetworkMovement, InputQueue, TriggerInput } from '../frontend/src/game/netcode.js';
 import { FixedClock, SIMULATION_STEP } from '../frontend/src/game/movement.js';
 
 function fixture(){
@@ -92,6 +92,44 @@ test('render projection uses collision rules and cannot add movement beyond one 
   net.receive(state,0);const before={...net.predicted};
   const rendered=net.render(state,0,0,{input,remainder:10}).actors[0];
   assert.ok(Math.abs(rendered.x-before.x-3.5/60)<1e-9);samePosition(net.predicted,before);
+});
+
+test('a tap between simulation ticks keeps its press direction through transport and fires once',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),queue=new InputQueue(),trigger=new TriggerInput();
+  const state=snapshot(match),current={yaw:0,pitch:0,forward:1,fire:false};net.receive(state,0);
+  const actor=match.actors[0];actor.weapon='dmr';actor.lastInput={fire:true};
+  trigger.press(-Math.PI/2,.05);trigger.release();
+  net.step(trigger.sample(current),state);queue.push(net.takeInputs());
+  const {input}=queue.next();assert.deepEqual(input.firePose,{yaw:-Math.PI/2,pitch:.05});
+  match.setInput('player',input);match.step(SIMULATION_STEP);
+  assert.equal(actor.yaw,current.yaw);assert.equal(actor.x,state.actors[0].x);assert.ok(actor.z<state.actors[0].z);
+  const shot=match.events.find(e=>e.type==='shot');assert.ok(shot);
+  const end=shot.traces[0].end;assert.ok(end.x-shot.origin.x>Math.abs(end.z-shot.origin.z),'shot points toward the click, not the later camera');
+  actor.cooldown=0;match.step(SIMULATION_STEP);
+  assert.equal(match.events.filter(e=>e.type==='shot').length,1,'reused input must not repeat a semi-auto press');
+  assert.equal(trigger.sample(current),current);
+});
+
+test('corrections just over the smoothing limit do not become full camera snaps',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),first=snapshot(match);net.receive(first,0);
+  match.actors[0].x+=2.1;match.time+=.05;
+  const next=snapshot(match);net.receive(next,50);
+  assert.ok(Math.abs(net.render(next,50,0).actors[0].x-first.actors[0].x-.1)<1e-9);
+  assert.ok(Math.abs(net.render(next,1050,1).actors[0].x-next.actors[0].x)<1e-6);
+});
+
+test('remote shots play once at the interpolated aim time, including while spectating',()=>{
+  const match=fixture(),net=new NetworkMovement('player'),first=snapshot(match);first.actors[1].yaw=0;net.receive(first,1000);
+  const second=structuredClone(first);second.time+=.06;second.actors[0].alive=false;second.actors[1].yaw=.6;
+  net.receive(second,1120);
+  const shot={id:10,type:'shot',actor:'enemy',time:.03};net.queueRemoteShot(shot);
+  assert.deepEqual(net.takeRemoteShots(1120),[]);
+  assert.ok(Math.abs(net.render(second,1131,0).actors[1].yaw-.31)<1e-9);
+  assert.deepEqual(net.takeRemoteShots(1131),[shot]);
+  assert.deepEqual(net.takeRemoteShots(1160),[]);
+  net.queueRemoteShot({...shot,id:11,time:.06});
+  const next=structuredClone(second);next.round++;next.time+=.05;net.receive(next,1170);
+  assert.deepEqual(net.takeRemoteShots(1400),[],'queued effects do not spill into the next round');
 });
 
 test('fixed clock catches up late timer callbacks without running an unbounded stall',()=>{

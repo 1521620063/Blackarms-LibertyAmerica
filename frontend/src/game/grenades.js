@@ -13,8 +13,8 @@ export function clearRay(from,to) {
   const length=Math.hypot(to.x-from.x,to.y-from.y,to.z-from.z);
   return length<.001||wallHit(from,{x:(to.x-from.x)/length,y:(to.y-from.y)/length,z:(to.z-from.z)/length})>length-.05;
 }
-export function throwGrenade(match,a) {
-  const w=WEAPONS[a.weapon],origin=eye(a),dir=direction(a.yaw,clamp(a.pitch+.18,-1.2,1.35));
+export function throwGrenade(match,a,pose=a) {
+  const w=WEAPONS[a.weapon],origin=eye(a),dir=direction(pose.yaw,clamp(pose.pitch+.18,-1.2,1.35));
   a.ammo[a.weapon].mag--;a.cooldown=60/w.rpm;
   const p={id:++match.projectileId,actor:a.id,weapon:a.weapon,...origin,vx:dir.x*w.speed,vy:dir.y*w.speed+2,vz:dir.z*w.speed,fuse:w.fuse};
   match.projectiles.push(p);match.emit('throw',{actor:a.id,weapon:a.weapon,origin});

@@ -238,6 +238,7 @@ pub struct Input {
     pub yaw: f64,
     pub pitch: f64,
     pub fire: bool,
+    pub fire_pose: Option<(f64, f64)>,
     pub aim: bool,
     pub interact: bool,
     pub sprint: bool,
@@ -255,12 +256,18 @@ impl Input {
         let flag = |k: &str| v[k].as_bool().unwrap_or(false);
         let w = text(&v["weapon"]);
         let order = text(&v["order"]);
+        let pose = &v["firePose"];
+        let fire_pose = pose["yaw"]
+            .as_f64()
+            .zip(pose["pitch"].as_f64())
+            .map(|(yaw, pitch)| (yaw.clamp(-1e5, 1e5), pitch.clamp(-1.4, 1.4)));
         Self {
             forward: finite("forward", -1.0, 1.0),
             strafe: finite("strafe", -1.0, 1.0),
             yaw: finite("yaw", -1e5, 1e5),
             pitch: finite("pitch", -1.4, 1.4),
             fire: flag("fire"),
+            fire_pose,
             aim: flag("aim"),
             interact: flag("interact"),
             sprint: flag("sprint"),

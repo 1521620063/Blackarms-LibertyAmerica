@@ -645,15 +645,17 @@ impl Match {
         if i.fire
             && !i.interact
             && !a.sprinting
-            && (a.bot || weapon(&a.weapon)["semi"] != true || !last.fire)
+            && (a.bot || weapon(&a.weapon)["semi"] != true || !last.fire || i.fire_pose.is_some())
         {
-            self.shoot(idx);
+            let (yaw, pitch) = i.fire_pose.unwrap_or((a.yaw, a.pitch));
+            self.shoot_at(idx, yaw, pitch);
         }
         if i.interact && !i.fire && !self.actors[idx].sprinting {
             self.interact(idx, dt);
         } else if self.core.interactor.as_deref() == Some(&self.actors[idx].id) {
             self.cancel_interaction();
         }
+        self.actors[idx].input.fire_pose = None;
         self.actors[idx].last = i;
     }
     fn reload_weapon(&mut self, idx: usize) -> bool {
@@ -673,7 +675,12 @@ impl Match {
         self.emit("reload", e);
         true
     }
+    #[cfg(test)]
     pub fn shoot(&mut self, idx: usize) -> bool {
+        let a = &self.actors[idx];
+        self.shoot_at(idx, a.yaw, a.pitch)
+    }
+    fn shoot_at(&mut self, idx: usize, shot_yaw: f64, shot_pitch: f64) -> bool {
         let a = &self.actors[idx];
         if self.phase != "combat"
             || !a.alive
@@ -690,7 +697,7 @@ impl Match {
             return false;
         }
         if weapon(&a.weapon)["throwable"] == true {
-            return self.throw_grenade(idx);
+            return self.throw_grenade(idx, shot_yaw, shot_pitch);
         }
         let a = &mut self.actors[idx];
         a.ammo.get_mut(&a.weapon).unwrap().mag -= 1;
@@ -716,8 +723,8 @@ impl Match {
             };
         let mut traces = vec![];
         for _ in 0..w["pellets"].as_u64().unwrap() {
-            let yaw = a.yaw + (self.random() - 0.5) * spread * 2.0;
-            let pitch = a.pitch + (self.random() - 0.5) * spread * 2.0;
+            let yaw = shot_yaw + (self.random() - 0.5) * spread * 2.0;
+            let pitch = shot_pitch + (self.random() - 0.5) * spread * 2.0;
             let dir = [
                 -yaw.sin() * pitch.cos(),
                 pitch.sin(),

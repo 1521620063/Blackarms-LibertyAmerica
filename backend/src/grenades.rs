@@ -56,11 +56,11 @@ impl Match {
     pub(crate) fn obscured(&self, a: &crate::game::Actor, b: &crate::game::Actor) -> bool {
         a.flash > 0.5 || self.smoke_blocks(eye(a), eye(b))
     }
-    pub(crate) fn throw_grenade(&mut self, idx: usize) -> bool {
+    pub(crate) fn throw_grenade(&mut self, idx: usize, yaw: f64, pitch: f64) -> bool {
         let a = &mut self.actors[idx];
         let w = weapon(&a.weapon);
         let origin = eye(a);
-        let pitch = (a.pitch + 0.18).clamp(-1.2, 1.35);
+        let pitch = (pitch + 0.18).clamp(-1.2, 1.35);
         a.ammo.get_mut(&a.weapon).unwrap().mag -= 1;
         a.cooldown = 60.0 / num(&w["rpm"]);
         self.projectile_id += 1;
@@ -71,9 +71,9 @@ impl Match {
             x: origin[0],
             y: origin[1],
             z: origin[2],
-            vx: -a.yaw.sin() * pitch.cos() * num(&w["speed"]),
+            vx: -yaw.sin() * pitch.cos() * num(&w["speed"]),
             vy: pitch.sin() * num(&w["speed"]) + 2.0,
-            vz: -a.yaw.cos() * pitch.cos() * num(&w["speed"]),
+            vz: -yaw.cos() * pitch.cos() * num(&w["speed"]),
             fuse: num(&w["fuse"]),
         };
         let e = json!({"actor":a.id,"weapon":a.weapon,"origin":{"x":p.x,"y":p.y,"z":p.z}});

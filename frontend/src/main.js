@@ -6,7 +6,7 @@ import { WorldView } from './world.js';
 import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
 import { AdaptiveQuality, RenderPacer } from './visual/performance.js';
-import { NetworkMovement } from './game/netcode.js';
+import { NetworkMovement, TriggerInput } from './game/netcode.js';
 import { SIMULATION_STEP } from './game/movement.js';
 
 const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
@@ -43,8 +43,8 @@ window.addEventListener('rendererror',event=>{errors.push(event.detail?.message|
 const audio=new AudioEngine(settings);
 let match=null,state=null,networkMovement=null,active=false,online=false,paused=false,playerId='player',inputYaw=0,inputPitch=0;
 let lastEvent=0,lastRound='',lastPhase='',spectate=null,socket=null,networkId=null,lobby=null,ping=0;
-let accumulator=0,lastTime=performance.now(),lastNetwork=0,lastHUD=0,fps=60,frames=0,fpsAt=performance.now(),lastAnnouncement=0,damage=0,hit=0,radioUntil=0;
-const keys=new Set(),mouse={fire:false,aim:false};let commands={};
+let accumulator=0,lastTime=performance.now(),lastHUD=0,fps=60,frames=0,fpsAt=performance.now(),lastAnnouncement=0,damage=0,hit=0,radioUntil=0;
+const keys=new Set(),trigger=new TriggerInput(),mouse={aim:false};let commands={};
 const feed=[];
 const weaponNotes={
   rifle:['KESTREL','全自动精准火力，沙色机匣与镂空护木。'],
@@ -103,7 +103,7 @@ for(const group of document.querySelectorAll('[data-group]'))for(const b of grou
   const rule=RULES[config.teamSize];text('rule-time',`${rule.combat} 秒 / 回合`);text('rule-wins',`先赢 ${rule.wins} 回合`);
   text('mode-desc',config.mode==='core'?'携带核心，按住 E 安装并保护上传；防守方阻止安装或拆除核心。':'每回合一条命。歼灭敌方队伍，赢下整场比赛。');
 };
-function clearInput(){keys.clear();mouse.fire=false;mouse.aim=false;commands={};}
+function clearInput(){keys.clear();trigger.clear();mouse.aim=false;commands={};}
 function announce(title,sub='ZERO FACILITY / TACTICAL OPERATION'){text('announcement', '');$('announcement').innerHTML=`<small>${escape(sub)}</small><strong>${escape(title)}</strong>`;lastAnnouncement=performance.now();$('announcement').classList.add('visible');}
 function radio(message,call='战术频道'){if(!settings.subtitles)return;$('radio').innerHTML=`<span>${escape(call)}</span>${escape(message)}`;radioUntil=performance.now()+4200;}
 function lock(){if(!active||!['combat','preparation'].includes(state?.phase)||(online&&socket?.readyState!==WebSocket.OPEN))return;audio.unlock();paused=false;show('pause',false);if(state.actors.find(a=>a.id===playerId)?.alive)$('view').requestPointerLock()?.catch?.(()=>{});}
@@ -118,7 +118,7 @@ function enterGame(nextState,isOnline,lateJoin=false){
   state=nextState;online=isOnline;active=true;paused=false;lastEvent=lateJoin?(nextState.events.at(-1)?.id??0):0;lastRound='';lastPhase='';spectate=null;accumulator=0;feed.length=0;clearInput();
   const a=state.actors.find(a=>a.id===playerId);inputYaw=a.yaw;inputPitch=0;
   networkMovement=isOnline?new NetworkMovement(playerId):null;
-  networkMovement?.receive(state,performance.now());lastNetwork=0;
+  networkMovement?.receive(state,performance.now());
   show('menu',false);show('hud',true);show('pause',false);show('result',false);$('lan-dialog').close();audio.unlock();
   text('connection-label',online?`${networkMode.toUpperCase()} / SERVER AUTHORITY`:'OFFLINE / LOCAL SIMULATION');
 }
@@ -147,13 +147,14 @@ function selectWeapon(type){
   else if(state.phase==='combat')commands.weapon=type;
 }
 function changeSpectator(delta){const allies=state?.actors.filter(a=>a.alive&&a.squad===state.actors.find(b=>b.id===playerId)?.squad)||[];if(!allies.length){spectate=null;return;}let index=allies.findIndex(a=>a.id===spectate);spectate=allies[(index+delta+allies.length)%allies.length].id;}
-function getInput(){
+function getInput(consumeTrigger=false){
   const allowed=active&&!paused&&!document.querySelector('dialog[open]');
+  const canFire=allowed&&state.phase==='combat'&&!!document.pointerLockElement;
   const result={forward:allowed?(+keys.has('KeyW')-+keys.has('KeyS')):0,strafe:allowed?(+keys.has('KeyD')-+keys.has('KeyA')):0,
-    yaw:inputYaw,pitch:inputPitch,fire:allowed&&mouse.fire&&!!document.pointerLockElement,aim:allowed&&mouse.aim,
+    yaw:inputYaw,pitch:inputPitch,fire:canFire&&trigger.held,aim:allowed&&mouse.aim,
     sprint:allowed&&(keys.has('ShiftLeft')||keys.has('ShiftRight')),crouch:allowed&&(keys.has('ControlLeft')||keys.has('KeyC')),
     jump:allowed&&keys.has('Space'),interact:allowed&&keys.has('KeyE'),reload:allowed&&keys.has('KeyR'),...commands};
-  return result;
+  return consumeTrigger&&canFire?trigger.sample(result):result;
 }
 window.addEventListener('keydown',e=>{
   if(document.querySelector('dialog[open]')||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
@@ -173,9 +174,9 @@ window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Tab')show('
 window.addEventListener('blur',()=>{clearInput();if(active)pauseGame();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&active)pauseGame();});
 window.addEventListener('contextmenu',e=>e.preventDefault(),{capture:true});
-window.addEventListener('mousedown',e=>{if(!document.pointerLockElement)return;if(e.button===0)mouse.fire=true;if(e.button===2)mouse.aim=true;});
-window.addEventListener('mouseup',e=>{if(e.button===0)mouse.fire=false;if(e.button===2)mouse.aim=false;});
-window.addEventListener('mousemove',e=>{if(document.pointerLockElement&&active&&!paused){const a=state?.actors.find(a=>a.id===playerId),zoom=a?.aim&&!a.reload&&!a.switchTime?(WEAPONS[a.weapon].zoom??1):1;inputYaw-=e.movementX*.002*settings.sensitivity/zoom;inputPitch=clamp(inputPitch-e.movementY*.002*settings.sensitivity/zoom,-1.4,1.4);}});
+window.addEventListener('mousedown',e=>{if(!document.pointerLockElement||!active||paused)return;if(e.button===0&&state.phase==='combat')trigger.press(inputYaw,inputPitch);if(e.button===2)mouse.aim=true;});
+window.addEventListener('mouseup',e=>{if(e.button===0)trigger.release();if(e.button===2)mouse.aim=false;});
+window.addEventListener('mousemove',e=>{if(document.pointerLockElement&&active&&!paused){const a=state?.actors.find(a=>a.id===playerId),zoom=mouse.aim&&a&&!a.reload&&!a.switchTime?(WEAPONS[a.weapon].zoom??1):1;const yaw=inputYaw-e.movementX*.002*settings.sensitivity/zoom;inputYaw=Math.atan2(Math.sin(yaw),Math.cos(yaw));inputPitch=clamp(inputPitch-e.movementY*.002*settings.sensitivity/zoom,-1.4,1.4);}});
 window.addEventListener('wheel',e=>{
   if(!active||paused||!document.pointerLockElement||!e.deltaY)return;
   e.preventDefault();const current=commands.weapon||state.actors.find(a=>a.id===playerId)?.weapon;
@@ -302,7 +303,9 @@ setInterval(()=>{if(socket?.readyState===WebSocket.OPEN)send({type:'ping',sent:p
 
 function events(){
   for(const e of state.events){
-    if(e.id<=lastEvent)continue;lastEvent=e.id;view.event(e,playerId);audio.event(e,playerId,state);
+    if(e.id<=lastEvent)continue;lastEvent=e.id;
+    if(online&&e.type==='shot'&&e.actor!==playerId)networkMovement.queueRemoteShot(e);
+    else {view.event(e,playerId);audio.event(e,playerId,state);}
     if(e.type==='damage'&&e.source===playerId){hit=1;$('hitmarker').style.color=e.part==='weakpoint'?'#e6c079':'#edf1d7';}
     if(e.type==='damage'&&e.actor===playerId){damage=Math.min(.9,damage+.35);const from=state.actors.find(a=>a.id===e.source),me=state.actors.find(a=>a.id===playerId);if(from&&me)$('damage-direction').style.rotate=`${Math.atan2(-(from.x-me.x),-(from.z-me.z))-me.yaw}rad`;}
     if(e.type==='kill'){
@@ -418,17 +421,15 @@ function frame(now){
     if(!online&&!paused&&!document.querySelector('dialog[open]')){
       accumulator+=dt;
       if(accumulator>=1/60){
-        do{match.setInput(playerId,getInput());match.step(1/60);commands={};accumulator-=1/60;}while(accumulator>=1/60);
+        do{match.setInput(playerId,getInput(true));match.step(1/60);commands={};accumulator-=1/60;}while(accumulator>=1/60);
         state=match.snapshot();
       }
     }else if(online){
       accumulator+=dt;
-      while(accumulator>=SIMULATION_STEP){networkMovement.step(getInput(),state);commands={};accumulator-=SIMULATION_STEP;}
-      if(now-lastNetwork>=33){
-        const frames=networkMovement.takeInputs();
-        if(frames.length)send({type:'input',session:state.session,round:state.round,frames});
-        lastNetwork=now;
-      }
+      while(accumulator+1e-9>=SIMULATION_STEP){networkMovement.step(getInput(true),state);commands={};accumulator=Math.max(0,accumulator-SIMULATION_STEP);}
+      // Flush on the same callback that sampled the input, batching only catch-up ticks.
+      const frames=networkMovement.takeInputs();
+      if(frames.length)send({type:'input',session:state.session,round:state.round,frames});
     }
     events();if(now-lastHUD>50){renderHUD(now);lastHUD=now;}
     const me=state.actors.find(a=>a.id===playerId);audio.update(state,me,keys.has('KeyW')||keys.has('KeyA')||keys.has('KeyS')||keys.has('KeyD'));
@@ -445,6 +446,7 @@ function frame(now){
   camera.networkSmoothed=online;
   const renderState=active&&online?networkMovement.render(state,now,Math.min(renderDt,.1),{input:getInput(),remainder:accumulator}):state;
   try{
+    if(active&&online)for(const e of networkMovement.takeRemoteShots(now)){view.event(e,playerId);audio.event(e,playerId,renderState);}
     view.render(active?renderState:null,playerId,renderDt,now/1000,camera);frames++;
     if(adapting&&view.adaptiveQuality.sample(now,settings.maxFPS))view.resize();
   }catch(error){fatal(error);return;}

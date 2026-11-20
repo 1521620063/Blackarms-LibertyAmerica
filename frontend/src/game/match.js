@@ -9,7 +9,9 @@ const emptyInput = () => ({ forward:0, strafe:0, yaw:0, pitch:0, fire:false, aim
 const finite = (v,min,max) => Number.isFinite(v) ? clamp(v,min,max) : 0;
 export function sanitizeInput(value={}) {
   return { forward:finite(value.forward,-1,1), strafe:finite(value.strafe,-1,1), yaw:finite(value.yaw,-1e5,1e5), pitch:finite(value.pitch,-1.4,1.4),
-    fire:!!value.fire, aim:!!value.aim, interact:!!value.interact, sprint:!!value.sprint, crouch:!!value.crouch,
+    fire:!!value.fire, firePose:Number.isFinite(value.firePose?.yaw)&&Number.isFinite(value.firePose?.pitch)
+      ?{yaw:finite(value.firePose.yaw,-1e5,1e5),pitch:finite(value.firePose.pitch,-1.4,1.4)}:null,
+    aim:!!value.aim, interact:!!value.interact, sprint:!!value.sprint, crouch:!!value.crouch,
     jump:!!value.jump, reload:!!value.reload, weapon:Object.hasOwn(WEAPONS,value.weapon)?value.weapon:null,
     order:Object.hasOwn(ORDERS,value.order)?value.order:null, drop:!!value.drop, ready:!!value.ready };
 }
@@ -117,28 +119,29 @@ export class Match {
     if(i.drop&&!last.drop) this.dropCore(a);
     if(i.order&&i.order!==last.order) this.order(a,i.order);
     moveActor(a,i,dt);
-    if(i.fire&&!i.interact&&!a.sprinting&&(a.bot||!WEAPONS[a.weapon].semi||!last.fire)) this.shoot(a);
+    if(i.fire&&!i.interact&&!a.sprinting&&(a.bot||!WEAPONS[a.weapon].semi||!last.fire||i.firePose)) this.shoot(a,i.firePose??a);
     if(i.interact&&!i.fire&&!a.sprinting) this.interact(a,dt);
     else if(this.core.interactor===a.id) this.cancelInteraction();
     a.lastInput={...i};
+    a.input.firePose=null;
   }
   reloadWeapon(a) {
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
     if(w.throwable||a.reload>0||a.switchTime>0||am.mag===w.mag||am.reserve<=0) return false;
     a.reload=w.reload; this.emit('reload',{actor:a.id,weapon:a.weapon,duration:w.reload}); return true;
   }
-  shoot(a) {
+  shoot(a,pose=a) {
     if(this.phase!=='combat'||!a.alive||a.reload>0||a.switchTime>0||a.cooldown>0) return false;
     const w=WEAPONS[a.weapon],am=a.ammo[a.weapon];
     if(am.mag<=0) {if(!this.reloadWeapon(a)&&a.weapon!=='pistol') a.input.weapon='pistol'; return false;}
-    if(w.throwable)return throwGrenade(this,a);
+    if(w.throwable)return throwGrenade(this,a,pose);
     am.mag--; a.cooldown=60/w.rpm*(a.bot?1.25:1); a.shotHeat=Math.min(1,a.shotHeat+.22);
     const origin={x:a.x,y:(a.crouch?1.07:1.57)+a.y,z:a.z};
     const accuracy=a.weapon==='sniper'?(a.aim?.025:1):(a.aim?.32:1);
     const spread=w.spread*accuracy*(1+a.shotHeat*(a.weapon==='lmg'?2:.7))+(a.bot?DIFFICULTY[this.config.difficulty].error:0);
     const traces=[];
     for(let pellet=0;pellet<w.pellets;pellet++) {
-      const dir=direction(a.yaw+(this.random()-.5)*spread*2,a.pitch+(this.random()-.5)*spread*2);
+      const dir=direction(pose.yaw+(this.random()-.5)*spread*2,pose.pitch+(this.random()-.5)*spread*2);
       let nearest=Math.min(w.range,wallHit(origin,dir)),target=null,part='body';
       for(const other of this.actors) {
         if(!other.alive||other.id===a.id) continue;

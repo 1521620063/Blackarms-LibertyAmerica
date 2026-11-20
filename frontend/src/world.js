@@ -468,7 +468,7 @@ export class WorldView {
       if(firstPersonSide!==this.firstPersonSide){const uniform=this.characters.sideMaterials[firstPersonSide].get('cloth'),sleeve=this.materials.sleeve;sleeve.color.copy(uniform.color);for(const key of ['map','normalMap','roughnessMap'])sleeve[key]=uniform[key];sleeve.needsUpdate=true;this.firstPersonSide=firstPersonSide;}
       if(this.weaponType!==follow.weapon)this.makeGun(follow.weapon);
       const model=this.models.get(follow.id),moving=Math.min(1,(model?.userData.speed||0)/2);this.moveBlend=T.MathUtils.damp(this.moveBlend,moving,8,dt);
-      if(this.lastLook){this.sway.x=T.MathUtils.damp(this.sway.x,T.MathUtils.clamp(yaw-this.lastLook.yaw,-.1,.1),10,dt);this.sway.y=T.MathUtils.damp(this.sway.y,T.MathUtils.clamp(pitch-this.lastLook.pitch,-.1,.1),10,dt);}this.lastLook={yaw,pitch};
+      if(this.lastLook){const turn=yaw-this.lastLook.yaw;this.sway.x=T.MathUtils.damp(this.sway.x,T.MathUtils.clamp(Math.atan2(Math.sin(turn),Math.cos(turn)),-.1,.1),10,dt);this.sway.y=T.MathUtils.damp(this.sway.y,T.MathUtils.clamp(pitch-this.lastLook.pitch,-.1,.1),10,dt);}this.lastLook={yaw,pitch};
       const bob=(follow.sprinting?.02:.008)*this.moveBlend,aim=follow.aim;
       this.kit.animateWeapon(this.weapon,follow);
       const swapping=follow.switchTime>0;
