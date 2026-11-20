@@ -11,7 +11,8 @@ export class InputQueue {
       this.frames.push({sequence:frame.sequence,input:sanitizeInput(frame.input)});
     }
     // Bound latency and memory; discarded commands are corrected by the next snapshot.
-    if(this.frames.length>12)this.frames.splice(0,this.frames.length-12);
+    const maxQueuedInputs=36; // Match the Rust server's 600 ms jitter budget.
+    if(this.frames.length>maxQueuedInputs)this.frames.splice(0,this.frames.length-maxQueuedInputs);
   }
   next(){const frame=this.frames.shift();if(frame)this.ack=frame.sequence;return frame;}
   discard(){this.frames=[];this.ack=this.received;}

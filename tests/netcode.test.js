@@ -42,6 +42,25 @@ test('prediction stays aligned under delayed batched inputs and delayed snapshot
   }
 });
 
+test('400ms input burst preserves held left movement and the final stop',()=>{
+  const server=fixture(),reference=fixture(),net=new NetworkMovement('player'),queue=new InputQueue(),packets=[];
+  let state=snapshot(server);net.receive(state,0);
+  for(let tick=1;tick<=68;tick++){
+    if(tick<=44){
+      const input={strafe:tick<=40?-1:0,yaw:0};
+      net.step(input,state);reference.setInput('player',input);reference.step(SIMULATION_STEP);
+      packets.push(net.takeInputs());
+    }
+    if(tick<5||tick>=28)while(packets.length)queue.push(packets.shift());
+    const frame=queue.next();server.actors[0].waitingForInput=!frame;
+    if(frame)server.setInput('player',frame.input);
+    server.step(SIMULATION_STEP);
+    if(tick%3===0){state=snapshot(server,queue.ack);net.receive(state,tick*1000/60);}
+    samePosition(net.predicted,reference.actors[0]);
+  }
+  assert.equal(queue.ack,44);samePosition(server.actors[0],reference.actors[0]);
+});
+
 test('server correction preserves continuity, converges and resets on death and new rounds',()=>{
   const match=fixture(),net=new NetworkMovement('player');let state=snapshot(match);net.receive(state,0);
   net.step({forward:1,yaw:-Math.PI/2},state);
@@ -69,9 +88,9 @@ test('input queue rejects duplicates and malformed sequences and bounds a client
   const queue=new InputQueue();
   queue.push([{sequence:1,input:{forward:100,x:999,hp:999}},{sequence:1,input:{}},{sequence:NaN,input:{}},{sequence:2,input:null}]);
   assert.equal(queue.frames.length,1);assert.equal(queue.next().input.forward,1);assert.equal(queue.ack,1);
-  for(let sequence=2;sequence<=30;sequence++)queue.push([{sequence,input:{}}]);
-  assert.equal(queue.frames.length,12);assert.equal(queue.next().sequence,19);
-  queue.discard();assert.equal(queue.ack,30);assert.equal(queue.next(),undefined);
+  for(let sequence=2;sequence<=50;sequence++)queue.push([{sequence,input:{}}]);
+  assert.equal(queue.frames.length,36);assert.equal(queue.next().sequence,15);
+  queue.discard();assert.equal(queue.ack,50);assert.equal(queue.next(),undefined);
 });
 
 test('high refresh rendering moves between simulation steps without changing prediction history',()=>{

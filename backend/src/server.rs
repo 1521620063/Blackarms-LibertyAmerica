@@ -56,7 +56,9 @@ impl InputQueue {
             self.received = seq;
             self.frames.push_back((seq, Input::parse(&f["input"])));
         }
-        while self.frames.len() > 12 {
+        // Absorb up to 600 ms of bunched 60 Hz inputs; still consume one per tick.
+        const MAX_QUEUED_INPUTS: usize = 36;
+        while self.frames.len() > MAX_QUEUED_INPUTS {
             self.frames.pop_front();
         }
     }

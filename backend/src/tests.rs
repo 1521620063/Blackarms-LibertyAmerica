@@ -32,21 +32,34 @@ fn inputs_cannot_set_authoritative_fields() {
     assert!(i.order.is_none());
 }
 #[test]
+fn jitter_burst_preserves_every_strafe_frame() {
+    let mut q = InputQueue::default();
+    for seq in 1..=24 {
+        q.push(&json!([{"sequence":seq,"input":{"strafe":-1}}]));
+    }
+    for seq in 1..=24 {
+        assert_eq!(q.next().unwrap().strafe, -1.0);
+        assert_eq!(q.ack, seq);
+    }
+    assert!(q.next().is_none());
+}
+#[test]
 fn queue_is_bounded_deduplicated_and_discardable() {
     let mut q = InputQueue::default();
-    for seq in 1..=20 {
+    for seq in 1..=50 {
         q.push(&json!([{"sequence":seq,"input":{"forward":1}}]));
     }
-    for _ in 0..12 {
+    for seq in 15..=50 {
         assert!(q.next().is_some());
+        assert_eq!(q.ack, seq);
     }
     assert!(q.next().is_none());
-    assert_eq!(q.ack, 20);
-    q.push(&json!([{"sequence":20,"input":{}}]));
+    assert_eq!(q.ack, 50);
+    q.push(&json!([{"sequence":50,"input":{}}]));
     assert!(q.next().is_none());
-    q.push(&json!([{"sequence":21,"input":{}}]));
+    q.push(&json!([{"sequence":51,"input":{}}]));
     q.discard();
-    assert_eq!(q.ack, 21);
+    assert_eq!(q.ack, 51);
     assert!(q.next().is_none());
 }
 #[test]
