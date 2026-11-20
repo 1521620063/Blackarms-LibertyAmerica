@@ -22,6 +22,8 @@ fn hub_with_peers(ids: &[&str]) -> Hub {
                 window: now,
                 messages: 0,
                 queue: InputQueue::default(),
+                pose_ticket: None,
+                pose_sender: watch::channel(None).0,
             },
         );
     }

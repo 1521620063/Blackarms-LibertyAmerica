@@ -6,6 +6,7 @@ mod physics;
 mod server;
 #[cfg(test)]
 mod tests;
+mod transport;
 
 use std::{collections::HashSet, env, error::Error};
 use tokio::net::TcpListener;
@@ -59,7 +60,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Err("公网模式需要配置 ALLOWED_ORIGINS，例如 https://game.example.com".into());
     }
     let listener = TcpListener::bind((host.as_str(), port)).await?;
-    let app = server::App::new(origins, mode == "public");
+    let mut app = server::App::new(origins, mode == "public");
+    let udp = transport::start(&mut app).await?;
     let simulation = tokio::spawn(app.clone().simulate());
     println!(
         "Blackarms Rust backend [{mode}] → http://{} (/lan, /health)",
@@ -73,6 +75,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .await;
     simulation.abort();
+    if let Some(udp) = udp {
+        udp.abort();
+    }
     result?;
     Ok(())
 }

@@ -119,6 +119,10 @@ ALLOWED_ORIGINS=https://203.0.113.10
 
 Nginx 在公网提供 HTTPS/WSS，Rust 使用内部 HTTP。`/lan` 代理需要转发 WebSocket 的 Upgrade / Connection，以及原始 Origin / Host。玩家打开 `https://公网IPv4`，选择“公网联机”，“房间服务器”留空即可。
 
+公网部署可选用 WebTransport 下发位置和输入确认。Rust 直接监听 UDP 443，Nginx 继续处理 TCP 443 的 HTTPS/WSS。参照 `backend/.env.example` 配置 UDP 监听和域名证书。使用 systemd 时，可用 `LoadCredential` 向服务提供私钥，并授予 `CAP_NET_BIND_SERVICE` 以监听低端口；证书更新后重启后台加载新证书。
+
+浏览器必须能直达 WebTransport 监听地址；常规 CDN 代理即使提供 HTTP/3，也不一定会转发 WebTransport。UDP 不通时会自动使用 WebSocket 快照。移动输入、房间控制和战斗事件仍走 WebSocket。
+
 如果后台单独部署，在发布后的 `config.js` 设置默认地址：
 
 ```js

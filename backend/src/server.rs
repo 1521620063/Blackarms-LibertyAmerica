@@ -19,7 +19,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 #[cfg(test)]
 #[path = "server_tests.rs"]
@@ -82,6 +82,8 @@ struct Peer {
     window: Instant,
     messages: u32,
     queue: InputQueue,
+    pose_ticket: Option<String>,
+    pose_sender: watch::Sender<Option<Arc<[u8]>>>,
 }
 struct Room {
     code: String,
@@ -135,6 +137,7 @@ impl Hub {
     fn snapshot(&self, room: &Room) -> Value {
         let mut v = room.game.as_ref().unwrap().snapshot();
         v["session"] = json!(room.session);
+        v["tick"] = json!(self.ticks);
         v["inputAcks"] = json!(
             room.members
                 .iter()
@@ -423,6 +426,55 @@ impl Hub {
     fn broadcast_states(&self) {
         for room in self.rooms.values().filter(|r| r.game.is_some()) {
             self.broadcast(room, json!({"type":"state","state":self.snapshot(room)}));
+            if room
+                .members
+                .iter()
+                .any(|id| self.peers[id].pose_sender.receiver_count() > 0)
+            {
+                let game = room.game.as_ref().unwrap();
+                let round3 = |n: f64| (n * 1000.0).round() / 1000.0;
+                let rows: Vec<Value> = game
+                    .actors
+                    .iter()
+                    .map(|a| {
+                        let flags = a.alive as u8
+                            | ((a.aim as u8) << 1)
+                            | ((a.crouch as u8) << 2)
+                            | ((a.sprinting as u8) << 3)
+                            | ((a.jump_held as u8) << 4);
+                        json!([
+                            a.id,
+                            round3(a.pos.x),
+                            round3(a.y),
+                            round3(a.pos.z),
+                            round3(a.yaw),
+                            round3(a.pitch),
+                            round3(a.vy),
+                            flags,
+                            a.weapon,
+                            a.armor
+                        ])
+                    })
+                    .collect();
+                for id in &room.members {
+                    let peer = &self.peers[id];
+                    if peer.pose_sender.receiver_count() > 0 {
+                        let packet = json!([
+                            1,
+                            room.session,
+                            game.round,
+                            game.phase,
+                            self.ticks,
+                            game.time,
+                            peer.queue.ack,
+                            rows
+                        ]);
+                        let _ = peer
+                            .pose_sender
+                            .send(Some(packet.to_string().into_bytes().into()));
+                    }
+                }
+            }
         }
     }
 }
@@ -431,6 +483,7 @@ pub struct App {
     hub: Arc<Mutex<Hub>>,
     pub origins: HashSet<String>,
     pub public: bool,
+    pub udp: bool,
 }
 pub fn normalize_origin(value: &str) -> Result<String, String> {
     if value.contains('#') {
@@ -479,7 +532,20 @@ impl App {
             hub: Arc::new(Mutex::new(Hub::default())),
             origins,
             public,
+            udp: false,
         }
+    }
+    pub fn take_pose_ticket(&self, ticket: &str) -> Option<watch::Receiver<Option<Arc<[u8]>>>> {
+        if ticket.len() != 48 || !ticket.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let mut hub = self.hub.lock().unwrap();
+        let peer = hub
+            .peers
+            .values_mut()
+            .find(|p| p.pose_ticket.as_deref() == Some(ticket))?;
+        peer.pose_ticket = None;
+        Some(peer.pose_sender.subscribe())
     }
     pub fn router(self) -> Router {
         Router::new()
@@ -552,6 +618,7 @@ async fn connection(app: App, socket: WebSocket) {
     let id = token(6);
     let (tx, mut rx) = mpsc::channel::<String>(32);
     let now = Instant::now();
+    let pose_ticket = app.udp.then(|| token(24));
     {
         let mut hub = app.hub.lock().unwrap();
         hub.peers.insert(
@@ -571,9 +638,14 @@ async fn connection(app: App, socket: WebSocket) {
                 window: now,
                 messages: 0,
                 queue: InputQueue::default(),
+                pose_ticket: pose_ticket.clone(),
+                pose_sender: watch::channel(None).0,
             },
         );
-        hub.send(&id, json!({"type":"hello","id":id}));
+        hub.send(
+            &id,
+            json!({"type":"hello","id":id,"poseTicket":pose_ticket}),
+        );
     }
     let (mut sink, mut stream) = socket.split();
     let writer = async {

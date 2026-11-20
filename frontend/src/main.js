@@ -7,6 +7,7 @@ import { AudioEngine } from './audio.js';
 import { WeaponPreview } from './visual/weapon-preview.js';
 import { AdaptiveQuality, RenderPacer } from './visual/performance.js';
 import { NetworkMovement, TriggerInput } from './game/netcode.js';
+import { PoseSnapshots, receivePoseDatagrams } from './game/pose-transport.js';
 import { SIMULATION_STEP } from './game/movement.js';
 
 const $=id=>document.getElementById(id),show=(id,on)=>$(id).hidden=!on;
@@ -207,6 +208,14 @@ async function connect(url){
   const mode=networkMode,address=$('backend-address').value.trim();
   const promise=new Promise((resolve,reject)=>{
     const current=new WebSocket(url);socket=current;
+    const poses=new PoseSnapshots(),datagrams=new AbortController();
+    current.addEventListener('close',()=>datagrams.abort(),{once:true});
+    const apply=(next)=>{
+      const changed=next.tick===undefined||next.tick!==state.tick||next.session!==state.session||
+        next.phase!==state.phase||next.actors.find(a=>a.id===playerId)?.alive!==state.actors.find(a=>a.id===playerId)?.alive;
+      state=next;
+      if(changed)networkMovement.receive(state,performance.now());
+    };
     const timer=setTimeout(()=>{current.close();reject(new Error('房间服务器连接超时，请检查连接地址。'));},8000);
     current.onerror=()=>{clearTimeout(timer);reject(new Error('无法连接房间服务，请检查后台是否启动及连接地址是否正确。'));};
     current.onclose=()=>{clearTimeout(timer);reject(new Error('房间服务已断开，请重试。'));if(socket!==current)return;networkId=null;lobby=null;if(active&&online)pauseGame();else if(listVisible()&&current.url===roomListServer){clearRoomList('房间服务已断开');}else text('lan-message','房间服务已断开，请重试。');};
@@ -215,6 +224,13 @@ async function connect(url){
       let m;try{m=JSON.parse(e.data);}catch{return;}
       if(!m||typeof m!=='object')return;
       if(m.type==='hello'&&typeof m.id==='string'&&m.id){networkId=m.id;playerId=m.id;clearTimeout(timer);connectionSettings[mode]=address;try{localStorage.setItem('bla.connections',JSON.stringify(connectionSettings));}catch{}resolve();}
+      if(m.type==='hello'&&typeof m.poseTicket==='string'){
+        receivePoseDatagrams(current,m.poseTicket,packet=>{
+          if(socket!==current||!active||!online)return;
+          const next=poses.acceptDatagram(packet,playerId);
+          if(next)apply(next);
+        },datagrams.signal);
+      }
       if(m.type==='rooms'&&listVisible()&&current.url===roomListServer&&Array.isArray(m.rooms))renderRoomList(m.rooms);
       if(m.type==='error'){text('lan-message',m.message);radio(m.message,'房间');if(listVisible()&&roomListTimer&&m.message==='请先创建或加入房间'){clearRoomList('当前服务器不支持房间列表');}}
       if(m.type==='pong')ping=Math.max(0,Math.round(performance.now()-m.sent));
@@ -222,8 +238,8 @@ async function connect(url){
         if($('lan-dialog').open||lobby||(active&&online)){lobby=m;renderLobby();}
         else send({type:'leave'});
       }
-      if(m.type==='started'&&lobby){match=null;enterGame(m.state,true,m.lateJoin);}
-      if(m.type==='state'&&active&&online){state=m.state;networkMovement.receive(state,performance.now());}
+      if(m.type==='started'&&lobby){match=null;poses.acceptReliable(m.state);enterGame(m.state,true,m.lateJoin);}
+      if(m.type==='state'&&active&&online)apply(poses.acceptReliable(m.state));
     };
   });
   connecting={url,promise};
