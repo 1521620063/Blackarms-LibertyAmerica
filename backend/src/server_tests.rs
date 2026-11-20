@@ -29,6 +29,43 @@ fn hub_with_peers(ids: &[&str]) -> Hub {
 }
 
 #[test]
+fn room_names_accept_twenty_unicode_characters_on_create_and_join() {
+    let mut hub = hub_with_peers(&["host", "guest"]);
+    let host_name = "𠮷中A1".repeat(5);
+    let guest_name = "9".repeat(20);
+    hub.message("host", &json!({"type":"create","name":host_name}))
+        .unwrap();
+    let code = hub.peers["host"].code.clone().unwrap();
+    assert_eq!(hub.room_list()["rooms"][0]["hostName"], host_name);
+
+    for (name, error) in [
+        (json!(format!("{host_name}9")), "呼号最多 20 个字符。"),
+        (json!(""), "请输入呼号。"),
+        (json!("   "), "请输入呼号。"),
+        (json!("队员!"), "呼号只能包含汉字、字母、数字和中间的空格。"),
+        (json!(" 队员"), "呼号只能包含汉字、字母、数字和中间的空格。"),
+        (json!(42), "呼号格式无效"),
+    ] {
+        assert_eq!(
+            hub.message("host", &json!({"type":"create","name":name})),
+            Err(error)
+        );
+        assert_eq!(
+            hub.message("guest", &json!({"type":"join","code":code,"name":name})),
+            Err(error)
+        );
+    }
+    assert_eq!(hub.rooms.len(), 1);
+    assert_eq!(hub.rooms[&code].members, ["host"]);
+    hub.message(
+        "guest",
+        &json!({"type":"join","code":code,"name":guest_name}),
+    )
+    .unwrap();
+    assert_eq!(hub.peers["guest"].human.name, guest_name);
+}
+
+#[test]
 fn joining_current_room_is_idempotent_even_when_full() {
     let mut hub = hub_with_peers(&["host", "guest"]);
     hub.message(

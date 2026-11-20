@@ -70,7 +70,7 @@
     <p class="muted" id="network-help"></p>
     <label>连接模式<select id="network-mode"><option value="lan">局域网联机</option><option value="public">公网联机</option></select></label>
     <label>房间服务器<input id="backend-address" placeholder="留空使用当前网站服务器" autocomplete="url" spellcheck="false"></label>
-    <label>呼号<input id="player-name" value="先锋" maxlength="18" autocomplete="nickname"></label>
+    <label>呼号 <small id="player-name-count" aria-hidden="true">2 / 20</small><input id="player-name" value="先锋" required autocomplete="nickname" spellcheck="false" aria-describedby="player-name-count"></label>
     <button id="create-room" class="primary wide">创建房间 <span>＋</span></button>
     <section class="room-browser" aria-labelledby="room-list-heading">
       <div class="room-browser-header"><h2 id="room-list-heading">房间列表</h2><button id="refresh-rooms" class="secondary" title="刷新房间列表" aria-label="刷新房间列表">↻</button></div>

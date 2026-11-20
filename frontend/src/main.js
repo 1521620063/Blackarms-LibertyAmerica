@@ -270,7 +270,7 @@ $('network-mode').onchange=()=>{updateConnectionMode();connectionChanged();};
 $('backend-address').oninput=()=>{clearRoomList('地址已更改');text('lan-message','');};
 $('backend-address').onchange=connectionChanged;
 $('refresh-rooms').onclick=()=>refreshRooms(true);
-$('room-list').onclick=e=>{const code=e.target.closest('button[data-room-code]')?.dataset.roomCode;if(code)roomAction({type:'join',code,name:$('player-name').value});};
+$('room-list').onclick=e=>{const code=e.target.closest('button[data-room-code]')?.dataset.roomCode;if(code)roomAction({type:'join',code});};
 $('lan-dialog').addEventListener('close',()=>{if(!$('lan-dialog').open)clearRoomList();});
 setInterval(refreshRooms,4000);
 function renderLobby(){
@@ -286,17 +286,31 @@ function leaveRoom(){
   lobby=null;show('lan-connect',true);show('lan-lobby',false);$('resume').disabled=false;
   if(listVisible())refreshRooms(true);
 }
-$('open-lan').onclick=()=>{show('lan-connect',!lobby);show('lan-lobby',!!lobby);text('lan-message','');$('lan-dialog').showModal();if(!lobby)refreshRooms(true);};
+const playerName=$('player-name'),playerNameLimit=20;
+function updatePlayerName(){
+  const value=playerName.value,count=[...value].length;
+  text('player-name-count',`${count} / ${playerNameLimit}`);
+  let error='';
+  if(!/[^ ]/.test(value))error='请输入呼号。';
+  else if(count>playerNameLimit)error=`呼号最多 ${playerNameLimit} 个字符。`;
+  else if(/[^\p{Alphabetic}\p{Number} ]|^ | $/u.test(value))error='呼号只能包含汉字、字母、数字和中间的空格。';
+  playerName.setCustomValidity(error);
+}
+playerName.addEventListener('input',updatePlayerName);
+$('open-lan').onclick=()=>{show('lan-connect',!lobby);show('lan-lobby',!!lobby);text('lan-message','');updatePlayerName();$('lan-dialog').showModal();if(!lobby)refreshRooms(true);};
 let roomActionPending=false;
 async function roomAction(message){
   if(roomActionPending)return;
+  updatePlayerName();
+  if(!playerName.reportValidity())return;
+  const name=playerName.value;
   roomActionPending=true;$('create-room').disabled=true;$('join-room').disabled=true;
   text('lan-message','');
-  try{const url=selectedRoomServer();await connect(url);if(listVisible()&&selectedRoomServer()===url)send(message);}catch(e){text('lan-message',e.message);}
+  try{const url=selectedRoomServer();await connect(url);if(listVisible()&&selectedRoomServer()===url)send({...message,name});}catch(e){text('lan-message',e.message);}
   finally{roomActionPending=false;$('create-room').disabled=false;$('join-room').disabled=false;}
 }
-$('create-room').onclick=()=>roomAction({type:'create',config:{...config},name:$('player-name').value});
-$('join-room').onclick=()=>roomAction({type:'join',code:$('room-code').value,name:$('player-name').value});
+$('create-room').onclick=()=>roomAction({type:'create',config:{...config}});
+$('join-room').onclick=()=>roomAction({type:'join',code:$('room-code').value});
 $('launch-room').onclick=()=>send({type:'start'});$('leave-room').onclick=leaveRoom;
 $('join-alpha').onclick=()=>send({type:'team',squad:0});$('join-bravo').onclick=()=>send({type:'team',squad:1});
 setInterval(()=>{if(socket?.readyState===WebSocket.OPEN)send({type:'ping',sent:performance.now()});},5000);

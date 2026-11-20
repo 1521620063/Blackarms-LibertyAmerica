@@ -188,6 +188,22 @@ impl Hub {
             return Ok(());
         }
         if kind == "create" || kind == "join" {
+            let name = match msg.get("name") {
+                None => "先锋",
+                Some(value) => value.as_str().ok_or("呼号格式无效")?,
+            };
+            if name.trim_matches(' ').is_empty() {
+                return Err("请输入呼号。");
+            }
+            if name.chars().take(21).count() > 20 {
+                return Err("呼号最多 20 个字符。");
+            }
+            if name.starts_with(' ')
+                || name.ends_with(' ')
+                || !name.chars().all(|c| c.is_alphanumeric() || c == ' ')
+            {
+                return Err("呼号只能包含汉字、字母、数字和中间的空格。");
+            }
             if kind == "create" && self.rooms.len() >= 100 {
                 return Err("房间数量已满");
             }
@@ -236,18 +252,7 @@ impl Hub {
             let count1 = room.members.len() - count0;
             let p = self.peers.get_mut(id).unwrap();
             p.code = Some(code.clone());
-            let name = msg["name"]
-                .as_str()
-                .unwrap_or("先锋")
-                .chars()
-                .filter(|c| *c != '<' && *c != '>' && !c.is_control())
-                .take(18)
-                .collect::<String>();
-            p.human.name = if name.is_empty() {
-                "先锋".into()
-            } else {
-                name
-            };
+            p.human.name = name.into();
             p.human.squad = room
                 .game
                 .as_ref()

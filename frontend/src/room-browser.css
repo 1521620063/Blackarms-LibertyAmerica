@@ -1,3 +1,8 @@
+#player-name-count{float:right;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:0}
+#player-name:invalid{border-color:var(--orange)}
+.lobby-player{gap:12px}
+.lobby-player span{overflow-wrap:anywhere}
+.lobby-player small{flex-shrink:0}
 .room-browser{border-top:1px solid var(--line);margin-top:20px;padding-top:14px}
 .room-browser-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .room-browser-header h2{margin:0;font-size:14px;font-weight:500}
