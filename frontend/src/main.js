@@ -307,9 +307,9 @@ function updatePlayerName(){
   const value=playerName.value,count=[...value].length;
   text('player-name-count',`${count} / ${playerNameLimit}`);
   let error='';
-  if(!/[^ ]/.test(value))error='请输入呼号。';
-  else if(count>playerNameLimit)error=`呼号最多 ${playerNameLimit} 个字符。`;
-  else if(/[^\p{Alphabetic}\p{Number} ]|^ | $/u.test(value))error='呼号只能包含汉字、字母、数字和中间的空格。';
+  if(!/[^ ]/.test(value))error='请输入昵称。';
+  else if(count>playerNameLimit)error=`昵称最多 ${playerNameLimit} 个字符。`;
+  else if(/[^\p{Alphabetic}\p{Number} ]|^ | $/u.test(value))error='昵称只能包含汉字、字母、数字和中间的空格。';
   playerName.setCustomValidity(error);
 }
 playerName.addEventListener('input',updatePlayerName);

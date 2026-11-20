@@ -41,12 +41,12 @@ fn room_names_accept_twenty_unicode_characters_on_create_and_join() {
     assert_eq!(hub.room_list()["rooms"][0]["hostName"], host_name);
 
     for (name, error) in [
-        (json!(format!("{host_name}9")), "呼号最多 20 个字符。"),
-        (json!(""), "请输入呼号。"),
-        (json!("   "), "请输入呼号。"),
-        (json!("队员!"), "呼号只能包含汉字、字母、数字和中间的空格。"),
-        (json!(" 队员"), "呼号只能包含汉字、字母、数字和中间的空格。"),
-        (json!(42), "呼号格式无效"),
+        (json!(format!("{host_name}9")), "昵称最多 20 个字符。"),
+        (json!(""), "请输入昵称。"),
+        (json!("   "), "请输入昵称。"),
+        (json!("队员!"), "昵称只能包含汉字、字母、数字和中间的空格。"),
+        (json!(" 队员"), "昵称只能包含汉字、字母、数字和中间的空格。"),
+        (json!(42), "昵称格式无效"),
     ] {
         assert_eq!(
             hub.message("host", &json!({"type":"create","name":name})),

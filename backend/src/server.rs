@@ -195,19 +195,19 @@ impl Hub {
         if kind == "create" || kind == "join" {
             let name = match msg.get("name") {
                 None => "先锋",
-                Some(value) => value.as_str().ok_or("呼号格式无效")?,
+                Some(value) => value.as_str().ok_or("昵称格式无效")?,
             };
             if name.trim_matches(' ').is_empty() {
-                return Err("请输入呼号。");
+                return Err("请输入昵称。");
             }
             if name.chars().take(21).count() > 20 {
-                return Err("呼号最多 20 个字符。");
+                return Err("昵称最多 20 个字符。");
             }
             if name.starts_with(' ')
                 || name.ends_with(' ')
                 || !name.chars().all(|c| c.is_alphanumeric() || c == ' ')
             {
-                return Err("呼号只能包含汉字、字母、数字和中间的空格。");
+                return Err("昵称只能包含汉字、字母、数字和中间的空格。");
             }
             if kind == "create" && self.rooms.len() >= 100 {
                 return Err("房间数量已满");
